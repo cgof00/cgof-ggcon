@@ -1,6 +1,8 @@
 export const onRequest: PagesFunction = async (context) => {
   const supabaseUrl = context.env.SUPABASE_URL;
-  const supabaseKey = context.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseServiceKey = context.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseAnonKey = context.env.SUPABASE_ANON_KEY;
+  const supabaseKey = supabaseServiceKey || supabaseAnonKey;
 
   return new Response(
     JSON.stringify({ 
@@ -8,7 +10,9 @@ export const onRequest: PagesFunction = async (context) => {
       timestamp: new Date().toISOString(),
       env: {
         SUPABASE_URL: supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : 'NOT SET',
-        SUPABASE_SERVICE_ROLE_KEY: supabaseKey ? supabaseKey.substring(0, 20) + '...' : 'NOT SET',
+        SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey ? 'configured' : 'NOT SET',
+        SUPABASE_ANON_KEY: supabaseAnonKey ? 'configured' : 'NOT SET',
+        using: supabaseServiceKey ? 'service_role' : 'anon',
       }
     }),
     {

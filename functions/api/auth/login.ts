@@ -77,11 +77,13 @@ export const onRequest: PagesFunction = async (context) => {
 
     // Get env vars
     const supabaseUrl = context.env.SUPABASE_URL;
-    const supabaseKey = context.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseKey = context.env.SUPABASE_SERVICE_ROLE_KEY || context.env.SUPABASE_ANON_KEY;
 
     console.log('📋 Environment:', {
       hasUrl: !!supabaseUrl,
       hasKey: !!supabaseKey,
+      useService: !!context.env.SUPABASE_SERVICE_ROLE_KEY,
+      useAnon: !!context.env.SUPABASE_ANON_KEY,
       urlFirst20: supabaseUrl?.substring(0, 20),
       keyFirst10: supabaseKey?.substring(0, 10),
     });

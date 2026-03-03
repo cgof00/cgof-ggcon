@@ -1,12 +1,16 @@
 export const onRequest: PagesFunction = async (context) => {
   const supabaseUrl = context.env.SUPABASE_URL;
-  const supabaseKey = context.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseServiceKey = context.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseAnonKey = context.env.SUPABASE_ANON_KEY;
+  const supabaseKey = supabaseServiceKey || supabaseAnonKey;
 
   const diagnostics: any = {
     timestamp: new Date().toISOString(),
     env: {
       hasUrl: !!supabaseUrl,
-      hasKey: !!supabaseKey,
+      hasServiceKey: !!supabaseServiceKey,
+      hasAnonKey: !!supabaseAnonKey,
+      usingKey: supabaseServiceKey ? 'service_role' : 'anon',
       urlLength: supabaseUrl?.length || 0,
       keyLength: supabaseKey?.length || 0,
       urlPrefix: supabaseUrl ? supabaseUrl.substring(0, 40) : 'NOT SET',
@@ -46,33 +50,24 @@ export const onRequest: PagesFunction = async (context) => {
         status: authResponse.status,
         statusText: authResponse.statusText,
         ok: authResponse.ok,
-        headers: Object.fromEntries(
-          Array.from(authResponse.headers.entries()).map(([k, v]) => [
-            k,
-            k.toLowerCase().includes('auth') || k.toLowerCase().includes('key') 
-              ? '***' 
-              : v
-          ])
-        ),
       };
 
       if (!authResponse.ok) {
         const errorText = await authResponse.text();
         diagnostics.error = errorText;
-        diagnostics.errorLength = errorText.length;
         
-        // Try to parse as JSON
         try {
           diagnostics.errorJson = JSON.parse(errorText);
         } catch {
           diagnostics.errorRaw = errorText.substring(0, 500);
         }
+      } else {
+        diagnostics.success = '✅ Supabase API responding correctly!';
       }
 
-      // Test 3: Try to query with specific format
+      // Test 3: Try to query table
       console.log('Testing usuarios table...');
-      const queryUrl = `${supabaseUrl}/rest/v1/usuarios?select=id,email`;
-      console.log('Query URL:', queryUrl);
+      const queryUrl = `${supabaseUrl}/rest/v1/usuarios?select=id,email&limit=1`;
       
       const tableResponse = await fetch(queryUrl, {
         method: 'GET',
@@ -80,7 +75,6 @@ export const onRequest: PagesFunction = async (context) => {
           'Authorization': `Bearer ${supabaseKey}`,
           'apikey': supabaseKey,
           'Content-Type': 'application/json',
-          'Prefer': 'return=representation',
         },
       });
 
@@ -89,13 +83,14 @@ export const onRequest: PagesFunction = async (context) => {
         ok: tableResponse.ok,
       };
 
-      if (!tableResponse.ok) {
+      if (tableResponse.ok) {
+        diagnostics.tableData = await tableResponse.json();
+      } else {
         const text = await tableResponse.text();
         diagnostics.tableError = text.substring(0, 300);
       }
     } catch (error) {
       diagnostics.fetchError = error instanceof Error ? error.message : String(error);
-      diagnostics.fetchStack = error instanceof Error ? error.stack?.substring(0, 300) : undefined;
     }
   }
 
