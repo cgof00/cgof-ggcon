@@ -1,0 +1,44 @@
+CLOUDFLARE PAGES - CONFIGURAÇÃO DE VARIÁVEIS DE AMBIENTE
+========================================================
+
+⚠️  IMPORTANTE: Seu login está falhando porque as variáveis de ambiente não estão configuradas no Cloudflare Pages!
+
+SIGA ESTES PASSOS:
+
+1. Acesse o Cloudflare Dashboard
+   URL: https://dash.cloudflare.com
+   
+2. Vá para: Pages → controleFibFormalizacaoCGOF (seu projeto)
+
+3. Clique em "Settings" (ou "Configurações")
+
+4. Procure por "Environment variables" (Variáveis de Ambiente)
+
+5. **Você já tem as chaves! Adicione exatamente como abaixo:**
+
+   VARIÁVEL 1:
+   - Variable name: SUPABASE_URL
+   - Value: https://dvziqqcgjuidtkhoeqdc.supabase.co
+   - Environment: Production
+   
+   VARIÁVEL 2:
+   - Variable name: SUPABASE_SERVICE_ROLE_KEY
+   - Value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtpaG9lcWRjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjExNjQwMSwiZXhwIjoyMDg3NjkyNDAxfQ.bAgun92X0530xUXg_Wa5hrCAkLL-P8O44usT8o2_Mr8
+   - Environment: Production
+
+6. Clique em "Save" / "Salvar" na parte superior direita
+
+7. **Aguarde 1-2 minutos** para o deploy atualizar
+
+8. Tente fazer login novamente!
+
+---
+
+💡 DICA: Se ainda não funcionar, tente:
+- Limpar cache do navegador (Ctrl+Shift+Delete)
+- Tentar em uma aba anônima/privada
+- Verificar se a senha está correta no banco de dados Supabase
+
+❌ Se receber "Email ou senha incorretos":
+- Verifique o email cadastrado em: https://app.supabase.com/project/dvziqqcgjuidtkhoeqdc/editor/
+- Todos os usuários devem estar na tabela "usuarios"
