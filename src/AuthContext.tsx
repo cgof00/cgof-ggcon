@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
 interface User {
   id: number;
@@ -19,6 +20,12 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Configurações exatas do Supabase
+const supabaseUrl = 'https://dvziqqcgjuidtkhoeqdc.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtpaG9lcWRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTY0MDEsImV4cCI6MjA4NzY5MjQwMX0.Ck6FSoE-Ol1Te8dZ9qc4T9gGLKXukR-JsN3oK0M3iWE';
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Helper para hash de senha (mesmo algoritmo usada no banco)
 function hashPassword(password: string): string {
@@ -57,37 +64,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🔐 Iniciando login para:', email);
       
-      // Buscar usuário via proxy
-      const emailEncoded = encodeURIComponent(email.toLowerCase());
-      const queryUrl = `/api/supabase/rest/v1/usuarios?select=*&email=eq.${emailEncoded}`;
-      
-      console.log('🌐 Consultando usuário...', queryUrl);
-      
-      const response = await fetch(queryUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // Buscar usuário usando Supabase SDK
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('*')
+        .eq('email', email.toLowerCase())
+        .limit(1);
 
-      if (!response.ok) {
-        console.error('❌ Erro na busca:', response.status, response.statusText);
+      if (error) {
+        console.error('❌ Erro na busca:', error);
         throw new Error('Email ou senha incorretos');
       }
 
-      const usuarios = await response.json();
-      
-      if (!Array.isArray(usuarios) || usuarios.length === 0) {
+      if (!data || data.length === 0) {
         console.error('❌ Usuário não encontrado');
         throw new Error('Email ou senha incorretos');
       }
 
-      const data = usuarios[0];
-      console.log('✅ Usuário encontrado:', data.id);
+      const user = data[0];
+      console.log('✅ Usuário encontrado:', user.id);
 
       // Verificar senha
       const hashedPassword = hashPassword(senha);
-      if (hashedPassword !== data.senha) {
+      if (hashedPassword !== user.senha) {
         console.error('❌ Senha incorreta');
         throw new Error('Email ou senha incorretos');
       }
@@ -96,38 +95,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Gerar token simples (JWT em base64)
       const tokenPayload = {
-        id: data.id,
-        email: data.email,
-        role: data.role,
+        id: user.id,
+        email: user.email,
+        role: user.role,
         iat: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 horas
       };
       const token = btoa(JSON.stringify(tokenPayload));
 
       // Atualizar última sessão no banco (non-blocking)
-      fetch(`/api/supabase/rest/v1/usuarios?id=eq.${data.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ultima_sessao: new Date().toISOString() }),
-      }).catch(err => console.error('⚠️ Erro ao atualizar última sessão:', err));
+      supabase
+        .from('usuarios')
+        .update({ ultima_sessao: new Date().toISOString() })
+        .eq('id', user.id)
+        .then(() => console.log('✅ Última sessão atualizada'))
+        .catch(err => console.error('⚠️ Erro ao atualizar última sessão:', err));
 
       // Salvar token e usuário
       localStorage.setItem('auth_token', token);
       localStorage.setItem('auth_user', JSON.stringify({
-        id: data.id,
-        email: data.email,
-        nome: data.nome,
-        role: data.role,
+        id: user.id,
+        email: user.email,
+        nome: user.nome,
+        role: user.role,
       }));
 
       setToken(token);
       setUser({
-        id: data.id,
-        email: data.email,
-        nome: data.nome,
-        role: data.role,
+        id: user.id,
+        email: user.email,
+        nome: user.nome,
+        role: user.role,
       });
 
       console.log('✅ Login bem-sucedido para:', email);
