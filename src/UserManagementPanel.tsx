@@ -1,0 +1,736 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Users, Plus, Trash2, Shield, UserCheck, AlertCircle, Copy, CheckCircle, X, Key, Lock } from 'lucide-react';
+import { useAuth } from './AuthContext';
+
+interface Usuario {
+  id: number;
+  email: string;
+  nome: string;
+  role: 'admin' | 'usuario';
+  ativo: boolean;
+  created_at: string;
+}
+
+interface UserManagementPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProps) {
+  const { user } = useAuth();
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({ email: '', nome: '', role: 'usuario' as 'admin' | 'usuario', senha: '' });
+  const [successMessage, setSuccessMessage] = useState('');
+  const [senhaTemporaria, setSenhaTemporaria] = useState('');
+  const [copiado, setCopiado] = useState(false);
+  const [showSenhaModal, setShowSenhaModal] = useState(false);
+  const [usuarioSelecionado, setUsuarioSelecionado] = useState<Usuario | null>(null);
+  const [novaSenha, setNovaSenha] = useState('');
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [usuarioParaDeletar, setUsuarioParaDeletar] = useState<Usuario | null>(null);
+  const [senhaParaDeletar, setSenhaParaDeletar] = useState('');
+
+  // Apenas admins podem acessar esse painel
+  if (user?.role !== 'admin') {
+    return null;
+  }
+
+  const carregarUsuarios = async () => {
+    try {
+      setCarregando(true);
+      setErro('');
+      const token = localStorage.getItem('auth_token');
+      
+      if (!token) {
+        const errorMsg = 'Token não encontrado. Faça login novamente.';
+        setErro(errorMsg);
+        return;
+      }
+      const response = await fetch('/api/usuarios', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      setUsuarios(data);
+    } catch (err: any) {
+      const errorMsg = err.message || 'Erro ao carregar usuários';
+      setErro(errorMsg);
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      carregarUsuarios();
+    }
+  }, [isOpen]);
+
+  const handleCriarUsuario = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro('');
+    setSuccessMessage('');
+    setSenhaTemporaria('');
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      
+      if (!token) {
+        const errorMsg = 'Token não encontrado. Faça login novamente.';
+        setErro(errorMsg);
+        return;
+      }
+
+      const response = await fetch('/api/admin/usuarios', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Erro HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      setSenhaTemporaria(data.senhaTemporaria);
+      setSuccessMessage(`Usuário criado com sucesso! Senha temporária: ${data.senhaTemporaria}`);
+      setFormData({ email: '', nome: '', role: 'usuario', senha: '' });
+      
+      // Recarregar lista
+      setTimeout(() => {
+        carregarUsuarios();
+        setShowModal(false);
+      }, 2000);
+    } catch (err: any) {
+      const errorMsg = err.message || 'Erro ao criar usuário';
+      setErro(errorMsg);
+    }
+  };
+
+  const handleToggleAtivo = async (id: number, novoStatus: boolean) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        const msg = 'Token não encontrado. Faça login novamente.';
+        setErro(msg);
+        return;
+      }
+
+      const response = await fetch(`/api/usuarios/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ativo: novoStatus })
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao atualizar usuário');
+      }
+
+      carregarUsuarios();
+    } catch (err: any) {
+      const msg = err.message || 'Erro ao atualizar usuário';
+      setErro(msg);
+    }
+  };
+
+  const handleDeletarUsuario = async (id: number) => {
+    const usuarioADeletar = usuarios.find(u => u.id === id);
+    if (!usuarioADeletar) return;
+    
+    setUsuarioParaDeletar(usuarioADeletar);
+    setSenhaParaDeletar('');
+    setErro('');
+    setSuccessMessage('');
+    setShowDeleteConfirmModal(true);
+  };
+
+  const confirmarDeletarUsuario = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro('');
+    setSuccessMessage('');
+
+    if (!usuarioParaDeletar) {
+      const msg = 'Usuário não selecionado';
+      setErro(msg);
+      return;
+    }
+
+    if (!senhaParaDeletar) {
+      const msg = 'Senha é obrigatória';
+      setErro(msg);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        const msg = 'Token não encontrado. Faça login novamente.';
+        setErro(msg);
+        return;
+      }
+
+      const response = await fetch(`/api/admin/usuarios/${usuarioParaDeletar.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ senha: senhaParaDeletar })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao deletar usuário');
+      }
+
+      setErro('');
+      setSuccessMessage('Usuário deletado com sucesso');
+      setSenhaParaDeletar('');
+      setTimeout(() => {
+        setShowDeleteConfirmModal(false);
+        setUsuarioParaDeletar(null);
+        carregarUsuarios();
+      }, 1500);
+    } catch (err: any) {
+      const msg = err.message || 'Erro ao deletar usuário';
+      setErro(msg);
+    }
+  };
+
+  const handleAlterarSenha = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro('');
+    setSuccessMessage('');
+
+    if (!usuarioSelecionado) {
+      const msg = 'Usuário não selecionado';
+      setErro(msg);
+      return;
+    }
+
+    if (!novaSenha || novaSenha.trim().length < 6) {
+      const msg = 'Senha deve ter no mínimo 6 caracteres';
+      setErro(msg);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        const msg = 'Token não encontrado. Faça login novamente.';
+        setErro(msg);
+        return;
+      }
+
+      const response = await fetch(`/api/admin/usuarios/${usuarioSelecionado.id}/senha`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ senha: novaSenha })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao alterar senha');
+      }
+
+      setSuccessMessage(`Senha alterada com sucesso para ${usuarioSelecionado.email}`);
+      setNovaSenha('');
+      setTimeout(() => {
+        setShowSenhaModal(false);
+      }, 2000);
+    } catch (err: any) {
+      const msg = err.message || 'Erro ao alterar senha';
+      setErro(msg);
+    }
+  };
+
+  const copiarSenha = () => {
+    navigator.clipboard.writeText(senhaTemporaria);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/40 z-40"
+          />
+          <motion.div
+            initial={{ opacity: 0, x: 400 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 400 }}
+            className="fixed right-0 top-0 h-full w-96 bg-white shadow-2xl z-50 overflow-y-auto flex flex-col"
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-slate-200 p-6 flex justify-between items-center sticky top-0">
+              <div className="flex items-center gap-3">
+                <div className="bg-indigo-600 p-2 rounded-lg">
+                  <Users className="text-white w-5 h-5" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900">Gerenciar Usuários</h2>
+              </div>
+              <button
+                onClick={onClose}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 p-6 space-y-4">
+              <button
+                onClick={() => {
+                  setShowModal(true);
+                }}
+                className="w-full flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg hover:bg-indigo-700 transition-colors font-bold"
+              >
+                <Plus className="w-5 h-5" />
+                Novo Usuário
+              </button>
+
+              {erro && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3"
+                >
+                  <AlertCircle className="text-red-600 w-5 h-5" />
+                  <p className="text-red-700 text-sm">{erro}</p>
+                </motion.div>
+              )}
+
+              {carregando ? (
+                <div className="text-center py-8">
+                  <p className="text-slate-500">Carregando usuários...</p>
+                </div>
+              ) : usuarios.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-slate-500">Nenhum usuário encontrado</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {usuarios.map((u) => (
+                    <div key={u.id} className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="font-bold text-slate-900">{u.nome}</p>
+                          <p className="text-xs text-slate-600">{u.email}</p>
+                        </div>
+                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                          u.ativo 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-red-100 text-red-700'
+                        }`}>
+                          {u.ativo ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mb-3">
+                        {u.role === 'admin' ? (
+                          <>
+                            <Shield className="w-4 h-4 text-orange-600" />
+                            <span className="text-xs font-medium text-orange-600">Administrador</span>
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="w-4 h-4 text-blue-600" />
+                            <span className="text-xs font-medium text-blue-600">Padrão</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => handleToggleAtivo(u.id, !u.ativo)}
+                          className={`flex-1 text-xs font-bold py-1.5 px-2 rounded transition-colors ${
+                            u.ativo
+                              ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          }`}
+                        >
+                          {u.ativo ? 'Desativar' : 'Ativar'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setUsuarioSelecionado(u);
+                            setNovaSenha('');
+                            setErro('');
+                            setSuccessMessage('');
+                            setShowSenhaModal(true);
+                          }}
+                          className="flex-1 text-xs font-bold py-1.5 px-2 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors flex items-center justify-center gap-1"
+                        >
+                          <Key className="w-3 h-3" />
+                          Senha
+                        </button>
+                        <button
+                          onClick={() => handleDeletarUsuario(u.id)}
+                          className="flex-1 text-xs font-bold py-1.5 px-2 rounded bg-red-100 text-red-700 hover:bg-red-200 transition-colors flex items-center justify-center gap-1"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Deletar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal de Criar Usuário */}
+            <AnimatePresence>
+              {showModal && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowModal(false)}
+                    className="fixed inset-0 bg-black/40 z-40"
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="fixed inset-0 flex items-center justify-center z-50 p-4"
+                  >
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+                      <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-xl font-bold text-slate-900">Criar Novo Usuário</h3>
+                        <button
+                          onClick={() => setShowModal(false)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="w-6 h-6" />
+                        </button>
+                      </div>
+
+                      {successMessage && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4"
+                        >
+                          <div className="flex items-start gap-3">
+                            <CheckCircle className="text-green-600 w-5 h-5 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-green-700 text-sm font-semibold">Sucesso!</p>
+                              <p className="text-green-600 text-xs mt-1">{successMessage}</p>
+                              <button
+                                onClick={copiarSenha}
+                                className={`mt-2 flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                                  copiado
+                                    ? 'bg-green-200 text-green-800'
+                                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                }`}
+                              >
+                                {copiado ? (
+                                  <>
+                                    <CheckCircle className="w-4 h-4" />
+                                    Copiado!
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-4 h-4" />
+                                    Copiar senha
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {erro && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-center gap-3"
+                        >
+                          <AlertCircle className="text-red-600 w-5 h-5" />
+                          <p className="text-red-700 text-sm">{erro}</p>
+                        </motion.div>
+                      )}
+
+                      <form onSubmit={handleCriarUsuario} className="space-y-4">
+                        <div>
+                          <label className="text-sm font-bold text-slate-700 ml-1">Nome</label>
+                          <input
+                            type="text"
+                            value={formData.nome}
+                            onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                            className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                            placeholder="Nome completo"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-sm font-bold text-slate-700 ml-1">Email</label>
+                          <input
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                            placeholder="email@example.com"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-sm font-bold text-slate-700 ml-1">Papel</label>
+                          <select
+                            value={formData.role}
+                            onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'usuario' })}
+                            className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                          >
+                            <option value="usuario">Usuário Padrão</option>
+                            <option value="admin">Administrador</option>
+                          </select>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-lg hover:bg-indigo-700 transition-colors mt-6"
+                        >
+                          Criar Usuário
+                        </button>
+                      </form>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+
+            {/* Modal de Alterar Senha */}
+            <AnimatePresence>
+              {showSenhaModal && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowSenhaModal(false)}
+                    className="fixed inset-0 bg-black/40 z-40"
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="fixed inset-0 flex items-center justify-center z-50 p-4"
+                  >
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+                      <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-blue-600 p-2 rounded-lg">
+                            <Lock className="text-white w-5 h-5" />
+                          </div>
+                          <h3 className="text-xl font-bold text-slate-900">Alterar Senha</h3>
+                        </div>
+                        <button
+                          onClick={() => setShowSenhaModal(false)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="w-6 h-6" />
+                        </button>
+                      </div>
+
+                      {usuarioSelecionado && (
+                        <p className="text-sm text-slate-600 mb-4">
+                          Usuário: <span className="font-bold">{usuarioSelecionado.email}</span>
+                        </p>
+                      )}
+
+                      {successMessage && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4"
+                        >
+                          <div className="flex items-start gap-3">
+                            <CheckCircle className="text-green-600 w-5 h-5 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="text-green-700 text-sm font-semibold">Sucesso!</p>
+                              <p className="text-green-600 text-xs mt-1">{successMessage}</p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {erro && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-center gap-3"
+                        >
+                          <AlertCircle className="text-red-600 w-5 h-5" />
+                          <p className="text-red-700 text-sm">{erro}</p>
+                        </motion.div>
+                      )}
+
+                      <form onSubmit={handleAlterarSenha} className="space-y-4">
+                        <div>
+                          <label className="text-sm font-bold text-slate-700 ml-1">Nova Senha</label>
+                          <input
+                            type="password"
+                            value={novaSenha}
+                            onChange={(e) => setNovaSenha(e.target.value)}
+                            className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                            placeholder="Mínimo 6 caracteres"
+                            required
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full bg-blue-600 text-white font-bold py-2.5 rounded-lg hover:bg-blue-700 transition-colors mt-6"
+                        >
+                          Alterar Senha
+                        </button>
+                      </form>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+
+            {/* Modal de Confirmar Deletar Usuário */}
+            <AnimatePresence>
+              {showDeleteConfirmModal && usuarioParaDeletar && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowDeleteConfirmModal(false)}
+                    className="fixed inset-0 bg-black/40 z-40"
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="fixed inset-0 flex items-center justify-center z-50 p-4"
+                  >
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+                      <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-red-600 p-2 rounded-lg">
+                            <AlertCircle className="text-white w-5 h-5" />
+                          </div>
+                          <h3 className="text-xl font-bold text-slate-900">Deletar Usuário</h3>
+                        </div>
+                        <button
+                          onClick={() => setShowDeleteConfirmModal(false)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="w-6 h-6" />
+                        </button>
+                      </div>
+
+                      <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-sm text-red-700">
+                          <strong>Usuário:</strong> {usuarioParaDeletar.email}
+                        </p>
+                        <p className="text-xs text-red-600 mt-2">
+                          Esta ação irá desativar este usuário permanentemente. Digite sua senha para confirmar.
+                        </p>
+                      </div>
+
+                      {successMessage && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4"
+                        >
+                          <div className="flex items-start gap-3">
+                            <CheckCircle className="text-green-600 w-5 h-5 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-green-700 text-sm font-semibold">Sucesso!</p>
+                              <p className="text-green-600 text-xs mt-1">{successMessage}</p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {erro && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-center gap-3"
+                        >
+                          <AlertCircle className="text-red-600 w-5 h-5" />
+                          <p className="text-red-700 text-sm">{erro}</p>
+                        </motion.div>
+                      )}
+
+                      <form onSubmit={confirmarDeletarUsuario} className="space-y-4">
+                        <div>
+                          <label className="text-sm font-bold text-slate-700 ml-1">Sua Senha</label>
+                          <input
+                            type="password"
+                            value={senhaParaDeletar}
+                            onChange={(e) => setSenhaParaDeletar(e.target.value)}
+                            className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
+                            placeholder="Digite sua senha para confirmar"
+                            required
+                            autoFocus
+                          />
+                          <p className="text-xs text-slate-500 mt-1">
+                            Digite sua senha de admin para confirmar a exclusão
+                          </p>
+                        </div>
+
+                        <div className="flex gap-3 pt-4">
+                          <button
+                            type="button"
+                            onClick={() => setShowDeleteConfirmModal(false)}
+                            className="flex-1 bg-slate-200 text-slate-700 font-bold py-2.5 rounded-lg hover:bg-slate-300 transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="submit"
+                            className="flex-1 bg-red-600 text-white font-bold py-2.5 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Deletar
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
