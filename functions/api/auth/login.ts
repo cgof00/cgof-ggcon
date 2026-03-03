@@ -1,217 +1,132 @@
-// Hash password helper
-function hashPassword(password: string): string {
-  let hash = 0;
-  const salt = 'salt';
-  const combined = password + salt;
-  for (let i = 0; i < combined.length; i++) {
-    const char = combined.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(16);
-}
-
-// Generate token
-function generateToken(id: number, email: string, role: string): string {
-  const payload = {
-    id,
-    email,
-    role,
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
-  };
-  
-  try {
-    if (typeof Buffer !== 'undefined') {
-      return Buffer.from(JSON.stringify(payload)).toString('base64');
-    } else {
-      return btoa(JSON.stringify(payload));
-    }
-  } catch (e) {
-    console.error('Token generation error:', e);
-    throw new Error('Failed to generate token');
-  }
-}
-
 export const onRequest: PagesFunction = async (context) => {
   const { request } = context;
+  const url = new URL(request.url);
 
-  // Handle CORS
+  // POST /api/auth/login
+  if (request.method === 'POST' && url.pathname === '/api/auth/login') {
+    try {
+      const { email, senha } = await request.json();
+
+      if (!email || !senha) {
+        return new Response(JSON.stringify({ error: 'Email e senha são obrigatórios' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      const SUPABASE_URL = 'https://dvziqqcgjuidtkhoeqdc.supabase.co';
+      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTY0MDEsImV4cCI6MjA4NzY5MjQwMX0.Ck6FSoE-Ol1Te8dZ9qc4T9gGLKXukR-JsN3oK0M3iWE';
+
+      // Helper para hash de senha
+      function hashPassword(password: string): string {
+        let hash = 0;
+        const salt = 'salt';
+        const combined = password + salt;
+        for (let i = 0; i < combined.length; i++) {
+          const char = combined.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        return Math.abs(hash).toString(16);
+      }
+
+      // Buscar usuário
+      const emailEncoded = encodeURIComponent(email.toLowerCase());
+      const queryUrl = `${SUPABASE_URL}/rest/v1/usuarios?select=*&email=eq.${emailEncoded}`;
+
+      console.log('🔍 Buscando usuário:', email);
+
+      const response = await fetch(queryUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.error('❌ Erro Supabase:', response.status);
+        return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      const usuarios = await response.json();
+
+      if (!Array.isArray(usuarios) || usuarios.length === 0) {
+        console.error('❌ Usuário não encontrado');
+        return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      const user = usuarios[0];
+      console.log('✅ Usuário encontrado:', user.id);
+
+      // Verificar senha
+      const hashedPassword = hashPassword(senha);
+      if (hashedPassword !== user.senha_hash) {
+        console.log('❌ Senha incorreta');
+        return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Gerar token
+      const token = btoa(
+        JSON.stringify({
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          iat: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
+        })
+      );
+
+      console.log('✅ Login sucesso:', email);
+
+      return new Response(
+        JSON.stringify({
+          token,
+          user: {
+            id: user.id,
+            email: user.email,
+            nome: user.nome,
+            role: user.role,
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      );
+    } catch (error) {
+      console.error('❌ Erro:', error);
+      return new Response(JSON.stringify({ error: 'Erro ao fazer login' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
+  // OPTIONS
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       },
     });
   }
 
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  try {
-    console.log('=== LOGIN HANDLER START ===');
-
-    // Parse body
-    let body;
-    try {
-      body = await request.json();
-      console.log('✅ Body parsed:', { email: body.email ? 'provided' : 'missing', senha: body.senha ? 'provided' : 'missing' });
-    } catch (e) {
-      console.error('❌ JSON parse error:', e);
-      return sendError(400, 'JSON inválido');
-    }
-
-    const { email, senha } = body;
-
-    if (!email || !senha) {
-      console.error('❌ Missing email or password');
-      return sendError(400, 'Email e senha são obrigatórios');
-    }
-
-    // Get env vars - prioritize ANON key (less restrictive from Cloudflare Workers)
-    const supabaseUrl = context.env.SUPABASE_URL;
-    const supabaseKey = context.env.SUPABASE_ANON_KEY || context.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    console.log('📋 Environment:', {
-      hasUrl: !!supabaseUrl,
-      hasKey: !!supabaseKey,
-      useService: !!context.env.SUPABASE_SERVICE_ROLE_KEY,
-      useAnon: !!context.env.SUPABASE_ANON_KEY,
-      urlFirst20: supabaseUrl?.substring(0, 20),
-      keyFirst10: supabaseKey?.substring(0, 10),
-    });
-
-    if (!supabaseUrl || !supabaseKey) {
-      console.error('❌ Missing Supabase config');
-      return sendError(500, 'Configuração incompleta');
-    }
-
-    // Build query URL
-    const emailEncoded = encodeURIComponent(email.toLowerCase());
-    const queryUrl = `${supabaseUrl}/rest/v1/usuarios?email=eq.${emailEncoded}&select=*`;
-    
-    console.log('🔍 Querying:', queryUrl.substring(0, 100) + '...');
-
-    // Query Supabase
-    let response;
-    try {
-      response = await fetch(queryUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      console.log('✅ Fetch completed, status:', response.status);
-    } catch (e) {
-      console.error('❌ Fetch error:', e);
-      return sendError(500, `Fetch failed: ${e instanceof Error ? e.message : String(e)}`);
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ API error:', response.status, errorText);
-      return sendError(500, `API Error ${response.status}`);
-    }
-
-    let usuarios;
-    try {
-      usuarios = await response.json();
-      console.log('✅ Response parsed, users found:', Array.isArray(usuarios) ? usuarios.length : 0);
-    } catch (e) {
-      console.error('❌ JSON parse response error:', e);
-      return sendError(500, 'Invalid response from API');
-    }
-
-    if (!Array.isArray(usuarios) || usuarios.length === 0) {
-      console.warn('⚠️ No user found for email:', email);
-      return sendError(401, 'Email ou senha incorretos');
-    }
-
-    const user = usuarios[0];
-    console.log('✅ User found:', { id: user.id, email: user.email });
-
-    // Check password
-    const hashedInput = hashPassword(senha);
-    const isValid = hashedInput === user.senha;
-    
-    console.log('🔐 Password check:', {
-      inputHash: hashedInput.substring(0, 8),
-      storedHash: user.senha.substring(0, 8),
-      match: isValid,
-    });
-
-    if (!isValid) {
-      console.warn('⚠️ Invalid password for:', email);
-      return sendError(401, 'Email ou senha incorretos');
-    }
-
-    // Generate token
-    let token;
-    try {
-      token = generateToken(user.id, user.email, user.role);
-      console.log('✅ Token generated');
-    } catch (e) {
-      console.error('❌ Token generation failed:', e);
-      return sendError(500, 'Failed to generate token');
-    }
-
-    // Update last login (non-blocking)
-    const updateUrl = `${supabaseUrl}/rest/v1/usuarios?id=eq.${user.id}`;
-    fetch(updateUrl, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ ultima_sessao: new Date().toISOString() }),
-    }).catch(err => console.error('⚠️ Last login update failed:', err));
-
-    console.log('✅ Login successful for:', email);
-    console.log('=== LOGIN HANDLER END ===');
-
-    return new Response(
-      JSON.stringify({
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          nome: user.nome,
-          role: user.role,
-        },
-      }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      }
-    );
-  } catch (error) {
-    console.error('❌ UNCAUGHT ERROR:', error);
-    return sendError(500, `Unexpected: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  return new Response('Not found', { status: 404 });
 };
-
-function sendError(status: number, message: string) {
-  return new Response(
-    JSON.stringify({ error: message }),
-    {
-      status,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-    }
-  );
-}
-
-
