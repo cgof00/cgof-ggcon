@@ -2,6 +2,65 @@ export const onRequest: PagesFunction = async (context) => {
   const { request } = context;
   const url = new URL(request.url);
 
+  // DEBUG: GET /api/auth/debug - Ver estado do usuário
+  if (request.method === 'GET' && url.pathname === '/api/auth/debug') {
+    try {
+      const email = url.searchParams.get('email') || 'afpereira@saude.sp.gov.br';
+      
+      const SUPABASE_URL = 'https://dvziqqcgjuidtkhoeqdc.supabase.co';
+      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTY0MDEsImV4cCI6MjA4NzY5MjQwMX0.Ck6FSoE-Ol1Te8dZ9qc4T9gGLKXukR-JsN3oK0M3iWE';
+
+      const emailEncoded = encodeURIComponent(email.toLowerCase());
+      const queryUrl = `${SUPABASE_URL}/rest/v1/usuarios?select=*&email=eq.${emailEncoded}`;
+
+      const response = await fetch(queryUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const usuarios = await response.json();
+
+      if (Array.isArray(usuarios) && usuarios.length > 0) {
+        const user = usuarios[0];
+        return new Response(
+          JSON.stringify({
+            found: true,
+            id: user.id,
+            email: user.email,
+            nome: user.nome,
+            role: user.role,
+            ativo: user.ativo,
+            senha_hash: user.senha_hash,
+          }, null, 2),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({ found: false, email }),
+          {
+            status: 404,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+      }
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ error: String(error) }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+  }
+
   // POST /api/auth/login
   if (request.method === 'POST' && url.pathname === '/api/auth/login') {
     try {
@@ -34,7 +93,9 @@ export const onRequest: PagesFunction = async (context) => {
       const emailEncoded = encodeURIComponent(email.toLowerCase());
       const queryUrl = `${SUPABASE_URL}/rest/v1/usuarios?select=*&email=eq.${emailEncoded}`;
 
-      console.log('🔍 Buscando usuário:', email);
+      console.log('� POST /api/auth/login');
+      console.log('  Email:', email);
+      console.log('  Senha:', senha);
 
       const response = await fetch(queryUrl, {
         method: 'GET',
