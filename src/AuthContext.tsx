@@ -20,10 +20,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Configurações
-const SUPABASE_URL = 'https://dvziqqcgjuidtkhoeqdc.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTY0MDEsImV4cCI6MjA4NzY5MjQwMX0.Ck6FSoE-Ol1Te8dZ9qc4T9gGLKXukR-JsN3oK0M3iWE';
-
 // Helper para hash de senha
 function hashPassword(password: string): string {
   let hash = 0;
@@ -61,17 +57,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🔐 Iniciando login para:', email);
       
-      // Fazer requisição REST direto ao Supabase
+      // Usar proxy via Cloudflare
       const emailEncoded = encodeURIComponent(email.toLowerCase());
-      const url = `${SUPABASE_URL}/rest/v1/usuarios?select=*&email=eq.${emailEncoded}`;
+      const path = `/rest/v1/usuarios?select=*&email=eq.${emailEncoded}`;
+      const url = `/api/proxy?path=${encodeURIComponent(path)}`;
       
-      console.log('🌐 URL:', url);
+      console.log('🌐 URL proxy:', url);
       
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'apikey': SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
         },
       });
@@ -115,11 +110,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const newToken = btoa(JSON.stringify(tokenPayload));
 
       // Atualizar última sessão no banco (non-blocking)
-      fetch(`${SUPABASE_URL}/rest/v1/usuarios?id=eq.${userData.id}`, {
+      fetch(`/api/proxy?path=${encodeURIComponent(`/rest/v1/usuarios?id=eq.${userData.id}`)}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'apikey': SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ ultima_sessao: new Date().toISOString() }),
