@@ -2,7 +2,7 @@ export const onRequest: PagesFunction = async (context) => {
   const supabaseUrl = context.env.SUPABASE_URL;
   const supabaseServiceKey = context.env.SUPABASE_SERVICE_ROLE_KEY;
   const supabaseAnonKey = context.env.SUPABASE_ANON_KEY;
-  const supabaseKey = supabaseServiceKey || supabaseAnonKey;
+  const supabaseKey = supabaseAnonKey || supabaseServiceKey; // Prioritize ANON key
 
   const diagnostics: any = {
     timestamp: new Date().toISOString(),
@@ -10,7 +10,7 @@ export const onRequest: PagesFunction = async (context) => {
       hasUrl: !!supabaseUrl,
       hasServiceKey: !!supabaseServiceKey,
       hasAnonKey: !!supabaseAnonKey,
-      usingKey: supabaseServiceKey ? 'service_role' : 'anon',
+      usingKey: supabaseAnonKey ? 'anon' : 'service_role', // Show which is being used
       urlLength: supabaseUrl?.length || 0,
       keyLength: supabaseKey?.length || 0,
       urlPrefix: supabaseUrl ? supabaseUrl.substring(0, 40) : 'NOT SET',
@@ -41,7 +41,6 @@ export const onRequest: PagesFunction = async (context) => {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
           'Content-Type': 'application/json',
         },
       });
@@ -73,7 +72,6 @@ export const onRequest: PagesFunction = async (context) => {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
           'Content-Type': 'application/json',
         },
       });

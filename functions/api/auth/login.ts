@@ -75,9 +75,9 @@ export const onRequest: PagesFunction = async (context) => {
       return sendError(400, 'Email e senha são obrigatórios');
     }
 
-    // Get env vars
+    // Get env vars - prioritize ANON key (less restrictive from Cloudflare Workers)
     const supabaseUrl = context.env.SUPABASE_URL;
-    const supabaseKey = context.env.SUPABASE_SERVICE_ROLE_KEY || context.env.SUPABASE_ANON_KEY;
+    const supabaseKey = context.env.SUPABASE_ANON_KEY || context.env.SUPABASE_SERVICE_ROLE_KEY;
 
     console.log('📋 Environment:', {
       hasUrl: !!supabaseUrl,
@@ -106,7 +106,6 @@ export const onRequest: PagesFunction = async (context) => {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
           'Content-Type': 'application/json',
         },
       });
@@ -170,7 +169,6 @@ export const onRequest: PagesFunction = async (context) => {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ ultima_sessao: new Date().toISOString() }),

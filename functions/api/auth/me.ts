@@ -63,9 +63,9 @@ export const onRequest: PagesFunction = async (context) => {
       );
     }
 
-    // Get environment variables
+    // Get environment variables - prioritize ANON key (less restrictive from Cloudflare Workers)
     const supabaseUrl = context.env.SUPABASE_URL;
-    const supabaseKey = context.env.SUPABASE_SERVICE_ROLE_KEY || context.env.SUPABASE_ANON_KEY;
+    const supabaseKey = context.env.SUPABASE_ANON_KEY || context.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
       return new Response(
@@ -82,7 +82,6 @@ export const onRequest: PagesFunction = async (context) => {
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
-        'apikey': supabaseKey,
       },
     });
 
