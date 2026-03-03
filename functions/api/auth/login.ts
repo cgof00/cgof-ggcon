@@ -65,11 +65,19 @@ export const onRequest: PagesFunction = async (context) => {
 
       const user = usuarios[0];
       console.log('✅ Usuário encontrado:', user.id);
+      console.log('  Nome:', user.nome);
+      console.log('  Role:', user.role);
+      console.log('  Ativo:', user.ativo);
+      console.log('  Hash no banco:', user.senha_hash);
 
       // Verificar senha
       const hashedPassword = hashPassword(senha);
+      console.log('  Senha recebida:', senha);
+      console.log('  Hash calculado:', hashedPassword);
+      console.log('  Batem?', hashedPassword === user.senha_hash ? '✅ SIM' : '❌ NÃO');
+
       if (hashedPassword !== user.senha_hash) {
-        console.log('❌ Senha incorreta');
+        console.log('❌ Senha incorreta - hash não bate');
         return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' },
