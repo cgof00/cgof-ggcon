@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
 interface User {
   id: number;
@@ -20,6 +21,25 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Inicializar Supabase client com ANON_KEY
+const supabaseUrl = 'https://dvziqqcgjuidtkhoeqdc.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtpaG9lcWRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTY0MDEsImV4cCI6MjA4NzY5MjQwMX0.Ck6FSoE-Ol1Te8dZ9qc4T9gGLKXukR-JsN3oK0M3iWE';
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Helper para hash de senha (mesmo algoritmo usada no banco)
+function hashPassword(password: string): string {
+  let hash = 0;
+  const salt = 'salt';
+  const combined = password + salt;
+  for (let i = 0; i < combined.length; i++) {
+    const char = combined.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(16);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -27,64 +47,91 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Restaurar sessão do localStorage
   useEffect(() => {
     const savedToken = localStorage.getItem('auth_token');
-    if (savedToken) {
-      setToken(savedToken);
-      fetchUser(savedToken);
+    const savedUser = localStorage.getItem('auth_user');
+    if (savedToken && savedUser) {
+      try {
+        setToken(savedToken);
+        setUser(JSON.parse(savedUser));
+      } catch (error) {
+        console.error('Erro ao restaurar sessão:', error);
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+      }
     }
   }, []);
 
-  const fetchUser = async (authToken: string) => {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      
-      const response = await fetch('/api/auth/me', {
-        signal: controller.signal,
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
-      });
-      clearTimeout(timeout);
-      
-      if (response.ok) {
-        const { user: userData } = await response.json();
-        setUser(userData);
-      } else {
-        localStorage.removeItem('auth_token');
-        setToken(null);
-      }
-    } catch (error) {
-      console.error('Erro ao obter usuário:', error);
-      // Se a API não está disponível, permitir que o usuário faça login normalmente
-      localStorage.removeItem('auth_token');
-      setToken(null);
-    }
-  };
-
   const login = async (email: string, senha: string) => {
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, senha }),
-      });
+      console.log('🔐 Iniciando login para:', email);
+      
+      // Buscar usuário no Supabase
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('*')
+        .eq('email', email.toLowerCase())
+        .single();
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erro ao fazer login');
+      if (error || !data) {
+        console.error('❌ Usuário não encontrado:', error);
+        throw new Error('Email ou senha incorretos');
       }
 
-      const { token: newToken, user: userData } = await response.json();
-      localStorage.setItem('auth_token', newToken);
-      setToken(newToken);
-      setUser(userData);
+      console.log('✅ Usuário encontrado:', data.id);
+
+      // Verificar senha
+      const hashedPassword = hashPassword(senha);
+      if (hashedPassword !== data.senha) {
+        console.error('❌ Senha incorreta');
+        throw new Error('Email ou senha incorretos');
+      }
+
+      console.log('✅ Senha correta');
+
+      // Gerar token simples (JWT em base64)
+      const tokenPayload = {
+        id: data.id,
+        email: data.email,
+        role: data.role,
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 horas
+      };
+      const token = btoa(JSON.stringify(tokenPayload));
+
+      // Atualizar última sessão no banco
+      await supabase
+        .from('usuarios')
+        .update({ ultima_sessao: new Date().toISOString() })
+        .eq('id', data.id)
+        .catch(err => console.error('⚠️ Erro ao atualizar última sessão:', err));
+
+      // Salvar token e usuário
+      localStorage.setItem('auth_token', token);
+      localStorage.setItem('auth_user', JSON.stringify({
+        id: data.id,
+        email: data.email,
+        nome: data.nome,
+        role: data.role,
+      }));
+
+      setToken(token);
+      setUser({
+        id: data.id,
+        email: data.email,
+        nome: data.nome,
+        role: data.role,
+      });
+
+      console.log('✅ Login bem-sucedido para:', email);
     } catch (error) {
+      console.error('❌ Erro no login:', error);
       throw error;
     }
   };
 
   const logout = () => {
+    console.log('🚪 Fazendo logout');
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
     setToken(null);
     setUser(null);
   };
