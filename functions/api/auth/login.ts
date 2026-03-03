@@ -61,6 +61,39 @@ export const onRequest: PagesFunction = async (context) => {
     }
   }
 
+  // DEBUG: GET /api/auth/list - Lista todos os usuários
+  if (request.method === 'GET' && url.pathname === '/api/auth/list') {
+    try {
+      const SUPABASE_URL = 'https://dvziqqcgjuidtkhoeqdc.supabase.co';
+      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTY0MDEsImV4cCI6MjA4NzY5MjQwMX0.Ck6FSoE-Ol1Te8dZ9qc4T9gGLKXukR-JsN3oK0M3iWE';
+      const queryUrl = `${SUPABASE_URL}/rest/v1/usuarios?select=*`;
+      const response = await fetch(queryUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+      });
+      const usuarios = await response.json();
+      return new Response(
+        JSON.stringify(usuarios, null, 2),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ error: String(error) }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+  }
+
   // POST /api/auth/login
   if (request.method === 'POST' && url.pathname === '/api/auth/login') {
     try {
