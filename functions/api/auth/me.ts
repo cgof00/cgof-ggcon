@@ -1,5 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
-import { verifyToken } from '../../../src/auth';
+
+// Verify token helper
+function verifyToken(token: string): any {
+  try {
+    let payload: string;
+    if (typeof Buffer !== 'undefined') {
+      payload = Buffer.from(token, 'base64').toString('utf-8');
+    } else {
+      payload = atob(token);
+    }
+    
+    const decoded = JSON.parse(payload);
+    if (decoded.exp < Math.floor(Date.now() / 1000)) {
+      return null; // Token expirado
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
+}
 
 export const onRequest: PagesFunction = async (context) => {
   const { request } = context;
@@ -38,10 +57,8 @@ export const onRequest: PagesFunction = async (context) => {
     const token = authHeader.slice(7); // Remove 'Bearer '
 
     // Verify token
-    let decoded: any;
-    try {
-      decoded = verifyToken(token);
-    } catch (error) {
+    const decoded = verifyToken(token);
+    if (!decoded) {
       return new Response(
         JSON.stringify({ error: 'Token inválido ou expirado' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }

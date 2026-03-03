@@ -1,5 +1,35 @@
 import { createClient } from '@supabase/supabase-js';
-import { hashPassword, generateToken, verifyPassword } from '../../../src/auth';
+
+// Hash password helper - simples para compatibilidade
+function hashPassword(password: string): string {
+  let hash = 0;
+  const salt = 'salt';
+  const combined = password + salt;
+  for (let i = 0; i < combined.length; i++) {
+    const char = combined.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(16);
+}
+
+// Generate token - simple base64
+function generateToken(id: number, email: string, role: string): string {
+  const payload = {
+    id,
+    email,
+    role,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
+  };
+  
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(JSON.stringify(payload)).toString('base64');
+  } else {
+    // Cloudflare Workers - usar btoa
+    return btoa(JSON.stringify(payload));
+  }
+}
 
 export const onRequest: PagesFunction = async (context) => {
   const { request } = context;
@@ -62,7 +92,7 @@ export const onRequest: PagesFunction = async (context) => {
     }
 
     // Verify password
-    const isValid = verifyPassword(senha, usuarios.senha);
+    const isValid = hashPassword(senha) === usuarios.senha;
 
     if (!isValid) {
       return new Response(
@@ -72,11 +102,7 @@ export const onRequest: PagesFunction = async (context) => {
     }
 
     // Generate token
-    const token = generateToken(
-      usuarios.id,
-      usuarios.email,
-      usuarios.role
-    );
+    const token = generateToken(usuarios.id, usuarios.email, usuarios.role);
 
     // Update last login
     await supabase

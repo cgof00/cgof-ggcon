@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limpeza de Dados - Gestor de Emendas</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        h1 { 
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .status-box {
+            background: #f5f5f5;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 4px;
+        }
+        .status-box strong { color: #333; }
+        .status-box p { color: #666; margin-top: 5px; font-size: 14px; }
+        
+        .problem-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 25px;
+        }
+        .problem-box h3 { 
+            color: #856404;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .problem-box ul {
+            color: #856404;
+            margin-left: 20px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover { background: #5568d3; transform: translateY(-2px); box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3); }
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+        .btn-secondary:hover { background: #d0d0d0; }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-danger:hover { background: #c82333; }
+
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 25px;
+        }
+        .info-box h4 { color: #004085; margin-bottom: 8px; }
+        .info-box p { color: #004085; font-size: 14px; line-height: 1.6; }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            display: none;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        .result.success {
+            background: #d4edda;
+            border: 1px solid #28a745;
+            color: #155724;
+        }
+        .result.error {
+            background: #f8d7da;
+            border: 1px solid #dc3545;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Limpeza de Dados</h1>
+        <p class="subtitle">Gerenciar registros de formalizações</p>
+
+        <div class="status-box" id="status">
+            <strong>Status do Sistema:</strong>
+            <p>Carregando informações...</p>
+        </div>
+
+        <div class="problem-box">
+            <h3>⚠️ Problema Identificado</h3>
+            <ul>
+                <li><strong>97% dos registros estão incompletos</strong></li>
+                <li>Apenas ~3% têm campos como "parlamentar", "conveniado", "objeto"</li>
+                <li>Isso indica um problema no CSV original ou no mapping de colunas</li>
+                <li>Os registros não são inúteis, mas precisam ser verificados</li>
+            </ul>
+        </div>
+
+        <div class="info-box">
+            <h4>ℹ️ O que Fazer?</h4>
+            <p><strong>Opção 1:</strong> Verifique o CSV original - ele realmente tem os dados?</p>
+            <p style="margin-top: 10px;"><strong>Opção 2:</strong> Delete os registros e reimporte com um CSV completo</p>
+            <p style="margin-top: 10px;"><strong>Opção 3:</strong> Chame suporte para verificar o mapping de colunas</p>
+        </div>
+
+        <div id="result"></div>
+
+        <div class="actions">
+            <button class="btn-secondary" onclick="verificarDados()">🔍 Verificar Dados</button>
+            <button class="btn-danger" onclick="confirmarLimpeza()">🗑️ Deletar Tudo</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 15px; color: #666;">Processando...</p>
+        </div>
+    </div>
+
+    <script>
+        const apiUrl = 'http://localhost:4000';
+
+        async function carregarStatus() {
+            try {
+                const res = await fetch(`${apiUrl}/api/debug/cache-status`);
+                const data = await res.json();
+                document.getElementById('status').innerHTML = `
+                    <strong>Status do Sistema:</strong>
+                    <p>
+                        Registros em Cache: <strong>${data.cacheSize}</strong> | 
+                        Idade: <strong>${data.cacheAge || 'N/A'}</strong>
+                    </p>
+                `;
+            } catch (e) {
+                document.getElementById('status').innerHTML = `
+                    <strong>Status:</strong>
+                    <p style="color: #c33;">Erro ao conectar com servidor</p>
+                `;
+            }
+        }
+
+        async function verificarDados() {
+            mostrarLoading(true);
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'none';
+            
+            try {
+                const res = await fetch(`${apiUrl}/api/debug/compare-records`);
+                const comp = await res.json();
+                
+                let html = '<h3 style="margin-bottom: 15px;">📊 Comparação de Registros</h3>';
+                html += '<div style="background: #f5f5f5; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto;">';
+                html += '<pre>' + JSON.stringify(comp, null, 2) + '</pre>';
+                html += '</div>';
+                
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = html;
+                resultDiv.style.display = 'block';
+            } catch (e) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '<strong>Erro:</strong> ' + e.message;
+                resultDiv.style.display = 'block';
+            }
+            
+            mostrarLoading(false);
+        }
+
+        function confirmarLimpeza() {
+            const confirmed = confirm(
+                '⚠️  ATENÇÃO!\n\n' +
+                'Isso vai DELETAR TODOS os registros de formalizações.\n\n' +
+                'Você tem certeza que quer continuar?\n\n' +
+                'Digite: SIM para confirmar'
+            );
+            
+            if (confirmed) {
+                const senha = prompt('Digite SIM para confirmar a exclusão:');
+                if (senha === 'SIM') {
+                    executarLimpeza();
+                } else {
+                    alert('Operação cancelada');
+                }
+            }
+        }
+
+        async function executarLimpeza() {
+            mostrarLoading(true);
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                const res = await fetch(`${apiUrl}/api/admin/limpar-formalizacoes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await res.json();
+                
+                if (res.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ Sucesso!</strong><br>
+                        ${data.message}<br>
+                        Próximo passo: Volte ao sistema e importe um CSV completo
+                    `;
+                    // Recarregar status
+                    setTimeout(carregarStatus, 1000);
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = '<strong>❌ Erro:</strong> ' + data.error;
+                }
+            } catch (e) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '<strong>❌ Erro:</strong> ' + e.message;
+            }
+            
+            resultDiv.style.display = 'block';
+            mostrarLoading(false);
+        }
+
+        function mostrarLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // Carregar status ao iniciar
+        carregarStatus();
+    </script>
+</body>
+</html>
