@@ -1,0 +1,15 @@
+name = "gestor-emendas"
+main = "dist/index.html"
+compatibility_date = "2024-12-12"
+
+[env.production]
+name = "gestor-emendas"
+main = "dist/index.html"
+
+# Environment variables de produção
+[env.production.vars]
+SUPABASE_URL = ""
+SUPABASE_SERVICE_ROLE_KEY = ""
+
+# Configurar as variáveis de ambiente de forma segura
+# Use o Cloudflare Dashboard para adicionar essas variáveis

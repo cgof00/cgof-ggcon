@@ -35,11 +35,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUser = async (authToken: string) => {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      
       const response = await fetch('/api/auth/me', {
+        signal: controller.signal,
         headers: {
           'Authorization': `Bearer ${authToken}`
         }
       });
+      clearTimeout(timeout);
+      
       if (response.ok) {
         const { user: userData } = await response.json();
         setUser(userData);
@@ -49,6 +55,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Erro ao obter usuário:', error);
+      // Se a API não está disponível, permitir que o usuário faça login normalmente
+      localStorage.removeItem('auth_token');
+      setToken(null);
     }
   };
 

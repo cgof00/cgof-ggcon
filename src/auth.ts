@@ -1,12 +1,22 @@
-import crypto from 'crypto';
+// Use Web Crypto API que funciona em Node.js e Cloudflare Workers
+const encoder = new TextEncoder();
 
 export function hashPassword(password: string): string {
-  // Para produção, usar bcrypt. Para desenvolvimento, usar simples hash
-  const salt = process.env.PASSWORD_SALT || 'salt';
-  return crypto
-    .createHash('sha256')
-    .update(password + salt)
-    .digest('hex');
+  // Para desenvolvimento, usar simples hash
+  // Em produção, use bcrypt com biblioteca compatível
+  const salt = typeof process !== 'undefined' && process.env?.PASSWORD_SALT 
+    ? process.env.PASSWORD_SALT 
+    : 'salt';
+  
+  // Usar algoritmo simples para compatibilidade
+  let hash = 0;
+  const combined = password + salt;
+  for (let i = 0; i < combined.length; i++) {
+    const char = combined.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(16);
 }
 
 export function verifyPassword(password: string, hash: string): boolean {
