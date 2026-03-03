@@ -66,37 +66,73 @@ export const onRequest: PagesFunction = async (context) => {
     const supabaseUrl = context.env.SUPABASE_URL;
     const supabaseKey = context.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    console.log('Auth attempt:', {
+    // Debug logging
+    const debugInfo = {
       email,
-      supabaseUrl: supabaseUrl ? 'configured' : 'MISSING',
-      supabaseKey: supabaseKey ? 'configured' : 'MISSING'
-    });
+      supabaseUrl: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'MISSING',
+      supabaseKeyLength: supabaseKey ? supabaseKey.length : 0,
+      hasUrl: !!supabaseUrl,
+      hasKey: !!supabaseKey,
+      timestamp: new Date().toISOString(),
+    };
+    
+    console.log('🔐 Auth attempt:', debugInfo);
 
     if (!supabaseUrl || !supabaseKey) {
-      console.error('Missing Supabase config:', { supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey });
+      console.error('❌ Missing config:', { supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey });
       return new Response(
         JSON.stringify({ 
-          error: 'Configuração do servidor incompleta. Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no Cloudflare Dashboard.',
-          details: 'Missing environment variables'
+          error: 'Configuração do servidor incompleta',
+          config: 'SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configuradas'
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
     // Dynamically import Supabase
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    let supabase;
+    try {
+      const { createClient } = await import('@supabase/supabase-js');
+      supabase = createClient(supabaseUrl, supabaseKey);
+      console.log('✅ Supabase client created');
+    } catch (importError) {
+      console.error('❌ Error importing Supabase:', importError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erro ao inicializar cliente Supabase',
+          details: importError instanceof Error ? importError.message : 'Unknown error'
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Query usuarios table
-    const { data: usuarios, error } = await supabase
-      .from('usuarios')
-      .select('*')
-      .eq('email', email.toLowerCase())
-      .single();
+    let usuarios;
+    let dbError;
+    try {
+      const result = await supabase
+        .from('usuarios')
+        .select('*')
+        .eq('email', email.toLowerCase())
+        .single();
+      
+      usuarios = result.data;
+      dbError = result.error;
+      
+      console.log('🔍 Database query:', { found: !!usuarios, error: dbError?.message });
+    } catch (queryError) {
+      console.error('❌ Query execution error:', queryError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erro ao buscar usuário',
+          details: queryError instanceof Error ? queryError.message : 'Unknown error'
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
-    console.log('Usuario lookup:', { email, found: !!usuarios, error: error?.message });
-
-    if (error || !usuarios) {
+    if (dbError || !usuarios) {
+      console.log('⚠️ User not found for email:', email);
       return new Response(
         JSON.stringify({ error: 'Email ou senha incorretos' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
@@ -107,6 +143,7 @@ export const onRequest: PagesFunction = async (context) => {
     const isValid = hashPassword(senha) === usuarios.senha;
 
     if (!isValid) {
+      console.log('⚠️ Invalid password for email:', email);
       return new Response(
         JSON.stringify({ error: 'Email ou senha incorretos' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
@@ -116,12 +153,14 @@ export const onRequest: PagesFunction = async (context) => {
     // Generate token
     const token = generateToken(usuarios.id, usuarios.email, usuarios.role);
 
-    // Update last login
-    await supabase
+    // Update last login (non-blocking)
+    supabase
       .from('usuarios')
       .update({ ultima_sessao: new Date().toISOString() })
       .eq('id', usuarios.id)
-      .catch(err => console.error('Error updating last login:', err));
+      .catch(err => console.error('⚠️ Error updating last login:', err));
+
+    console.log('✅ Login successful for:', email);
 
     return new Response(
       JSON.stringify({
@@ -142,11 +181,12 @@ export const onRequest: PagesFunction = async (context) => {
       }
     );
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('❌ Uncaught error in login:', error);
     return new Response(
       JSON.stringify({ 
         error: 'Erro ao processar login',
-        details: error instanceof Error ? error.message : String(error)
+        details: error instanceof Error ? error.message : String(error),
+        type: error instanceof Error ? error.constructor.name : typeof error
       }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
