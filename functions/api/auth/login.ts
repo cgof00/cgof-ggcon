@@ -24,7 +24,6 @@ function generateToken(id: number, email: string, role: string): string {
   if (typeof Buffer !== 'undefined') {
     return Buffer.from(JSON.stringify(payload)).toString('base64');
   } else {
-    // Cloudflare Workers - usar btoa
     return btoa(JSON.stringify(payload));
   }
 }
@@ -44,7 +43,6 @@ export const onRequest: PagesFunction = async (context) => {
     });
   }
 
-  // Only POST allowed
   if (request.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
@@ -53,7 +51,18 @@ export const onRequest: PagesFunction = async (context) => {
   }
 
   try {
-    const { email, senha } = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (e) {
+      console.error('❌ JSON parse error:', e);
+      return new Response(
+        JSON.stringify({ error: 'Request body deve estar em JSON válido' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { email, senha } = body;
 
     if (!email || !senha) {
       return new Response(
@@ -62,88 +71,73 @@ export const onRequest: PagesFunction = async (context) => {
       );
     }
 
-    // Initialize Supabase
+    // Get environment variables
     const supabaseUrl = context.env.SUPABASE_URL;
     const supabaseKey = context.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    // Debug logging
-    const debugInfo = {
+    console.log('🔐 Login attempt:', {
       email,
-      supabaseUrl: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'MISSING',
-      supabaseKeyLength: supabaseKey ? supabaseKey.length : 0,
       hasUrl: !!supabaseUrl,
       hasKey: !!supabaseKey,
-      timestamp: new Date().toISOString(),
-    };
-    
-    console.log('🔐 Auth attempt:', debugInfo);
+      urlLength: supabaseUrl?.length || 0,
+      keyLength: supabaseKey?.length || 0,
+    });
 
     if (!supabaseUrl || !supabaseKey) {
-      console.error('❌ Missing config:', { supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey });
+      console.error('❌ Missing config');
       return new Response(
-        JSON.stringify({ 
-          error: 'Configuração do servidor incompleta',
-          config: 'SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configuradas'
+        JSON.stringify({
+          error: 'Servidor não está configurado corretamente',
+          missing: {
+            url: !supabaseUrl,
+            key: !supabaseKey,
+          }
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // Dynamically import Supabase
-    let supabase;
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      supabase = createClient(supabaseUrl, supabaseKey);
-      console.log('✅ Supabase client created');
-    } catch (importError) {
-      console.error('❌ Error importing Supabase:', importError);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Erro ao inicializar cliente Supabase',
-          details: importError instanceof Error ? importError.message : 'Unknown error'
-        }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    // Query Supabase REST API directly (more reliable than SDK)
+    console.log('🔍 Querying usuarios table for:', email);
+    const queryUrl = `${supabaseUrl}/rest/v1/usuarios?email=eq.${encodeURIComponent(email.toLowerCase())}&select=*`;
+    
+    const response = await fetch(queryUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'apikey': supabaseKey,
+      },
+    });
 
-    // Query usuarios table
-    let usuarios;
-    let dbError;
-    try {
-      const result = await supabase
-        .from('usuarios')
-        .select('*')
-        .eq('email', email.toLowerCase())
-        .single();
-      
-      usuarios = result.data;
-      dbError = result.error;
-      
-      console.log('🔍 Database query:', { found: !!usuarios, error: dbError?.message });
-    } catch (queryError) {
-      console.error('❌ Query execution error:', queryError);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Supabase API error:', response.status, errorText);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'Erro ao buscar usuário',
-          details: queryError instanceof Error ? queryError.message : 'Unknown error'
+          details: `HTTP ${response.status}`
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    if (dbError || !usuarios) {
-      console.log('⚠️ User not found for email:', email);
+    const usuarios = await response.json();
+    
+    if (!Array.isArray(usuarios) || usuarios.length === 0) {
+      console.warn('⚠️ User not found:', email);
       return new Response(
         JSON.stringify({ error: 'Email ou senha incorretos' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // Verify password
-    const isValid = hashPassword(senha) === usuarios.senha;
+    const user = usuarios[0];
 
+    // Verify password
+    const isValid = hashPassword(senha) === user.senha;
     if (!isValid) {
-      console.log('⚠️ Invalid password for email:', email);
+      console.warn('⚠️ Invalid password for:', email);
       return new Response(
         JSON.stringify({ error: 'Email ou senha incorretos' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
@@ -151,14 +145,18 @@ export const onRequest: PagesFunction = async (context) => {
     }
 
     // Generate token
-    const token = generateToken(usuarios.id, usuarios.email, usuarios.role);
+    const token = generateToken(user.id, user.email, user.role);
 
-    // Update last login (non-blocking)
-    supabase
-      .from('usuarios')
-      .update({ ultima_sessao: new Date().toISOString() })
-      .eq('id', usuarios.id)
-      .catch(err => console.error('⚠️ Error updating last login:', err));
+    // Update last login (don't wait)
+    fetch(`${supabaseUrl}/rest/v1/usuarios?id=eq.${user.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'apikey': supabaseKey,
+      },
+      body: JSON.stringify({ ultima_sessao: new Date().toISOString() }),
+    }).catch(err => console.error('⚠️ Last login update failed:', err));
 
     console.log('✅ Login successful for:', email);
 
@@ -166,10 +164,10 @@ export const onRequest: PagesFunction = async (context) => {
       JSON.stringify({
         token,
         user: {
-          id: usuarios.id,
-          email: usuarios.email,
-          nome: usuarios.nome,
-          role: usuarios.role,
+          id: user.id,
+          email: user.email,
+          nome: user.nome,
+          role: user.role,
         },
       }),
       {
@@ -181,12 +179,13 @@ export const onRequest: PagesFunction = async (context) => {
       }
     );
   } catch (error) {
-    console.error('❌ Uncaught error in login:', error);
+    console.error('❌ Unexpected error:', error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    
     return new Response(
-      JSON.stringify({ 
-        error: 'Erro ao processar login',
-        details: error instanceof Error ? error.message : String(error),
-        type: error instanceof Error ? error.constructor.name : typeof error
+      JSON.stringify({
+        error: 'Erro inesperado ao processar login',
+        message: errorMsg,
       }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );

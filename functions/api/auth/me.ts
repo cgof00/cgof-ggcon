@@ -34,7 +34,6 @@ export const onRequest: PagesFunction = async (context) => {
     });
   }
 
-  // Only GET allowed
   if (request.method !== 'GET') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
@@ -64,7 +63,7 @@ export const onRequest: PagesFunction = async (context) => {
       );
     }
 
-    // Initialize Supabase
+    // Get environment variables
     const supabaseUrl = context.env.SUPABASE_URL;
     const supabaseKey = context.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -75,23 +74,37 @@ export const onRequest: PagesFunction = async (context) => {
       );
     }
 
-    // Dynamically import Supabase
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Query Supabase REST API directly
+    const queryUrl = `${supabaseUrl}/rest/v1/usuarios?id=eq.${decoded.id}&select=id,email,nome,role,ativo`;
+    
+    const response = await fetch(queryUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'apikey': supabaseKey,
+      },
+    });
 
-    // Fetch user from database
-    const { data: usuario, error } = await supabase
-      .from('usuarios')
-      .select('id, email, nome, role, ativo')
-      .eq('id', decoded.id)
-      .single();
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Supabase API error:', response.status, errorText);
+      return new Response(
+        JSON.stringify({ error: 'Erro ao buscar usuário' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
-    if (error || !usuario) {
+    const usuarios = await response.json();
+
+    if (!Array.isArray(usuarios) || usuarios.length === 0) {
       return new Response(
         JSON.stringify({ error: 'Usuário não encontrado' }),
         { status: 404, headers: { 'Content-Type': 'application/json' } }
       );
     }
+
+    const usuario = usuarios[0];
 
     if (!usuario.ativo) {
       return new Response(
@@ -118,7 +131,7 @@ export const onRequest: PagesFunction = async (context) => {
       }
     );
   } catch (error) {
-    console.error('Auth check error:', error);
+    console.error('❌ Auth check error:', error);
     return new Response(
       JSON.stringify({ error: 'Erro ao validar sessão' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
