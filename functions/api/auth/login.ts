@@ -1,5 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
 // Hash password helper - simples para compatibilidade
 function hashPassword(password: string): string {
   let hash = 0;
@@ -68,13 +66,25 @@ export const onRequest: PagesFunction = async (context) => {
     const supabaseUrl = context.env.SUPABASE_URL;
     const supabaseKey = context.env.SUPABASE_SERVICE_ROLE_KEY;
 
+    console.log('Auth attempt:', {
+      email,
+      supabaseUrl: supabaseUrl ? 'configured' : 'MISSING',
+      supabaseKey: supabaseKey ? 'configured' : 'MISSING'
+    });
+
     if (!supabaseUrl || !supabaseKey) {
+      console.error('Missing Supabase config:', { supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey });
       return new Response(
-        JSON.stringify({ error: 'Configuração do servidor incompleta' }),
+        JSON.stringify({ 
+          error: 'Configuração do servidor incompleta. Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no Cloudflare Dashboard.',
+          details: 'Missing environment variables'
+        }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
+    // Dynamically import Supabase
+    const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Query usuarios table
@@ -83,6 +93,8 @@ export const onRequest: PagesFunction = async (context) => {
       .select('*')
       .eq('email', email.toLowerCase())
       .single();
+
+    console.log('Usuario lookup:', { email, found: !!usuarios, error: error?.message });
 
     if (error || !usuarios) {
       return new Response(
@@ -108,7 +120,8 @@ export const onRequest: PagesFunction = async (context) => {
     await supabase
       .from('usuarios')
       .update({ ultima_sessao: new Date().toISOString() })
-      .eq('id', usuarios.id);
+      .eq('id', usuarios.id)
+      .catch(err => console.error('Error updating last login:', err));
 
     return new Response(
       JSON.stringify({
@@ -131,7 +144,10 @@ export const onRequest: PagesFunction = async (context) => {
   } catch (error) {
     console.error('Login error:', error);
     return new Response(
-      JSON.stringify({ error: 'Erro ao processar login' }),
+      JSON.stringify({ 
+        error: 'Erro ao processar login',
+        details: error instanceof Error ? error.message : String(error)
+      }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

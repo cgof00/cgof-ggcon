@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
 
 // Verify token helper
 function verifyToken(token: string): any {
@@ -76,6 +75,8 @@ export const onRequest: PagesFunction = async (context) => {
       );
     }
 
+    // Dynamically import Supabase
+    const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Fetch user from database
