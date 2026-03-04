@@ -10,8 +10,6 @@ export const onRequest: PagesFunction = async (context) => {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
-  const url = new URL(request.url);
-
   // GET /api/usuarios (lista todos para admin)
   if (request.method === 'GET') {
     try {
