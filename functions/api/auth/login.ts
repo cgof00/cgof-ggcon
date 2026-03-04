@@ -17,39 +17,40 @@ export const onRequest: PagesFunction = async (context) => {
     }
     return Math.abs(hash).toString(16);
   }
+  // DEBUG: GET /api/auth/ping - Simples teste de conexão
+  if (request.method === 'GET' && url.pathname === '/api/auth/ping') {
+    return new Response(
+      JSON.stringify({ status: 'ok', message: 'Endpoint funcionando!' }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
   // DEBUG: GET /api/auth/test-key - Testa se a chave service_role funciona
   if (request.method === 'GET' && url.pathname === '/api/auth/test-key') {
     try {
-      const queryUrl = `${SUPABASE_URL}/rest/v1/usuarios?select=count`;
-      console.log('Testando service_role key...');
-      console.log('URL:', queryUrl);
-
-      const response = await fetch(queryUrl, {
+      const testUrl = `${SUPABASE_URL}/rest/v1/usuarios?select=id,email&limit=1`;
+      
+      const response = await fetch(testUrl, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
           'apikey': SUPABASE_SERVICE_ROLE_KEY,
-          'Content-Type': 'application/json',
         },
       });
 
-      console.log('Response status:', response.status);
-      const responseText = await response.text();
-      console.log('Response text:', responseText);
+      const body = await response.text();
 
       return new Response(
         JSON.stringify({
           status: response.status,
           ok: response.ok,
-          responseText: responseText,
-          message: response.ok ? 'Chave funcionando!' : 'Erro na chave'
+          body: body.substring(0, 500), // Primeiros 500 chars
         }, null, 2),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
-    } catch (error) {
-      console.error('❌ Erro test-key:', error);
+    } catch (error: any) {
       return new Response(
-        JSON.stringify({ error: String(error) }),
+        JSON.stringify({ error: error.message }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -61,111 +62,42 @@ export const onRequest: PagesFunction = async (context) => {
       const email = url.searchParams.get('email') || 'afpereira@saude.sp.gov.br';
       const senha = url.searchParams.get('senha') || 'M@dmax2026';
       
-      console.log('🔐 DEBUG COMPLETO DO LOGIN');
-      console.log('  Email:', email);
-      console.log('  Senha:', senha);
-
-      // 1. Teste de hash
       const hashCalculado = hashPassword(senha);
-      console.log('  Hash calculado:', hashCalculado);
-
-      // 2. Teste de busca com exact match (lowercase)
+      
+      // Busca simples
       const emailLower = email.toLowerCase();
-      const emailEncoded1 = encodeURIComponent(emailLower);
-      const queryUrl1 = `${SUPABASE_URL}/rest/v1/usuarios?select=*&email=eq.${emailEncoded1}`;
-      console.log('  Query 1 (eq lowercase):', queryUrl1);
+      const emailEncoded = encodeURIComponent(emailLower);
+      const queryUrl = `${SUPABASE_URL}/rest/v1/usuarios?select=*&email=eq.${emailEncoded}`;
       
-      const response1 = await fetch(queryUrl1, {
+      const response = await fetch(queryUrl, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
           'apikey': SUPABASE_SERVICE_ROLE_KEY,
-          'Content-Type': 'application/json',
         },
       });
-      
-      const usuarios1 = await response1.json();
-      console.log('  Resultado 1 (eq lowercase):', usuarios1.length || 0, 'usuários encontrados');
 
-      // 3. Teste de busca com ilike (wildcards)
-      const emailEncoded2 = encodeURIComponent(email);
-      const queryUrl2 = `${SUPABASE_URL}/rest/v1/usuarios?select=*&email=ilike.%${emailEncoded2}%`;
-      console.log('  Query 2 (ilike with wildcards):', queryUrl2);
-      
-      const response2 = await fetch(queryUrl2, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'apikey': SUPABASE_SERVICE_ROLE_KEY,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      const usuarios2 = await response2.json();
-      console.log('  Resultado 2 (ilike wildcards):', usuarios2.length || 0, 'usuários encontrados');
-
-      // 4. Teste de busca simples (todos os usuários)
-      const queryUrl3 = `${SUPABASE_URL}/rest/v1/usuarios?select=id,email,nome,role,ativo,senha_hash`;
-      console.log('  Query 3 (all users):', queryUrl3);
-      
-      const response3 = await fetch(queryUrl3, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'apikey': SUPABASE_SERVICE_ROLE_KEY,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      const usuariosAll = await response3.json();
-      console.log('  Resultado 3 (all):', usuariosAll.length || 0, 'usuários no banco');
-
-      // Preparar resposta
-      const debug = {
-        email_procurado: email,
-        senha_procurada: senha,
-        hash_calculado: hashCalculado,
-        eq_lowercase: {
-          query: queryUrl1,
-          encontrados: usuarios1.length || 0,
-          usuarios: usuarios1.map((u: any) => ({
-            id: u.id,
-            email: u.email,
-            nome: u.nome,
-            hash: u.senha_hash,
-          }))
-        },
-        ilike_wildcards: {
-          query: queryUrl2,
-          encontrados: usuarios2.length || 0,
-          usuarios: usuarios2.map((u: any) => ({
-            id: u.id,
-            email: u.email,
-            nome: u.nome,
-            hash: u.senha_hash,
-          }))
-        },
-        all_users: {
-          total: usuariosAll.length || 0,
-          usuarios: usuariosAll.map((u: any) => ({
-            id: u.id,
-            email: u.email,
-            nome: u.nome,
-            hash: u.senha_hash,
-            match_eq_lowercase: u.email.toLowerCase() === email.toLowerCase(),
-            hash_match: u.senha_hash === hashCalculado,
-          }))
-        }
-      };
+      const usuarios = await response.json();
 
       return new Response(
-        JSON.stringify(debug, null, 2),
+        JSON.stringify({
+          email_procurado: email,
+          hash_calculado: hashCalculado,
+          query_status: response.status,
+          usuarios_encontrados: Array.isArray(usuarios) ? usuarios.length : 0,
+          usuarios: Array.isArray(usuarios) ? usuarios.map((u: any) => ({
+            id: u.id,
+            email: u.email,
+            nome: u.nome,
+            hash: u.senha_hash,
+            match: u.senha_hash === hashCalculado,
+          })) : usuarios
+        }, null, 2),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
-    } catch (error) {
-      console.error('❌ Erro debug-full:', error);
+    } catch (error: any) {
       return new Response(
-        JSON.stringify({ error: String(error) }),
+        JSON.stringify({ error: error.message }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
