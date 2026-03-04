@@ -2,13 +2,23 @@ export const onRequest: PagesFunction = async (context) => {
   const { request, env } = context;
   const url = new URL(request.url);
 
-  // Usar variáveis do Cloudflare
+  // Debug: Log all env variables
+  console.log('DEBUG: env keys =', Object.keys(env));
+  console.log('DEBUG: SUPABASE_URL =', env.SUPABASE_URL ? 'defined' : 'undefined');
+  console.log('DEBUG: SUPABASE_SERVICE_ROLE_KEY =', env.SUPABASE_SERVICE_ROLE_KEY ? 'defined' : 'undefined');
+
   const SUPABASE_URL = env.SUPABASE_URL;
   const SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('❌ Missing env variables');
     return new Response(JSON.stringify({ 
-      error: 'Variáveis de ambiente não configuradas no Cloudflare' 
+      error: 'Variáveis de ambiente não configuradas no Cloudflare',
+      debug: {
+        SUPABASE_URL: SUPABASE_URL ? 'present' : 'MISSING',
+        SUPABASE_SERVICE_ROLE_KEY: SUPABASE_SERVICE_ROLE_KEY ? 'present' : 'MISSING',
+        env_keys: Object.keys(env)
+      }
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
