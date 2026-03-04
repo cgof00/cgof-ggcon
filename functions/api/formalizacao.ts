@@ -37,22 +37,27 @@ export const onRequest: PagesFunction = async (context) => {
 
       const data = await resp.json();
 
-      // Buscar total de registros
+      // Buscar total de registros usando Prefer header
       const countResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/formalizacao?select=count()`,
+        `${SUPABASE_URL}/rest/v1/formalizacao?select=id`,
         {
           headers: {
             'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
             'apikey': SUPABASE_SERVICE_ROLE_KEY,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Prefer': 'count=exact'
           }
         }
       );
 
       let total = 0;
       if (countResp.ok) {
-        const countData = await countResp.json();
-        total = Array.isArray(countData) && countData.length > 0 ? countData.length : 0;
+        const countHeader = countResp.headers.get('content-range');
+        if (countHeader) {
+          // Format: "0-99/37000"
+          const parts = countHeader.split('/');
+          total = parseInt(parts[1]) || 0;
+        }
       }
 
       return new Response(JSON.stringify({

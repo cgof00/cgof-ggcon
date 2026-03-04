@@ -11,20 +11,25 @@ export const onRequest: PagesFunction = async (context) => {
 
       // Buscar contagem de formalizações
       const countResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/formalizacao?select=count()`,
+        `${SUPABASE_URL}/rest/v1/formalizacao?select=id`,
         {
           headers: {
             'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
             'apikey': SUPABASE_SERVICE_ROLE_KEY,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Prefer': 'count=exact'
           }
         }
       );
 
       let recordCount = 0;
       if (countResp.ok) {
-        const countData = await countResp.json();
-        recordCount = Array.isArray(countData) ? countData.length : 0;
+        const countHeader = countResp.headers.get('content-range');
+        if (countHeader) {
+          // Format: "0-99/37000"
+          const parts = countHeader.split('/');
+          recordCount = parseInt(parts[1]) || 0;
+        }
       }
 
       // Buscar primeiros registros para aquecer cache
