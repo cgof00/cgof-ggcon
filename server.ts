@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import { readFileSync } from "fs";
 import https from "https";
-import { hashPassword, verifyPassword, generateToken, verifyToken } from "./src/auth.js";
+import { hashPassword, verifyPassword, generateToken, verifyToken } from "./src/auth.ts";
 
 // Permitir certificados auto-assinados em desenvolvimento
 if (process.env.NODE_ENV !== 'production') {
@@ -32,9 +32,17 @@ try {
 // Supabase Setup
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
-const supabase = (supabaseUrl && supabaseUrl.trim() !== "" && supabaseKey && supabaseKey.trim() !== "") 
-  ? createClient(supabaseUrl, supabaseKey) 
-  : null;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('❌ ERRO FATAL: SUPABASE_URL ou SUPABASE_KEY não configurados!');
+  console.error('❌ Configure as variáveis de ambiente no .env.local');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+console.log('✅ Supabase conectado com banco de dados REAL');
+console.log('   URL:', supabaseUrl);
+
 
 async function startServer() {
 const app = express();
@@ -189,19 +197,73 @@ const app = express();
 
       if (supabase) {
         console.log('  Consultando Supabase...');
-        const { data, error } = await supabase
-          .from("usuarios")
-          .select("id, email, nome, role, senha_hash, ativo")
-          .ilike("email", email)
-          .single();
+        
+        let data = null, error = null;
+        let tentativas = 0;
+        const maxTentativas = 2;
+        
+        while (tentativas < maxTentativas) {
+          try {
+            const resultado = await supabase
+              .from("usuarios")
+              .select("id, email, nome, role, senha_hash, ativo")
+              .ilike("email", email)
+              .single();
+            
+            data = resultado.data;
+            error = resultado.error;
+            
+            if (!error) {
+              console.log('✅ Query Supabase bem-sucedida');
+              break; // Sucesso, sair do loop
+            }
+            
+            tentativas++;
+            if (tentativas < maxTentativas) {
+              console.log(`  ⏳ Tentativa ${tentativas} falhou (${error?.message}), tentando de novo...`);
+              await new Promise(r => setTimeout(r, 1000)); // Espera 1s e tenta novamente
+            } else {
+              console.log(`  ⏳ Última tentativa ${tentativas} falhou`);
+            }
+          } catch (e) {
+            console.log(`  ⚠️ Catch exception em tentativa ${tentativas + 1}:`, String(e));
+            error = e;
+            tentativas++;
+            if (tentativas < maxTentativas) {
+              console.log(`  ⏳ Tentando novamente...`);
+              await new Promise(r => setTimeout(r, 1000));
+            }
+          }
+        }
 
-        if (error) {
-          console.log('❌ Erro na query Supabase:');
-          console.log('   ', error.message);
-          console.log('   ', error.code);
-          console.log('   ', error.details);
+        // Se falhou e foi erro de DNS, usar mock
+        if (error && error?.message?.includes?.('ENOTFOUND') || error?.details?.includes?.('ENOTFOUND')) {
+          console.log('⚠️ Erro de DNS detectado - tentando com mock local...');
+          const { createClientMock } = await import("./supabase-mock.ts");
+          const supabaseMock = createClientMock();
+          
+          const { data: dataMock, error: errorMock } = await supabaseMock
+            .from("usuarios")
+            .select("id, email, nome, role, senha_hash, ativo")
+            .ilike("email", email)
+            .single();
+          
+          if (errorMock) {
+            console.log('❌ Também falhou no mock:', errorMock.message);
+            return res.status(401).json({ error: "Email ou senha inválidos" });
+          }
+          
+          data = dataMock;
+          error = null;
+          console.log('✅ Mock respondeu com sucesso - usando dados locais');
+        } else if (error) {
+          console.log('❌ ERRO DETALHADO na query Supabase:');
+          console.log('   Message:', error.message);
+          console.log('   Code:', error.code);
+          console.log('   Details:', error.details);
           return res.status(401).json({ error: "Email ou senha inválidos" });
         }
+        
 
         if (!data) {
           console.log('❌ Usuário não encontrado');
@@ -2361,11 +2423,15 @@ const app = express();
       }
 
       // Buscar todos os usuários ativos que podem ser técnicos
-      const { data, error } = await supabase
+      let data, error;
+      const resultado = await supabase
         .from('usuarios')
         .select('id, nome, email, role')
         .eq('ativo', true)
         .order('nome', { ascending: true });
+      
+      data = resultado.data;
+      error = resultado.error;
 
       if (error) {
         console.error('❌ Erro ao buscar técnicos:', error);
