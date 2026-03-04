@@ -4,6 +4,9 @@ compatibility_date = "2024-12-12"
 
 # Variáveis públicas
 vars = { 
-  SUPABASE_URL = "https://dvziqqcgjuidtkhoeqdc.supabase.co",
+  SUPABASE_URL = "https://dvziqcgjuidtkihoeqdc.supabase.co",
   SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtpaG9lcWRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTY0MDEsImV4cCI6MjA4NzY5MjQwMX0.Ck6FSoE-Ol1Te8dZ9qc4T9gGLKXukR-JsN3oK0M3iWE"
 }
+
+# Secrets (adicionar via: wrangler secret put SUPABASE_SERVICE_ROLE_KEY)
+# SUPABASE_SERVICE_ROLE_KEY será definida via command line ou Cloudflare Dashboard

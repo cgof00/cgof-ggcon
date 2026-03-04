@@ -16,7 +16,7 @@ if (process.env.NODE_ENV !== 'production') {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load .env.local file manually
+// Load .env.local file manually (apenas em desenvolvimento)
 const envPath = path.join(__dirname, '.env.local');
 console.log('Procurando .env.local em:', envPath);
 
@@ -25,8 +25,7 @@ try {
   console.log('✓ Arquivo .env.local encontrado');
   dotenv.config({ path: envPath });
 } catch (err) {
-  console.warn('⚠ .env.local não encontrado, usando variáveis do sistema');
-  dotenv.config();
+  console.warn('⚠ .env.local não encontrado - em produção, usando variáveis do sistema');
 }
 
 // Supabase Setup
