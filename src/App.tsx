@@ -515,7 +515,7 @@ export default function App() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
   const [paginaAtual, setPaginaAtual] = useState(0);
-  const [itensPorPagina] = useState(37352); // Exibir TODOS os registros sem paginação
+  const [itensPorPagina] = useState(500); // Paginação de 500, mas filtros aplicados aos 37k completos
   const [visibleColumns, setVisibleColumns] = useState({
     seq: false,
     ano: true,
@@ -907,55 +907,30 @@ export default function App() {
       setFormalizacaoSearchResult(prev => ({ ...prev, loading: true }));
       
       const filtersToUse = filtersParam || filters;
-      const activeFilterCount = Object.values(filtersToUse).filter(v => v && v !== '').length;
+      const activeFilterCount = Object.values(filtersToUse).filter(v => (Array.isArray(v) ? v.length > 0 : (v && v !== ''))).length;
       
-      // Verificar se há filtros ativos
+      // Se não tem dados em cache, carregar do servidor
+      let allData = formalizacoes;
+      if (!allData || allData.length === 0) {
+        console.log('📥 Cache vazio, carregando dados do servidor...');
+        const response = await fetch('/api/formalizacao', {
+          headers: getHeaders()
+        });
+        const result = await response.json();
+        allData = Array.isArray(result) ? result : (result.data || []);
+        setFormalizacoes(allData);
+      }
+
       const hasActiveFilters = activeFilterCount > 0;
       
       if (hasActiveFilters) {
-        console.log(`🔍 Filtros ativos (${activeFilterCount}) - buscando TODOS os registros para filtrar...`);
+        console.log(`🔍 Aplicando filtros (${activeFilterCount}) aos ${allData.length} registros em cache...`);
       } else {
-        console.log(`📄 Buscando página ${page} sem filtros...`);
-      }
-      
-      // Se há filtros, buscar TODOS os registros; caso contrário, buscar apenas a página
-      const endpoint = hasActiveFilters ? '/api/formalizacao' : `/api/formalizacao/page/${page}`;
-      
-      const response = await fetch(endpoint, {
-        headers: getHeaders()
-      });
-
-      const result = await response.json();
-      
-      // Para requests sem filtros, resultado é pagInado
-      // Para requests com filtros, resultado é um array global
-      let allData = Array.isArray(result) ? result : (result.data || []);
-      const countBefore = allData.length;
-
-      // Debug: verificar estrutura dos dados
-      if (hasActiveFilters && countBefore > 0) {
-        const firstRecord = allData[0];
-        console.log(`📊 DADOS BRUTOS DO PRIMEIRO REGISTRO:`, firstRecord);
-        const hasParl = !!firstRecord.parlamentar;
-        const hasConv = !!firstRecord.conveniado;
-        const hasObj = !!firstRecord.objeto;
-        console.log(`📊 Primeiro registro bruto: ano=${firstRecord.ano}, parlamentar=${hasParl}, conveniado=${hasConv}, objeto=${hasObj}`);
-        const emptyFields = Object.entries(firstRecord).filter(([k, v]) => !v && k !== 'id').length;
-        console.log(`   Campos vazios/null: ${emptyFields}/${Object.keys(firstRecord).length}`);
-        
-        // Verificar quantos registros têm campos NULL
-        const recordsWithParl = allData.filter(r => r.parlamentar).length;
-        const recordsWithConv = allData.filter(r => r.conveniado).length;
-        const recordsWithObj = allData.filter(r => r.objeto).length;
-        console.log(`📊 Dos ${allData.length} registros:`);
-        console.log(`   - Com parlamentar: ${recordsWithParl} (${((recordsWithParl/allData.length)*100).toFixed(1)}%)`);
-        console.log(`   - Com conveniado: ${recordsWithConv} (${((recordsWithConv/allData.length)*100).toFixed(1)}%)`);
-        console.log(`   - Com objeto: ${recordsWithObj} (${((recordsWithObj/allData.length)*100).toFixed(1)}%)`);
+        console.log(`📄 Sem filtros: exibindo página ${page} de ${allData.length} registros`);
       }
 
       // Função auxiliar para comparação
       const matchesAllFilters = (f: any) => {
-        // Converter para string e comparar de forma robusta
         const safeCompare = (fieldValue: any, filterValue: string): boolean => {
           if (!fieldValue) return false;
           const field = String(fieldValue).toLowerCase().trim();
@@ -963,24 +938,21 @@ export default function App() {
           return field.includes(filter);
         };
 
-        // Helper para verificar se o campo corresponde a uma lista de valores (OR logic)
         const matchesAnyFilter = (fieldValue: any, filterValues: string[]): boolean => {
-          if (!filterValues || filterValues.length === 0) return true; // Se não há filtro, passa
+          if (!filterValues || filterValues.length === 0) return true;
           return filterValues.some(filterValue => safeCompare(fieldValue, filterValue));
         };
 
-        // Ano - pode ter múltiplos anos selecionados
+        // Verificar todos os filtros ativos
         if (Array.isArray(filtersToUse.ano) && filtersToUse.ano.length > 0) {
           const anoField = String(f.ano || '').trim();
           if (!filtersToUse.ano.includes(anoField)) return false;
         }
 
-        // Demandas Formalização (número) - múltiplas seleções
         if (Array.isArray(filtersToUse.demandas_formalizacao) && filtersToUse.demandas_formalizacao.length > 0) {
           if (!matchesAnyFilter(f.demandas_formalizacao, filtersToUse.demandas_formalizacao)) return false;
         }
 
-        // Outros filtros com múltiplas seleções
         if (Array.isArray(filtersToUse.area_estagio) && filtersToUse.area_estagio.length > 0) {
           if (!matchesAnyFilter(f.area_estagio, filtersToUse.area_estagio)) return false;
         }
@@ -1027,7 +999,6 @@ export default function App() {
           if (!matchesAnyFilter(f.objeto, filtersToUse.objeto)) return false;
         }
 
-        // Busca por texto
         if (searchTerm) {
           const searchLower = searchTerm.toLowerCase();
           const matchSearch = 
@@ -1037,7 +1008,6 @@ export default function App() {
           if (!matchSearch) return false;
         }
 
-        // Filtros de data com múltiplas seleções
         if (Array.isArray(filtersToUse.data_liberacao) && filtersToUse.data_liberacao.length > 0) {
           if (!matchesAnyFilter(f.data_liberacao, filtersToUse.data_liberacao)) return false;
         }
@@ -1060,13 +1030,11 @@ export default function App() {
         return true;
       };
 
-      // Aplicar filtros em JavaScript
-      let filteredData = allData;
-      filteredData = filteredData.filter(matchesAllFilters);
+      // Aplicar filtros em modo cache
+      let filteredData = allData.filter(matchesAllFilters);
       
-      // Aplicar filtros de "Ocultar Vazias"
+      // Aplicar "Ocultar Vazias"
       filteredData = filteredData.filter(f => {
-        // Se hideEmptyFields diz para ocultar vazias em uma coluna, filtrar registros com valor vazio
         if (hideEmptyFields.ano && !f.ano) return false;
         if (hideEmptyFields.demandas_formalizacao && !f.demandas_formalizacao) return false;
         if (hideEmptyFields.area_estagio && !f.area_estagio) return false;
@@ -1092,67 +1060,31 @@ export default function App() {
         if (hideEmptyFields.concluida_em && !f.concluida_em) return false;
         return true;
       });
-      
-      // Debug logging
-      if (activeFilterCount > 0) {
-        console.log(`🔍 Filtros ativos: ${activeFilterCount}`);
-        if (filtersToUse.ano) console.log(`  📅 Ano: ${filtersToUse.ano}`);
-        console.log(`  ✅ ${countBefore} → ${filteredData.length} registros EXIBINDO TODOS`);
-        if (filteredData.length === 0) {
-          console.log('⚠️ Nenhum registro encontrado com esse filtro.');
-        }
-      } else {
-        console.log(`📄 Página 0 (sem filtros): ${filteredData.length} registros`);
-      }
 
-      // Se há filtros, aplicar paginação local aos resultados filtrados
-      // Se não há filtros, usar resultado já pagInado do servidor
-      let pagedData, totalRecords, pageInfo;
-      
+      // Paginação dos resultados filtrados
+      const totalFiltered = filteredData.length;
+      const startIdx = page * itensPorPagina;
+      const endIdx = startIdx + itensPorPagina;
+      const pagedData = filteredData.slice(startIdx, endIdx);
+
       if (hasActiveFilters) {
-        // Paginação local dos dados filtrados (TODOS, sem remover nenhum)
-        const totalFiltered = filteredData.length;
-        const startIdx = page * itensPorPagina;
-        const endIdx = startIdx + itensPorPagina;
-        pagedData = filteredData.slice(startIdx, endIdx);
-        totalRecords = totalFiltered;
-        pageInfo = {
-          page: page,
-          pageSize: itensPorPagina,
-          hasMore: endIdx < totalFiltered
-        };
-        console.log(`   📖 Página ${page + 1}: ${pagedData.length}/${totalFiltered} registros filtrados`);
-      } else {
-        // Usar resultado já pagInado do servidor
-        pagedData = Array.isArray(result) ? result : (result.data || []);
-        totalRecords = result.total || pagedData.length;
-        pageInfo = {
-          page: page,
-          pageSize: result.pageSize || itensPorPagina,
-          hasMore: result.hasMore || false
-        };
+        console.log(`  ✅ ${allData.length} → ${filteredData.length} registros após filtros`);
       }
+      console.log(`  📖 Página ${page + 1}: ${pagedData.length} registros (total filtrado: ${totalFiltered})`);
 
-      console.log(`✅ Resultado final: ${pagedData.length} registros para exibir`);
-      console.log(`   Tipo de dados: ${Array.isArray(pagedData) ? 'ARRAY' : 'OUTRO'}`);
-      console.log(`   Primeiros registros:`, pagedData.slice(0, 2));
-      console.log(`   Total a exibir: ${totalRecords}`);
-      
       const newState = {
         data: pagedData,
-        total: totalRecords,
-        page: pageInfo.page,
-        limit: pageInfo.pageSize,
-        hasMore: pageInfo.hasMore,
+        total: totalFiltered,
+        page: page,
+        limit: itensPorPagina,
+        hasMore: endIdx < totalFiltered,
         loading: false
       };
-      console.log(`   Estado a ser setado:`, newState);
-      
+
       setFormalizacaoSearchResult(newState);
-      
       setPaginaAtual(page);
     } catch (error) {
-      console.error('Erro ao buscar formalizações:', error);
+      console.error('❌ Erro ao filtrar formalizações:', error);
       setFormalizacaoSearchResult(prev => ({ ...prev, loading: false }));
     }
   };
