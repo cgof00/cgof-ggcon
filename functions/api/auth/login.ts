@@ -2,8 +2,9 @@ export const onRequest: PagesFunction = async (context) => {
   const { request } = context;
   const url = new URL(request.url);
 
-  const SUPABASE_URL = 'https://dvziqqcgjuidtkhoeqdc.supabase.co';
+  const SUPABASE_URL = 'https://dvziqcgjuidtkhoeqdc.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTY0MDEsImV4cCI6MjA4NzY5MjQwMX0.Ck6FSoE-Ol1Te8dZ9qc4T9gGLKXukR-JsN3oK0M3iWE';
+  const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjExNjQwMSwiZXhwIjoyMDg3NjkyNDAxfQ.bAgun92X0530xUXg_Wa5hrCAkLL-P8O44usT8o2_Mr8';
 
   function hashPassword(pwd: string): string {
     let h = 0;
@@ -84,8 +85,8 @@ export const onRequest: PagesFunction = async (context) => {
 
       const resp = await fetch(qUrl, {
         headers: {
-          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-          'apikey': SUPABASE_ANON_KEY
+          'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
+          'apikey': SUPABASE_SERVICE_ROLE_KEY
         }
       });
 
@@ -139,8 +140,8 @@ export const onRequest: PagesFunction = async (context) => {
 
       const resp = await fetch(qUrl, {
         headers: {
-          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-          'apikey': SUPABASE_ANON_KEY
+          'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
+          'apikey': SUPABASE_SERVICE_ROLE_KEY
         }
       });
 
