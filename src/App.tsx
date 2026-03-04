@@ -878,16 +878,17 @@ export default function App() {
 
   const fetchFormalizacoes = async () => {
     try {
-      const response = await fetch('/api/formalizacao?limit=37352', {
+      // Requisição sem parâmetros busca TODOS os registros em paralelo (37k+)
+      const response = await fetch('/api/formalizacao', {
         headers: getHeaders()
       });
       const result = await response.json();
       
-      // O endpoint retorna { data, total, page, limit }
+      // O endpoint retorna { data, total }
       const data = Array.isArray(result) ? result : (result.data || []);
       
       if (Array.isArray(data) && data.length > 0) {
-        console.log('✅ Formalizações carregadas:', data.length, 'registros');
+        console.log('✅ Formalizações carregadas:', data.length, 'registros de', result.total || data.length);
         if (data.length > 0) {
           console.log('📅 Primeiro registro - ano:', data[0].ano, 'parlamentar:', data[0].parlamentar);
         }
