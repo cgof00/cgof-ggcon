@@ -1,5 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
 export const onRequest: PagesFunction = async (context) => {
   const { request } = context;
   const url = new URL(request.url);
@@ -26,28 +24,22 @@ export const onRequest: PagesFunction = async (context) => {
     });
   }
 
-  // TEST - Tenta listar usuários sem filtro
-  if (request.method === 'GET' && url.pathname === '/api/auth/test') {
+  // TEST - Teste simples
+  if (request.method === 'GET' && url.pathname === '/api/auth/test-raw') {
     try {
-      const resp = await fetch(SUPABASE_URL + '/rest/v1/usuarios?select=id,email,nome&limit=5', {
+      const resp = await fetch('https://dvziqcgjuidtkhoeqdc.supabase.co/rest/v1/usuarios?select=id&limit=1', {
         headers: {
-          'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
-          'apikey': SUPABASE_SERVICE_ROLE_KEY,
-          'Content-Type': 'application/json'
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjExNjQwMSwiZXhwIjoyMDg3NjkyNDAxfQ.bAgun92X0530xUXg_Wa5hrCAkLL-P8O44usT8o2_Mr8',
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjExNjQwMSwiZXhwIjoyMDg3NjkyNDAxfQ.bAgun92X0530xUXg_Wa5hrCAkLL-P8O44usT8o2_Mr8'
         }
       });
-      const data = await resp.json();
+      const text = await resp.text();
       return new Response(JSON.stringify({
         status: resp.status,
-        ok: resp.ok,
-        count: Array.isArray(data) ? data.length : 0,
-        data: data
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+        data: text.substring(0, 500)
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+      return new Response(JSON.stringify({ error: e.toString() }), { status: 500 });
     }
   }
 
