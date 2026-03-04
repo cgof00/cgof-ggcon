@@ -7,8 +7,6 @@ export const onRequest: PagesFunction = async (context) => {
   const SUPABASE_URL = 'https://dvziqcgjuidtkhoeqdc.supabase.co';
   const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjExNjQwMSwiZXhwIjoyMDg3NjkyNDAxfQ.bAgun92X0530xUXg_Wa5hrCAkLL-P8O44usT8o2_Mr8';
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
   function hashPassword(pwd: string): string {
     let h = 0;
     const s = 'salt';
@@ -20,22 +18,6 @@ export const onRequest: PagesFunction = async (context) => {
     return Math.abs(h).toString(16);
   }
 
-  // TEST endpoint usando SDK
-  if (request.method === 'GET' && url.pathname === '/api/auth/test') {
-    try {
-      const { data, error } = await supabase
-        .from('usuarios')
-        .select('id,email,nome')
-        .limit(1);
-      return new Response(JSON.stringify({ ok: !error, error: error?.message, data }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500 });
-    }
-  }
-
   // PING
   if (request.method === 'GET' && url.pathname === '/api/auth/ping') {
     return new Response(JSON.stringify({ ok: true }), {
@@ -44,16 +26,37 @@ export const onRequest: PagesFunction = async (context) => {
     });
   }
 
+  // TEST - Tenta listar usuários sem filtro
+  if (request.method === 'GET' && url.pathname === '/api/auth/test') {
+    try {
+      const resp = await fetch(SUPABASE_URL + '/rest/v1/usuarios?select=id,email,nome&limit=5', {
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
+          'apikey': SUPABASE_SERVICE_ROLE_KEY,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await resp.json();
+      return new Response(JSON.stringify({
+        status: resp.status,
+        ok: resp.ok,
+        count: Array.isArray(data) ? data.length : 0,
+        data: data
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (e: any) {
+      return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+    }
+  }
 
-
-
-
-  // LOGIN - Usando SDK do Supabase
+  // LOGIN - Carrega TODOS os usuários e filtra no JavaScript
   if (request.method === 'POST' && url.pathname === '/api/auth/login') {
     try {
       const body = await request.json();
-      const email = body.email;
-      const senha = body.senha;
+      const email = body.email || '';
+      const senha = body.senha || '';
 
       if (!email || !senha) {
         return new Response(JSON.stringify({ error: 'Missing fields' }), { status: 400 });
@@ -62,21 +65,32 @@ export const onRequest: PagesFunction = async (context) => {
       const emailLower = email.toLowerCase();
       const hashCalc = hashPassword(senha);
 
-      // Usar SDK do Supabase para query
-      const { data: users, error } = await supabase
-        .from('usuarios')
-        .select('*')
-        .eq('email', emailLower);
+      // Fetch SEM filtro de email - isto contorna o erro 1016 do filtro
+      const resp = await fetch(SUPABASE_URL + '/rest/v1/usuarios?select=*', {
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
+          'apikey': SUPABASE_SERVICE_ROLE_KEY,
+          'Content-Type': 'application/json'
+        }
+      });
 
-      if (error) {
-        return new Response(JSON.stringify({ error: `Supabase error: ${error.message}` }), { status: 401 });
+      if (!resp.ok) {
+        const errText = await resp.text();
+        return new Response(JSON.stringify({ 
+          error: `API error: ${errText.substring(0, 200)}` 
+        }), { status: resp.status });
       }
 
-      if (!Array.isArray(users) || users.length === 0) {
+      const users = await resp.json();
+
+      // Filtro manual no JavaScript
+      const user = Array.isArray(users) 
+        ? users.find((u: any) => u.email && u.email.toLowerCase() === emailLower)
+        : null;
+
+      if (!user) {
         return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), { status: 401 });
       }
-
-      const user = users[0];
 
       if (hashCalc !== user.senha_hash) {
         return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), { status: 401 });
@@ -100,10 +114,6 @@ export const onRequest: PagesFunction = async (context) => {
       return new Response(JSON.stringify({ error: `Exception: ${e.message}` }), { status: 500 });
     }
   }
-
-
-
-
 
   // OPTIONS
   if (request.method === 'OPTIONS') {
