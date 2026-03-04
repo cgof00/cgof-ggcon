@@ -1,9 +1,5 @@
-// Endpoint simples que retorna TODOS os registros
-// Sem cache compartilhado entre handlers do Cloudflare
-
 export const onRequest: PagesFunction = async (context) => {
-  const { request, env } = context;
-  const url = new URL(request.url);
+  const { request, env, params } = context;
 
   const SUPABASE_URL = env.SUPABASE_URL;
   const SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
@@ -14,20 +10,18 @@ export const onRequest: PagesFunction = async (context) => {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // GET /api/formalizacao (retorna TODOS com paginação)
+  // GET /api/formalizacao/page/:pageNum
   if (request.method === 'GET') {
     try {
-      const pageParam = url.searchParams.get('page') || '0';
-      const limitParam = url.searchParams.get('limit') || '100';
-      const page = parseInt(pageParam);
-      const limit = parseInt(limitParam);
-      const offset = page * limit;
+      const pageNum = parseInt(params.pageNum as string) || 0;
+      const pageSize = 500; // Padrão do server.ts
+      const offset = pageNum * pageSize;
 
-      console.log(`📥 GET /api/formalizacao - page: ${page}, limit: ${limit}`);
+      console.log(`📄 GET /api/formalizacao/page/${pageNum} (offset: ${offset}, size: ${pageSize})`);
 
-      // Buscar dados com paginação
+      // Buscar página específica
       const dataResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/formalizacao?order=created_at.desc&limit=${limit}&offset=${offset}`,
+        `${SUPABASE_URL}/rest/v1/formalizacao?order=created_at.desc&limit=${pageSize}&offset=${offset}`,
         {
           headers: {
             'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
@@ -47,7 +41,7 @@ export const onRequest: PagesFunction = async (context) => {
 
       const data = await dataResp.json();
 
-      // Contar total de registros
+      // Contar total
       const countResp = await fetch(
         `${SUPABASE_URL}/rest/v1/formalizacao?select=id`,
         {
@@ -69,13 +63,14 @@ export const onRequest: PagesFunction = async (context) => {
         }
       }
 
-      console.log(`✅ Retornando ${data?.length || 0} registros de ${total} total`);
+      console.log(`✅ Página ${pageNum}: ${data?.length || 0} registros`);
 
       return new Response(JSON.stringify({
         data: Array.isArray(data) ? data : [],
         total: total,
-        page: page,
-        limit: limit
+        page: pageNum,
+        limit: pageSize,
+        totalPages: Math.ceil(total / pageSize)
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
