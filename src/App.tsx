@@ -878,19 +878,25 @@ export default function App() {
 
   const fetchFormalizacoes = async () => {
     try {
-      const response = await fetch('/api/formalizacao', {
+      const response = await fetch('/api/formalizacao?limit=37352', {
         headers: getHeaders()
       });
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        console.log('📥 Formalizações carregadas:', data.length, 'registros');
+      const result = await response.json();
+      
+      // O endpoint retorna { data, total, page, limit }
+      const data = Array.isArray(result) ? result : (result.data || []);
+      
+      if (Array.isArray(data) && data.length > 0) {
+        console.log('✅ Formalizações carregadas:', data.length, 'registros');
         if (data.length > 0) {
-          console.log('📅 Primeiro registro - ano:', data[0].ano, 'tipo:', typeof data[0].ano);
+          console.log('📅 Primeiro registro - ano:', data[0].ano, 'parlamentar:', data[0].parlamentar);
         }
         setFormalizacoes(data);
+      } else {
+        console.warn('⚠️ Nenhuma formalização carregada', result);
       }
     } catch (error) {
-      console.error('Erro ao buscar formalizações:', error);
+      console.error('❌ Erro ao buscar formalizações:', error);
     }
   };
 

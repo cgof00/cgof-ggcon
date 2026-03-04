@@ -18,12 +18,13 @@ export const onRequest: PagesFunction = async (context) => {
   if (request.method === 'GET') {
     try {
       const pageParam = url.searchParams.get('page') || '0';
-      const limitParam = url.searchParams.get('limit') || '100';
+      // Default para 37352 (total de registros) se não especificado
+      const limitParam = url.searchParams.get('limit') || '37352';
       const page = parseInt(pageParam);
-      const limit = parseInt(limitParam);
+      const limit = Math.min(parseInt(limitParam), 37352); // Cap at 37352
       const offset = page * limit;
 
-      console.log(`📥 GET /api/formalizacao - page: ${page}, limit: ${limit}`);
+      console.log(`📥 GET /api/formalizacao - page: ${page}, limit: ${limit}, offset: ${offset}`);
 
       // Buscar dados com paginação
       const dataResp = await fetch(
