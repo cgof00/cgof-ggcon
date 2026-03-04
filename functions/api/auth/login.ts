@@ -17,6 +17,44 @@ export const onRequest: PagesFunction = async (context) => {
     }
     return Math.abs(hash).toString(16);
   }
+  // DEBUG: GET /api/auth/test-key - Testa se a chave service_role funciona
+  if (request.method === 'GET' && url.pathname === '/api/auth/test-key') {
+    try {
+      const queryUrl = `${SUPABASE_URL}/rest/v1/usuarios?select=count`;
+      console.log('Testando service_role key...');
+      console.log('URL:', queryUrl);
+
+      const response = await fetch(queryUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'apikey': SUPABASE_SERVICE_ROLE_KEY,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('Response status:', response.status);
+      const responseText = await response.text();
+      console.log('Response text:', responseText);
+
+      return new Response(
+        JSON.stringify({
+          status: response.status,
+          ok: response.ok,
+          responseText: responseText,
+          message: response.ok ? 'Chave funcionando!' : 'Erro na chave'
+        }, null, 2),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    } catch (error) {
+      console.error('❌ Erro test-key:', error);
+      return new Response(
+        JSON.stringify({ error: String(error) }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
   // DEBUG: GET /api/auth/debug-full - Debug completo do login
   if (request.method === 'GET' && url.pathname === '/api/auth/debug-full') {
     try {
