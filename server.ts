@@ -192,7 +192,7 @@ const app = express();
         const { data, error } = await supabase
           .from("usuarios")
           .select("id, email, nome, role, senha_hash, ativo")
-          .eq("email", email)
+          .ilike("email", email)
           .single();
 
         if (error) {
