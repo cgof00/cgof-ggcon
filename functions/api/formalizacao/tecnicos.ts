@@ -1,13 +1,15 @@
 export const onRequest: PagesFunction = async (context) => {
   const { request, env } = context;
 
-  const SUPABASE_URL = env.SUPABASE_URL || 'https://dvziqcgjuidtkihoeqdc.supabase.co';
-  const SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjExNjQwMSwiZXhwIjoyMDg3NjkyNDAxfQ.bAgun92X0530xUXg_Wa5hrCAkLL-P8O44usT8o2_Mr8';
+  const SUPABASE_URL = env.SUPABASE_URL;
+  const SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
 
   // GET /api/formalizacao/tecnicos
   if (request.method === 'GET') {
     try {
-      // Buscar usuários da tabela usuarios
+      console.log('🔍 GET /api/formalizacao/tecnicos');
+
+      // Buscar usuários ativos da tabela usuarios
       const resp = await fetch(
         `${SUPABASE_URL}/rest/v1/usuarios?select=id,nome,email,role&eq=ativo,true&order=nome.asc`,
         {
@@ -28,6 +30,7 @@ export const onRequest: PagesFunction = async (context) => {
       }
 
       const data = await resp.json();
+      console.log(`✅ ${data?.length || 0} técnicos encontrados`);
 
       return new Response(JSON.stringify({
         tecnicos: Array.isArray(data) ? data : []
@@ -36,6 +39,7 @@ export const onRequest: PagesFunction = async (context) => {
         headers: { 'Content-Type': 'application/json' }
       });
     } catch (e: any) {
+      console.error('❌ ERRO:', e);
       return new Response(JSON.stringify({ error: e.message }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }

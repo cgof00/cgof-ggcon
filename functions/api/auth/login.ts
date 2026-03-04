@@ -2,11 +2,17 @@ export const onRequest: PagesFunction = async (context) => {
   const { request, env } = context;
   const url = new URL(request.url);
 
-  // Usar variáveis do Cloudflare ou fallback
-  const SUPABASE_URL = env.SUPABASE_URL || 'https://dvziqcgjuidtkihoeqdc.supabase.co';
-  const SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtpaG9lcWRjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjExNjQwMSwiZXhwIjoyMDg3NjkyNDAxfQ.bAgun92X0530xUXg_Wa5hrCAkLL-P8O44usT8o2_Mr8';
+  // Usar variáveis do Cloudflare
+  const SUPABASE_URL = env.SUPABASE_URL;
+  const SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
 
-  // SHA256 hash function - CORRETO
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return new Response(JSON.stringify({ 
+      error: 'Variáveis de ambiente não configuradas no Cloudflare' 
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  // SHA256 hash function
   async function hashPassword(password: string): Promise<string> {
     const encoder = new TextEncoder();
     const data = encoder.encode(password);
@@ -24,26 +30,7 @@ export const onRequest: PagesFunction = async (context) => {
     });
   }
 
-  // TEST - Teste simples
-  if (request.method === 'GET' && url.pathname === '/api/auth/test-raw') {
-    try {
-      const resp = await fetch('https://dvziqcgjuidtkhoeqdc.supabase.co/rest/v1/usuarios?select=id&limit=1', {
-        headers: {
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjExNjQwMSwiZXhwIjoyMDg3NjkyNDAxfQ.bAgun92X0530xUXg_Wa5hrCAkLL-P8O44usT8o2_Mr8',
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjExNjQwMSwiZXhwIjoyMDg3NjkyNDAxfQ.bAgun92X0530xUXg_Wa5hrCAkLL-P8O44usT8o2_Mr8'
-        }
-      });
-      const text = await resp.text();
-      return new Response(JSON.stringify({
-        status: resp.status,
-        data: text.substring(0, 500)
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.toString() }), { status: 500 });
-    }
-  }
-
-  // LOGIN - Carrega TODOS os usuários e filtra no JavaScript
+  // LOGIN
   if (request.method === 'POST' && url.pathname === '/api/auth/login') {
     try {
       const body = await request.json();
@@ -51,13 +38,16 @@ export const onRequest: PagesFunction = async (context) => {
       const senha = body.senha || '';
 
       if (!email || !senha) {
-        return new Response(JSON.stringify({ error: 'Missing fields' }), { status: 400 });
+        return new Response(JSON.stringify({ error: 'Missing fields' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
       }
 
       const emailLower = email.toLowerCase();
       const hashCalc = await hashPassword(senha);
 
-      // Fetch SEM filtro de email - isto contorna o erro 1016 do filtro
+      console.log(`🔐 Login attempt: ${email}`);
+      console.log(`   Hash calculado: ${hashCalc}`);
+
+      // Fetch todos os usuários (sem filtro para evitar erro 1016)
       const resp = await fetch(SUPABASE_URL + '/rest/v1/usuarios?select=*', {
         headers: {
           'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
@@ -68,9 +58,10 @@ export const onRequest: PagesFunction = async (context) => {
 
       if (!resp.ok) {
         const errText = await resp.text();
+        console.error(`❌ Supabase error: ${resp.status}`);
         return new Response(JSON.stringify({ 
           error: `API error: ${errText.substring(0, 200)}` 
-        }), { status: resp.status });
+        }), { status: resp.status, headers: { 'Content-Type': 'application/json' } });
       }
 
       const users = await resp.json();
@@ -81,14 +72,20 @@ export const onRequest: PagesFunction = async (context) => {
         : null;
 
       if (!user) {
-        return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), { status: 401 });
+        console.log('❌ User not found');
+        return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
       }
+
+      console.log(`✓ User found: ${user.email}`);
+      console.log(`   Hash armazenado: ${user.senha_hash}`);
 
       // Comparar SHA256
       if (hashCalc !== user.senha_hash) {
-        console.log('Hash mismatch:', { calculado: hashCalc, armazenado: user.senha_hash });
-        return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), { status: 401 });
+        console.log('❌ Hash mismatch');
+        return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
       }
+
+      console.log(`✅ Login successful for ${user.email}`);
 
       const token = btoa(JSON.stringify({
         id: user.id,
@@ -105,7 +102,8 @@ export const onRequest: PagesFunction = async (context) => {
         headers: { 'Content-Type': 'application/json' }
       });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: `Exception: ${e.message}` }), { status: 500 });
+      console.error('❌ Exception:', e);
+      return new Response(JSON.stringify({ error: `Exception: ${e.message}` }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
   }
 
