@@ -16,6 +16,19 @@ export const onRequest: PagesFunction = async (context) => {
     return Math.abs(h).toString(16);
   }
 
+  // RAW TEST - Query bruta sem processamento
+  if (request.method === 'GET' && url.pathname === '/api/auth/raw-test') {
+    const testUrl = SUPABASE_URL + '/rest/v1/usuarios?select=*&limit=1';
+    const resp = await fetch(testUrl, {
+      headers: {
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'apikey': SUPABASE_ANON_KEY
+      }
+    });
+    const txt = await resp.text();
+    return new Response(txt, { status: resp.status });
+  }
+
   // PING
   if (request.method === 'GET' && url.pathname === '/api/auth/ping') {
     return new Response(JSON.stringify({ ok: true }), {
