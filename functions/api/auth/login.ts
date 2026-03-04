@@ -2,6 +2,131 @@ export const onRequest: PagesFunction = async (context) => {
   const { request } = context;
   const url = new URL(request.url);
 
+  // DEBUG: GET /api/auth/hash-test - Testar hash de senha
+  if (request.method === 'GET' && url.pathname === '/api/auth/hash-test') {
+    try {
+      const senha = url.searchParams.get('senha') || 'M@dmax2026';
+      
+      function hashPassword(password: string): string {
+        let hash = 0;
+        const salt = 'salt';
+        const combined = password + salt;
+        for (let i = 0; i < combined.length; i++) {
+          const char = combined.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        return Math.abs(hash).toString(16);
+      }
+
+      const hash = hashPassword(senha);
+      return new Response(
+        JSON.stringify({
+          senha,
+          hash,
+          length: hash.length,
+        }, null, 2),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ error: String(error) }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+  }
+
+  // DEBUG: GET /api/auth/hash-test - Testar hash de senha
+  if (request.method === 'GET' && url.pathname === '/api/auth/hash-test') {
+    try {
+      const senha = url.searchParams.get('senha') || 'M@dmax2026';
+      
+      function hashPassword(password: string): string {
+        let hash = 0;
+        const salt = 'salt';
+        const combined = password + salt;
+        for (let i = 0; i < combined.length; i++) {
+          const char = combined.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        return Math.abs(hash).toString(16);
+      }
+
+      const hash = hashPassword(senha);
+      return new Response(
+        JSON.stringify({
+          senha,
+          hash,
+          length: hash.length,
+        }, null, 2),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ error: String(error) }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+  }
+
+  // DEBUG: POST /api/auth/hash-compare - Comparar senha com hash do banco
+  if (request.method === 'POST' && url.pathname === '/api/auth/hash-compare') {
+    try {
+      const { senha, hash_banco } = await request.json();
+      
+      function hashPassword(password: string): string {
+        let hash = 0;
+        const salt = 'salt';
+        const combined = password + salt;
+        for (let i = 0; i < combined.length; i++) {
+          const char = combined.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        return Math.abs(hash).toString(16);
+      }
+
+      const hashCalculado = hashPassword(senha);
+      const batem = hashCalculado === hash_banco;
+      
+      return new Response(
+        JSON.stringify({
+          senha,
+          hashCalculado,
+          hash_banco,
+          batem,
+          comprimentoCalculado: hashCalculado.length,
+          comprimentoBanco: hash_banco.length,
+        }, null, 2),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ error: String(error) }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+  }
+
   // DEBUG: GET /api/auth/debug - Ver estado do usuário
   if (request.method === 'GET' && url.pathname === '/api/auth/debug') {
     try {
@@ -126,9 +251,11 @@ export const onRequest: PagesFunction = async (context) => {
       const emailEncoded = encodeURIComponent(email);
       const queryUrl = `${SUPABASE_URL}/rest/v1/usuarios?select=*&email=ilike.%${emailEncoded}%`;
 
-      console.log('� POST /api/auth/login');
-      console.log('  Email:', email);
-      console.log('  Senha:', senha);
+      console.log('🔐 POST /api/auth/login');
+      console.log('  Email recebido:', email);
+      console.log('  Email encoded:', emailEncoded);
+      console.log('  Query URL:', queryUrl);
+      console.log('  Senha recebida:', senha);
 
       const response = await fetch(queryUrl, {
         method: 'GET',
@@ -139,18 +266,27 @@ export const onRequest: PagesFunction = async (context) => {
         },
       });
 
+      console.log('  Response status:', response.status);
+      console.log('  Response ok:', response.ok);
+
       if (!response.ok) {
-        console.error('❌ Erro Supabase:', response.status);
-        return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), {
+        const errorText = await response.text();
+        console.error('❌ Erro Supabase:', response.status, errorText);
+        return new Response(JSON.stringify({ error: 'Email ou senha incorretos', debug: `Supabase error: ${errorText}` }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' },
         });
       }
 
       const usuarios = await response.json();
+      console.log('  Usuarios encontrados:', usuarios.length);
+      
+      if (Array.isArray(usuarios) && usuarios.length > 0) {
+        console.log('  Primeiro usuário:', JSON.stringify(usuarios[0]));
+      }
 
       if (!Array.isArray(usuarios) || usuarios.length === 0) {
-        console.error('❌ Usuário não encontrado');
+        console.error('❌ Usuário não encontrado com ilike');
         return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' },
@@ -168,11 +304,18 @@ export const onRequest: PagesFunction = async (context) => {
       const hashedPassword = hashPassword(senha);
       console.log('  Senha recebida:', senha);
       console.log('  Hash calculado:', hashedPassword);
+      console.log('  Hash no banco:', user.senha_hash);
+      console.log('  Comprimento hash calculado:', hashedPassword.length);
+      console.log('  Comprimento hash banco:', user.senha_hash.length);
       console.log('  Batem?', hashedPassword === user.senha_hash ? '✅ SIM' : '❌ NÃO');
 
       if (hashedPassword !== user.senha_hash) {
         console.log('❌ Senha incorreta - hash não bate');
-        return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), {
+        return new Response(JSON.stringify({ error: 'Email ou senha incorretos', debug: { 
+          hashCalculado: hashedPassword,
+          hashBanco: user.senha_hash,
+          batem: false
+        }}), {
           status: 401,
           headers: { 'Content-Type': 'application/json' },
         });
