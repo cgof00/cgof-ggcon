@@ -2,63 +2,25 @@ export const onRequest: PagesFunction = async (context) => {
   const { request } = context;
   const url = new URL(request.url);
 
-  // DEBUG: GET /api/auth/hash-test - Testar hash de senha
-  if (request.method === 'GET' && url.pathname === '/api/auth/hash-test') {
-    try {
-      const senha = url.searchParams.get('senha') || 'M@dmax2026';
-      
-      function hashPassword(password: string): string {
-        let hash = 0;
-        const salt = 'salt';
-        const combined = password + salt;
-        for (let i = 0; i < combined.length; i++) {
-          const char = combined.charCodeAt(i);
-          hash = ((hash << 5) - hash) + char;
-          hash = hash & hash;
-        }
-        return Math.abs(hash).toString(16);
-      }
-
-      const hash = hashPassword(senha);
-      return new Response(
-        JSON.stringify({
-          senha,
-          hash,
-          length: hash.length,
-        }, null, 2),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    } catch (error) {
-      return new Response(
-        JSON.stringify({ error: String(error) }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+  // Constantes globais de Supabase
+  const SUPABASE_URL = 'https://dvziqcgjuidtkihoeqdc.supabase.co';
+  const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtpaG9lcWRjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjExNjQwMSwiZXhwIjoyMDg3NjkyNDAxfQ.bAgun92X0530xUXg_Wa5hrCAkLL-P8O44usT8o2_Mr8';
+  // Helper global para hash de senha
+  function hashPassword(password: string): string {
+    let hash = 0;
+    const salt = 'salt';
+    const combined = password + salt;
+    for (let i = 0; i < combined.length; i++) {
+      const char = combined.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
     }
+    return Math.abs(hash).toString(16);
   }
-
   // DEBUG: GET /api/auth/hash-test - Testar hash de senha
   if (request.method === 'GET' && url.pathname === '/api/auth/hash-test') {
     try {
       const senha = url.searchParams.get('senha') || 'M@dmax2026';
-      
-      function hashPassword(password: string): string {
-        let hash = 0;
-        const salt = 'salt';
-        const combined = password + salt;
-        for (let i = 0; i < combined.length; i++) {
-          const char = combined.charCodeAt(i);
-          hash = ((hash << 5) - hash) + char;
-          hash = hash & hash;
-        }
-        return Math.abs(hash).toString(16);
-      }
-
       const hash = hashPassword(senha);
       return new Response(
         JSON.stringify({
@@ -86,19 +48,6 @@ export const onRequest: PagesFunction = async (context) => {
   if (request.method === 'POST' && url.pathname === '/api/auth/hash-compare') {
     try {
       const { senha, hash_banco } = await request.json();
-      
-      function hashPassword(password: string): string {
-        let hash = 0;
-        const salt = 'salt';
-        const combined = password + salt;
-        for (let i = 0; i < combined.length; i++) {
-          const char = combined.charCodeAt(i);
-          hash = ((hash << 5) - hash) + char;
-          hash = hash & hash;
-        }
-        return Math.abs(hash).toString(16);
-      }
-
       const hashCalculado = hashPassword(senha);
       const batem = hashCalculado === hash_banco;
       
@@ -131,9 +80,6 @@ export const onRequest: PagesFunction = async (context) => {
   if (request.method === 'GET' && url.pathname === '/api/auth/debug') {
     try {
       const email = url.searchParams.get('email') || 'afpereira@saude.sp.gov.br';
-      
-      const SUPABASE_URL = 'https://dvziqqcgjuidtkhoeqdc.supabase.co';
-      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTY0MDEsImV4cCI6MjA4NzY5MjQwMX0.Ck6FSoE-Ol1Te8dZ9qc4T9gGLKXukR-JsN3oK0M3iWE';
 
       const emailEncoded = encodeURIComponent(email.toLowerCase());
       const queryUrl = `${SUPABASE_URL}/rest/v1/usuarios?select=*&email=eq.${emailEncoded}`;
@@ -141,8 +87,8 @@ export const onRequest: PagesFunction = async (context) => {
       const response = await fetch(queryUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'apikey': SUPABASE_SERVICE_ROLE_KEY,
           'Content-Type': 'application/json',
         },
       });
@@ -189,14 +135,12 @@ export const onRequest: PagesFunction = async (context) => {
   // DEBUG: GET /api/auth/list - Lista todos os usuários
   if (request.method === 'GET' && url.pathname === '/api/auth/list') {
     try {
-      const SUPABASE_URL = 'https://dvziqqcgjuidtkhoeqdc.supabase.co';
-      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTY0MDEsImV4cCI6MjA4NzY5MjQwMX0.Ck6FSoE-Ol1Te8dZ9qc4T9gGLKXukR-JsN3oK0M3iWE';
       const queryUrl = `${SUPABASE_URL}/rest/v1/usuarios?select=*`;
       const response = await fetch(queryUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'apikey': SUPABASE_SERVICE_ROLE_KEY,
           'Content-Type': 'application/json',
         },
       });
@@ -231,21 +175,8 @@ export const onRequest: PagesFunction = async (context) => {
         });
       }
 
-      const SUPABASE_URL = 'https://dvziqqcgjuidtkhoeqdc.supabase.co';
-      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTY0MDEsImV4cCI6MjA4NzY5MjQwMX0.Ck6FSoE-Ol1Te8dZ9qc4T9gGLKXukR-JsN3oK0M3iWE';
-
       // Helper para hash de senha
-      function hashPassword(password: string): string {
-        let hash = 0;
-        const salt = 'salt';
-        const combined = password + salt;
-        for (let i = 0; i < combined.length; i++) {
-          const char = combined.charCodeAt(i);
-          hash = ((hash << 5) - hash) + char;
-          hash = hash & hash;
-        }
-        return Math.abs(hash).toString(16);
-      }
+      // (agora é global no escopo da função)
 
       // Buscar usuário (case-insensitive usando ilike com wildcards)
       const emailEncoded = encodeURIComponent(email);
@@ -260,8 +191,8 @@ export const onRequest: PagesFunction = async (context) => {
       const response = await fetch(queryUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'apikey': SUPABASE_SERVICE_ROLE_KEY,
           'Content-Type': 'application/json',
         },
       });
