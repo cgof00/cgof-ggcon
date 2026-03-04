@@ -162,6 +162,30 @@ export const onRequest: PagesFunction = async (context) => {
     }
   }
 
+  // TEST LIST ALL USERS
+  if (request.method === 'GET' && url.pathname === '/api/auth/test-list-all') {
+    try {
+      const qUrl = SUPABASE_URL + '/rest/v1/usuarios?select=id,email,nome&limit=10';
+      const resp = await fetch(qUrl, {
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
+          'apikey': SUPABASE_SERVICE_ROLE_KEY
+        }
+      });
+      const txt = await resp.text();
+      return new Response(JSON.stringify({
+        status: resp.status,
+        ok: resp.ok,
+        data: resp.ok ? JSON.parse(txt) : txt
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (e) {
+      return new Response(JSON.stringify({ error: String(e) }), { status: 500 });
+    }
+  }
+
   // OPTIONS
   if (request.method === 'OPTIONS') {
     return new Response(null, {
