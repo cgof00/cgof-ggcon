@@ -515,7 +515,7 @@ export default function App() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
   const [paginaAtual, setPaginaAtual] = useState(0);
-  const [itensPorPagina] = useState(500);
+  const [itensPorPagina] = useState(37352); // Exibir TODOS os registros sem paginação
   const [visibleColumns, setVisibleColumns] = useState({
     seq: false,
     ano: true,
