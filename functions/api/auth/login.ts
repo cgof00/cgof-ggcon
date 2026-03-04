@@ -1,19 +1,19 @@
 export const onRequest: PagesFunction = async (context) => {
-  const { request } = context;
+  const { request, env } = context;
   const url = new URL(request.url);
 
-  const SUPABASE_URL = 'https://dvziqcgjuidtkhoeqdc.supabase.co';
-  const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtwaG9lcWRjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjExNjQwMSwiZXhwIjoyMDg3NjkyNDAxfQ.bAgun92X0530xUXg_Wa5hrCAkLL-P8O44usT8o2_Mr8';
+  // Usar variáveis do Cloudflare ou fallback
+  const SUPABASE_URL = env.SUPABASE_URL || 'https://dvziqcgjuidtkihoeqdc.supabase.co';
+  const SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtpaG9lcWRjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjExNjQwMSwiZXhwIjoyMDg3NjkyNDAxfQ.bAgun92X0530xUXg_Wa5hrCAkLL-P8O44usT8o2_Mr8';
 
-  function hashPassword(pwd: string): string {
-    let h = 0;
-    const s = 'salt';
-    const c = pwd + s;
-    for (let i = 0; i < c.length; i++) {
-      h = ((h << 5) - h) + c.charCodeAt(i);
-      h = h & h;
-    }
-    return Math.abs(h).toString(16);
+  // SHA256 hash function - CORRETO
+  async function hashPassword(password: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
   }
 
   // PING
@@ -55,7 +55,7 @@ export const onRequest: PagesFunction = async (context) => {
       }
 
       const emailLower = email.toLowerCase();
-      const hashCalc = hashPassword(senha);
+      const hashCalc = await hashPassword(senha);
 
       // Fetch SEM filtro de email - isto contorna o erro 1016 do filtro
       const resp = await fetch(SUPABASE_URL + '/rest/v1/usuarios?select=*', {
@@ -84,7 +84,9 @@ export const onRequest: PagesFunction = async (context) => {
         return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), { status: 401 });
       }
 
+      // Comparar SHA256
       if (hashCalc !== user.senha_hash) {
+        console.log('Hash mismatch:', { calculado: hashCalc, armazenado: user.senha_hash });
         return new Response(JSON.stringify({ error: 'Email ou senha incorretos' }), { status: 401 });
       }
 
