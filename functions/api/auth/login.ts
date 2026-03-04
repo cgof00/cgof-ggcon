@@ -122,9 +122,9 @@ export const onRequest: PagesFunction = async (context) => {
         return Math.abs(hash).toString(16);
       }
 
-      // Buscar usuário (case-insensitive usando ilike)
+      // Buscar usuário (case-insensitive usando ilike com wildcards)
       const emailEncoded = encodeURIComponent(email);
-      const queryUrl = `${SUPABASE_URL}/rest/v1/usuarios?select=*&email=ilike.${emailEncoded}`;
+      const queryUrl = `${SUPABASE_URL}/rest/v1/usuarios?select=*&email=ilike.%${emailEncoded}%`;
 
       console.log('� POST /api/auth/login');
       console.log('  Email:', email);
