@@ -36,7 +36,9 @@ import {
   FileSearch,
   Send,
   PenLine,
-  BookOpen
+  BookOpen,
+  Bell,
+  CheckSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Papa from 'papaparse';
@@ -505,6 +507,8 @@ export default function App() {
   const { user, token, logout, isAdmin, isIntermediario, isUsuario } = useAuth();
   const [activeTab, setActiveTab] = useState<'emendas' | 'formalizacao' | 'admin'>('formalizacao');
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
+  const [adminAlertas, setAdminAlertas] = useState<{id: number, tipo: string, descricao: string, data: string}[]>([]);
+  const [showAlertasDropdown, setShowAlertasDropdown] = useState(false);
   const [emendas, setEmendas] = useState<Emenda[]>([]);
   const [formalizacoes, setFormalizacoes] = useState<Formalizacao[]>([]);
   const [loading, setLoading] = useState(true);
@@ -971,6 +975,36 @@ export default function App() {
       console.log('👤 Colunas ajustadas para usuário comum');
     }
   }, [user]);
+
+  // 🔔 Alertas para admin: demandas analisadas E conferidas
+  const alertasVistosRef = useRef<Set<number>>(new Set());
+  const alertasInitializedRef = useRef(false);
+  useEffect(() => {
+    if (!isAdmin || formalizacoes.length === 0) return;
+    const prontas = formalizacoes.filter(
+      (f: Formalizacao) => f.data_analise_demanda && f.data_liberacao_assinatura_conferencista
+    );
+    // Na primeira carga, marcar todas as existentes como já vistas
+    if (!alertasInitializedRef.current) {
+      alertasInitializedRef.current = true;
+      prontas.forEach((f: Formalizacao) => alertasVistosRef.current.add(f.id));
+      return;
+    }
+    const novas = prontas.filter((f: Formalizacao) => !alertasVistosRef.current.has(f.id));
+    if (novas.length > 0) {
+      setAdminAlertas(prev => {
+        const existingIds = new Set(prev.map(a => a.id));
+        const reallyNew = novas.filter(f => !existingIds.has(f.id));
+        if (reallyNew.length === 0) return prev;
+        return [...prev, ...reallyNew.map((f: Formalizacao) => ({
+          id: f.id,
+          tipo: 'Analisada e Conferida',
+          descricao: `Demanda ${f.demanda || f.emenda || `#${f.id}`} — analisada em ${formatDateForDisplay(f.data_analise_demanda || '')} e conferida em ${formatDateForDisplay(f.data_liberacao_assinatura_conferencista || '')}`,
+          data: f.data_liberacao_assinatura_conferencista || f.data_analise_demanda || ''
+        }))];
+      });
+    }
+  }, [formalizacoes, isAdmin]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -1781,14 +1815,14 @@ export default function App() {
               <img 
                 src={logo1Img} 
                 alt="Logo" 
-                className="h-14 object-contain"
+                className="h-16 object-contain"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}
               />
               <div className="hidden md:flex flex-col">
-                <h1 className="text-sm font-bold text-white leading-tight">Controle de Formalização</h1>
-                <span className="text-[10px] text-white/50">Gestão de Emendas e Convênios</span>
+                <h1 className="text-base font-bold text-white leading-tight">Controle de Formalização</h1>
+                <span className="text-[11px] text-white/50">Gestão de Emendas e Convênios</span>
               </div>
               <div className="h-8 w-px bg-white/20 hidden md:block" />
               <nav className="hidden md:flex items-center gap-1 bg-white/10 p-0.5 rounded-lg">
@@ -1817,27 +1851,65 @@ export default function App() {
                 )}
               </nav>
             </div>
-            {/* Right: Search + Tools + User */}
-            <div className="flex items-center gap-3">
-              <div className="relative hidden md:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/60" />
-                <input 
-                  type="text" 
-                  placeholder="Buscar demanda, técnico..." 
-                  className="pl-10 pr-4 py-1.5 bg-white/15 border border-white/30 text-white placeholder:text-white/50 focus:bg-white/25 focus:border-white/50 rounded-full text-xs w-56 transition-all outline-none backdrop-blur-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+            {/* Center Spacer */}
+            <div className="flex-1" />
 
-              <button 
-                onClick={() => setIsImportOpen(true)}
-                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white/90 hover:bg-white/20 rounded-lg transition-all border border-white/30"
-              >
-                <Upload className="w-4 h-4" />
-                Importar CSV
-              </button>
+            {/* Center: Search */}
+            <div className="relative hidden md:block">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/60" />
+              <input 
+                type="text" 
+                placeholder="Buscar demanda, técnico..." 
+                className="pl-10 pr-4 py-1.5 bg-white/15 border border-white/30 text-white placeholder:text-white/50 focus:bg-white/25 focus:border-white/50 rounded-full text-xs w-72 transition-all outline-none backdrop-blur-sm"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            {/* Right: Tools + User */}
+            <div className="flex items-center gap-3">
               
+              {/* 🔔 Admin Alert Bell */}
+              {isAdmin && adminAlertas.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowAlertasDropdown(!showAlertasDropdown)}
+                    className="relative p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+                    title="Alertas de demandas"
+                  >
+                    <Bell className="w-5 h-5" />
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
+                      {adminAlertas.length}
+                    </span>
+                  </button>
+                  {showAlertasDropdown && (
+                    <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-80 overflow-y-auto">
+                      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                        <span className="text-sm font-bold text-[#1351B4]">Alertas</span>
+                        <button
+                          onClick={() => {
+                            adminAlertas.forEach(a => alertasVistosRef.current.add(a.id));
+                            setAdminAlertas([]);
+                            setShowAlertasDropdown(false);
+                          }}
+                          className="text-[10px] text-gray-400 hover:text-red-500 font-semibold"
+                        >
+                          Limpar tudo
+                        </button>
+                      </div>
+                      {adminAlertas.map(a => (
+                        <div key={a.id} className="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full">{a.tipo}</span>
+                          </div>
+                          <p className="text-xs text-gray-600">{a.descricao}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* User dropdown */}
               <div className="relative group">
                 <div className="flex items-center gap-2 pl-2 border-l border-white/30 cursor-pointer hover:opacity-75 transition-opacity">
@@ -1895,10 +1967,17 @@ export default function App() {
                           alert('❌ Erro ao conectar com o servidor');
                         }
                       }}
-                      className="w-full text-left px-4 py-2 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 last:rounded-b-xl border-b border-gray-100 font-bold transition-colors"
+                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 font-bold transition-colors"
                     >
                       <RefreshCw className="w-4 h-4" />
                       Forçar Atualização BD
+                    </button>
+                    <button
+                      onClick={() => setIsImportOpen(true)}
+                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 last:rounded-b-xl font-bold transition-colors"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Importar CSV
                     </button>
                   </div>
                 )}
@@ -3589,7 +3668,30 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   </div>
                   <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
                     <Input label="Situação - Análise Demanda" name="situacao_analise_demanda" defaultValue={editingFormalizacao?.situacao_analise_demanda} />
-                    <Input label="Data - Análise Demanda" name="data_analise_demanda" type="date" defaultValue={editingFormalizacao?.data_analise_demanda} />
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data - Análise Demanda</label>
+                      <input type="hidden" name="data_analise_demanda" id="data_analise_demanda_hidden" defaultValue={editingFormalizacao?.data_analise_demanda || ''} />
+                      <div className="flex items-center gap-2">
+                        <span id="data_analise_demanda_display" className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center">
+                          {editingFormalizacao?.data_analise_demanda ? formatDateForDisplay(editingFormalizacao.data_analise_demanda) : '—'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const now = new Date();
+                            const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                            const hiddenInput = document.getElementById('data_analise_demanda_hidden') as HTMLInputElement;
+                            const displaySpan = document.getElementById('data_analise_demanda_display');
+                            if (hiddenInput) hiddenInput.value = dataHoje;
+                            if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          <CheckSquare className="w-3.5 h-3.5" />
+                          Demanda Analisada
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -3638,7 +3740,30 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         ))}
                       </select>
                     </div>
-                    <Input label="Data Liberação da Assinatura - Conferencista" name="data_liberacao_assinatura_conferencista" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista} />
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data Liberação - Conferencista</label>
+                      <input type="hidden" name="data_liberacao_assinatura_conferencista" id="data_liberacao_conferencista_hidden" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista || ''} />
+                      <div className="flex items-center gap-2">
+                        <span id="data_liberacao_conferencista_display" className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center">
+                          {editingFormalizacao?.data_liberacao_assinatura_conferencista ? formatDateForDisplay(editingFormalizacao.data_liberacao_assinatura_conferencista) : '—'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const now = new Date();
+                            const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                            const hiddenInput = document.getElementById('data_liberacao_conferencista_hidden') as HTMLInputElement;
+                            const displaySpan = document.getElementById('data_liberacao_conferencista_display');
+                            if (hiddenInput) hiddenInput.value = dataHoje;
+                            if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          <CheckSquare className="w-3.5 h-3.5" />
+                          Liberação Conferência
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 

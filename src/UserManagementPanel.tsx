@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Plus, Trash2, Shield, UserCheck, AlertCircle, Copy, CheckCircle, X, Key, Lock, Edit3 } from 'lucide-react';
+import { Users, Plus, Trash2, Shield, UserCheck, AlertCircle, Copy, CheckCircle, X, Key, Lock, Edit3, Loader2 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
 interface Usuario {
@@ -33,6 +33,10 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [usuarioParaDeletar, setUsuarioParaDeletar] = useState<Usuario | null>(null);
   const [senhaParaDeletar, setSenhaParaDeletar] = useState('');
+
+  const [deletando, setDeletando] = useState(false);
+  const [deleteErro, setDeleteErro] = useState('');
+  const [deleteSuccess, setDeleteSuccess] = useState('');
 
   // Edit user modal states
   const [showEditModal, setShowEditModal] = useState(false);
@@ -162,33 +166,34 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
     
     setUsuarioParaDeletar(usuarioADeletar);
     setSenhaParaDeletar('');
-    setErro('');
-    setSuccessMessage('');
+    setDeleteErro('');
+    setDeleteSuccess('');
+    setDeletando(false);
     setShowDeleteConfirmModal(true);
   };
 
   const confirmarDeletarUsuario = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErro('');
-    setSuccessMessage('');
+    setDeleteErro('');
+    setDeleteSuccess('');
 
     if (!usuarioParaDeletar) {
-      const msg = 'Usuário não selecionado';
-      setErro(msg);
+      setDeleteErro('Usuário não selecionado');
       return;
     }
 
     if (!senhaParaDeletar) {
-      const msg = 'Senha é obrigatória';
-      setErro(msg);
+      setDeleteErro('Senha é obrigatória');
       return;
     }
+
+    setDeletando(true);
 
     try {
       const token = localStorage.getItem('auth_token');
       if (!token) {
-        const msg = 'Token não encontrado. Faça login novamente.';
-        setErro(msg);
+        setDeleteErro('Token não encontrado. Faça login novamente.');
+        setDeletando(false);
         return;
       }
 
@@ -202,21 +207,23 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ error: 'Erro ao deletar usuário' }));
         throw new Error(errorData.error || 'Erro ao deletar usuário');
       }
 
-      setErro('');
-      setSuccessMessage('Usuário deletado com sucesso');
+      setDeleteSuccess('Usuário excluído com sucesso!');
       setSenhaParaDeletar('');
       setTimeout(() => {
         setShowDeleteConfirmModal(false);
         setUsuarioParaDeletar(null);
+        setDeleteErro('');
+        setDeleteSuccess('');
         carregarUsuarios();
       }, 1500);
     } catch (err: any) {
-      const msg = err.message || 'Erro ao deletar usuário';
-      setErro(msg);
+      setDeleteErro(err.message || 'Erro ao deletar usuário');
+    } finally {
+      setDeletando(false);
     }
   };
 
@@ -470,24 +477,27 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
                 </div>
               )}
             </div>
+          </motion.div>
 
-            {/* Modal de Editar Usuário */}
-            <AnimatePresence>
-              {showEditModal && (
-                <>
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => setShowEditModal(false)}
-                    className="fixed inset-0 bg-black/40 z-40"
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="fixed inset-0 flex items-center justify-center z-50 p-4"
-                  >
+          {/* ===== MODALS — outside the animated panel (transform breaks fixed positioning) ===== */}
+
+          {/* Modal de Editar Usuário */}
+          <AnimatePresence>
+            {showEditModal && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowEditModal(false)}
+                  className="fixed inset-0 bg-black/50 z-[60]"
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="fixed inset-0 flex items-center justify-center z-[70] p-4"
+                >
                     <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
                       <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-3">
@@ -576,30 +586,30 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
                             Salvar Alterações
                           </button>
                         </div>
-                      </form>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
+                    </form>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
 
-            {/* Modal de Criar Usuário */}
-            <AnimatePresence>
-              {showModal && (
-                <>
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => setShowModal(false)}
-                    className="fixed inset-0 bg-black/40 z-40"
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="fixed inset-0 flex items-center justify-center z-50 p-4"
-                  >
+          {/* Modal de Criar Usuário */}
+          <AnimatePresence>
+            {showModal && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowModal(false)}
+                  className="fixed inset-0 bg-black/50 z-[60]"
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="fixed inset-0 flex items-center justify-center z-[70] p-4"
+                >
                     <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
                       <div className="flex justify-between items-center mb-6">
                         <h3 className="text-xl font-bold text-slate-900">Criar Novo Usuário</h3>
@@ -701,30 +711,30 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
                         >
                           Criar Usuário
                         </button>
-                      </form>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
+                    </form>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
 
-            {/* Modal de Alterar Senha */}
-            <AnimatePresence>
-              {showSenhaModal && (
-                <>
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => setShowSenhaModal(false)}
-                    className="fixed inset-0 bg-black/40 z-40"
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="fixed inset-0 flex items-center justify-center z-50 p-4"
-                  >
+          {/* Modal de Alterar Senha */}
+          <AnimatePresence>
+            {showSenhaModal && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowSenhaModal(false)}
+                  className="fixed inset-0 bg-black/50 z-[60]"
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="fixed inset-0 flex items-center justify-center z-[70] p-4"
+                >
                     <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
                       <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-3">
@@ -793,113 +803,123 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
                         >
                           Alterar Senha
                         </button>
-                      </form>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
+                    </form>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
 
-            {/* Modal de Confirmar Deletar Usuário */}
-            <AnimatePresence>
-              {showDeleteConfirmModal && usuarioParaDeletar && (
-                <>
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => setShowDeleteConfirmModal(false)}
-                    className="fixed inset-0 bg-black/40 z-40"
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="fixed inset-0 flex items-center justify-center z-50 p-4"
-                  >
+          {/* Modal de Confirmar Exclusão */}
+          <AnimatePresence>
+            {showDeleteConfirmModal && usuarioParaDeletar && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => { if (!deletando) setShowDeleteConfirmModal(false); }}
+                  className="fixed inset-0 bg-black/50 z-[60]"
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="fixed inset-0 flex items-center justify-center z-[70] p-4"
+                >
                     <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
                       <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-3">
                           <div className="bg-red-600 p-2 rounded-lg">
-                            <AlertCircle className="text-white w-5 h-5" />
+                            <Trash2 className="text-white w-5 h-5" />
                           </div>
-                          <h3 className="text-xl font-bold text-slate-900">Deletar Usuário</h3>
+                          <h3 className="text-xl font-bold text-slate-900">Excluir Usuário</h3>
                         </div>
                         <button
-                          onClick={() => setShowDeleteConfirmModal(false)}
+                          onClick={() => { if (!deletando) setShowDeleteConfirmModal(false); }}
                           className="text-slate-400 hover:text-slate-600"
                         >
                           <X className="w-6 h-6" />
                         </button>
                       </div>
 
-                      <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertCircle className="w-4 h-4 text-red-600" />
+                          <p className="text-sm font-bold text-red-800">Ação irreversível</p>
+                        </div>
                         <p className="text-sm text-red-700">
-                          <strong>Usuário:</strong> {usuarioParaDeletar.email}
+                          Usuário: <span className="font-bold">{usuarioParaDeletar.nome}</span>
                         </p>
-                        <p className="text-xs text-red-600 mt-2">
-                          Esta ação irá desativar este usuário permanentemente. Digite sua senha para confirmar.
+                        <p className="text-xs text-red-600 mt-1">{usuarioParaDeletar.email}</p>
+                        <p className="text-xs text-red-500 mt-2">
+                          Esta ação irá desativar permanentemente este usuário.
+                          Digite sua senha de administrador para confirmar.
                         </p>
                       </div>
 
-                      {successMessage && (
+                      {deleteSuccess && (
                         <motion.div
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4"
+                          className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 flex items-center gap-3"
                         >
-                          <div className="flex items-start gap-3">
-                            <CheckCircle className="text-green-600 w-5 h-5 mt-0.5 flex-shrink-0" />
-                            <div className="flex-1">
-                              <p className="text-green-700 text-sm font-semibold">Sucesso!</p>
-                              <p className="text-green-600 text-xs mt-1">{successMessage}</p>
-                            </div>
-                          </div>
+                          <CheckCircle className="text-green-600 w-5 h-5" />
+                          <p className="text-green-700 text-sm font-semibold">{deleteSuccess}</p>
                         </motion.div>
                       )}
 
-                      {erro && (
+                      {deleteErro && (
                         <motion.div
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
                           className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-center gap-3"
                         >
                           <AlertCircle className="text-red-600 w-5 h-5" />
-                          <p className="text-red-700 text-sm">{erro}</p>
+                          <p className="text-red-700 text-sm">{deleteErro}</p>
                         </motion.div>
                       )}
 
                       <form onSubmit={confirmarDeletarUsuario} className="space-y-4">
                         <div>
-                          <label className="text-sm font-bold text-slate-700 ml-1">Sua Senha</label>
+                          <label className="text-sm font-bold text-slate-700 ml-1">Sua Senha de Admin</label>
                           <input
                             type="password"
                             value={senhaParaDeletar}
                             onChange={(e) => setSenhaParaDeletar(e.target.value)}
-                            className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
+                            className="w-full mt-2 px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:border-red-500 focus:ring-4 focus:ring-red-500/10 text-base"
                             placeholder="Digite sua senha para confirmar"
                             required
                             autoFocus
+                            disabled={deletando}
                           />
-                          <p className="text-xs text-slate-500 mt-1">
-                            Digite sua senha de admin para confirmar a exclusão
-                          </p>
                         </div>
 
-                        <div className="flex gap-3 pt-4">
+                        <div className="flex gap-3 pt-2">
                           <button
                             type="button"
-                            onClick={() => setShowDeleteConfirmModal(false)}
-                            className="flex-1 bg-slate-200 text-slate-700 font-bold py-2.5 rounded-lg hover:bg-slate-300 transition-colors"
+                            onClick={() => { if (!deletando) setShowDeleteConfirmModal(false); }}
+                            disabled={deletando}
+                            className="flex-1 bg-slate-200 text-slate-700 font-bold py-2.5 rounded-lg hover:bg-slate-300 transition-colors disabled:opacity-50"
                           >
                             Cancelar
                           </button>
                           <button
                             type="submit"
-                            className="flex-1 bg-red-600 text-white font-bold py-2.5 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                            disabled={deletando || !senhaParaDeletar}
+                            className="flex-1 bg-red-600 text-white font-bold py-2.5 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            <Trash2 className="w-4 h-4" />
-                            Deletar
+                            {deletando ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Excluindo...
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="w-4 h-4" />
+                                Confirmar Exclusão
+                              </>
+                            )}
                           </button>
                         </div>
                       </form>
@@ -908,7 +928,6 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
                 </>
               )}
             </AnimatePresence>
-          </motion.div>
         </>
       )}
     </AnimatePresence>

@@ -43,7 +43,7 @@ export function LoginPage() {
               (e.target as HTMLImageElement).style.display = 'none';
             }}
           />
-          <h1 className="text-3xl font-bold text-gray-900">Gestor de Emendas</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Controle Formalização</h1>
           <p className="text-[#1351B4] font-semibold mt-2">CGOF - GGCON</p>
         </div>
 
