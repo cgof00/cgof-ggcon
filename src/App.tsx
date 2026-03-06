@@ -1594,6 +1594,16 @@ export default function App() {
     }
   };
 
+  // Silent background refresh: invalidate cache and reload data with progress bar
+  const silentRefreshData = async () => {
+    console.log('🔄 Silent refresh: recarregando dados em background...');
+    allDataCacheRef.current = [];
+    cacheTimestampRef.current = 0;
+    localStorage.removeItem('formalizacoes_cache');
+    localStorage.removeItem('formalizacoes_cache_time');
+    await fetchFormalizacoesComFiltros(paginaAtual);
+  };
+
   const handleSubmitFormalizacao = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -1623,13 +1633,19 @@ export default function App() {
         body: JSON.stringify(data),
       });
 
-      // Atualização otimista: atualizar cache local imediatamente
-      if (editingFormalizacao && response.ok) {
-        const updatedRecord = { ...editingFormalizacao, ...data };
-        const updateInList = (list: any[]) =>
-          list.map((f: any) => f.id === editingFormalizacao.id ? { ...f, ...data } : f);
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('Erro ao salvar:', response.status, errText);
+        return;
+      }
 
-        // Atualizar cache em memória
+      // Atualização otimista: atualizar cache local imediatamente
+      if (editingFormalizacao) {
+        const serverData = await response.json().catch(() => null);
+        const mergedData = serverData || { ...editingFormalizacao, ...data };
+        const updateInList = (list: any[]) =>
+          list.map((f: any) => f.id === editingFormalizacao.id ? { ...f, ...mergedData } : f);
+
         if (allDataCacheRef.current.length > 0) {
           allDataCacheRef.current = updateInList(allDataCacheRef.current);
         }
@@ -1638,14 +1654,16 @@ export default function App() {
           ...prev,
           data: updateInList(prev.data)
         }));
-        // Atualizar detalhe aberto se for o mesmo registro
         if (selectedFormalizacao?.id === editingFormalizacao.id) {
-          setSelectedFormalizacao(updatedRecord);
+          setSelectedFormalizacao(mergedData);
         }
       }
 
       setIsFormalizacaoFormOpen(false);
       setEditingFormalizacao(null);
+
+      // Force background DB refresh to sync everything
+      silentRefreshData();
     } catch (error) {
       console.error('Erro ao salvar formalização:', error);
     }
@@ -1964,29 +1982,7 @@ export default function App() {
                       Gerenciar Usuários
                     </button>
                     <button
-                      onClick={async () => {
-                        const confirmed = confirm('⚠️ Forçar atualização do cache do banco?\n\nIsso vai recarregar todos os dados.');
-                        if (!confirmed) return;
-                        
-                        try {
-                          const response = await fetch('/api/cache/refresh', {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${token}`
-                            }
-                          });
-                          
-                          if (response.ok) {
-                            alert('✅ Cache atualizado com sucesso!');
-                            window.location.reload();
-                          } else {
-                            alert('❌ Erro ao atualizar cache');
-                          }
-                        } catch (error) {
-                          alert('❌ Erro ao conectar com o servidor');
-                        }
-                      }}
+                      onClick={() => silentRefreshData()}
                       className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 font-bold transition-colors"
                     >
                       <RefreshCw className="w-4 h-4" />
