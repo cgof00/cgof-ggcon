@@ -37,6 +37,7 @@ import Papa from 'papaparse';
 import { useAuth } from './AuthContext';
 import { AdminPanel } from './AdminPanel';
 import { UserManagementPanel } from './UserManagementPanel';
+import logo1Img from './img/logo1.png';
 
 // 🎯 Componente MultiSelectFilter com busca
 interface MultiSelectFilterProps {
@@ -94,23 +95,23 @@ function MultiSelectFilter({
 
   return (
     <div ref={dropdownRef} className="relative">
-      <label className="text-xs font-bold text-slate-600 uppercase mb-2 flex items-center justify-between block">
+      <label className="text-xs font-bold text-black uppercase mb-2 flex items-center justify-between block">
         <span>{label}</span>
-        <span className="text-xs font-normal text-slate-500">({options.length})</span>
+        <span className="text-xs font-normal text-gray-600">({options.length})</span>
       </label>
 
       {/* Campo principal com seleções */}
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all cursor-pointer bg-white min-h-10 flex flex-wrap gap-1 items-center"
+        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/20 outline-none transition-all cursor-pointer bg-white min-h-10 flex flex-wrap gap-1 items-center text-gray-900"
       >
         {selectedValues.length === 0 ? (
-          <span className="text-slate-400">Selecione...</span>
+          <span className="text-gray-400">Selecione...</span>
         ) : (
           selectedValues.map(val => (
             <span
               key={val}
-              className="bg-indigo-100 text-indigo-700 text-xs px-2 py-1 rounded-full flex items-center gap-1 font-medium"
+              className="text-xs px-2 py-1 rounded-full flex items-center gap-1 font-bold border bg-blue-50 text-blue-900 border-[#1351B4]/30"
             >
               {val}
               <button
@@ -118,7 +119,7 @@ function MultiSelectFilter({
                   e.stopPropagation();
                   toggleSelection(val);
                 }}
-                className="hover:bg-indigo-200 rounded-full p-0.5"
+                className="rounded-full p-0.5 hover:bg-gray-300 transition-colors"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -132,7 +133,7 @@ function MultiSelectFilter({
               onSelectionChange([]);
               setSearchTerm('');
             }}
-            className="ml-auto text-slate-400 hover:text-slate-600"
+            className="ml-auto transition-colors text-[#1351B4] hover:text-[#0C326F]"
             title="Limpar seleção"
           >
             <X className="w-4 h-4" />
@@ -146,28 +147,28 @@ function MultiSelectFilter({
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          className="absolute z-50 w-full mt-2 bg-white border border-slate-300 rounded-lg shadow-lg"
+          className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl"
         >
           {/* Input de busca */}
-          <div className="p-2 border-b border-slate-200 space-y-2">
+          <div className="p-2 border-b border-gray-100 space-y-2">
             <input
               type="text"
               placeholder={searchPlaceholder}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/20 outline-none text-gray-900 bg-white transition-all"
               onClick={(e) => e.stopPropagation()}
             />
             {/* Opção Ocultar Campos Vazios */}
             {onHideEmptyChange && (
-              <label className="flex items-center gap-2 text-xs cursor-pointer hover:bg-slate-50 p-1 rounded">
+              <label className="flex items-center gap-2 text-xs cursor-pointer hover:bg-gray-50 p-1 rounded">
                 <input
                   type="checkbox"
                   checked={hideEmpty}
                   onChange={(e) => onHideEmptyChange(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  className="rounded cursor-pointer accent-[#1351B4]"
                 />
-                <span className="text-slate-600 font-medium">Ocultar vazios</span>
+                <span className="text-gray-600 font-medium">Ocultar vazios</span>
               </label>
             )}
           </div>
@@ -175,20 +176,20 @@ function MultiSelectFilter({
           {/* Lista de opções */}
           <div className="max-h-64 overflow-y-auto">
             {filteredOptions.length === 0 ? (
-              <div className="p-3 text-sm text-slate-500 text-center">
+              <div className="p-3 text-sm text-gray-400 text-center">
                 Nenhuma opção encontrada
               </div>
             ) : (
               filteredOptions.map(option => (
                 <label
                   key={option}
-                  className="flex items-center gap-2 px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm"
+                  className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700"
                 >
                   <input
                     type="checkbox"
                     checked={selectedValues.includes(option)}
                     onChange={() => toggleSelection(option)}
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    className="rounded cursor-pointer accent-[#1351B4]"
                   />
                   <span>{option}</span>
                 </label>
@@ -197,10 +198,10 @@ function MultiSelectFilter({
           </div>
 
           {/* Botões de ação */}
-          <div className="border-t border-slate-200 p-2 flex gap-2">
+          <div className="border-t border-gray-100 p-2 flex gap-2">
             <button
               onClick={() => setIsOpen(false)}
-              className="flex-1 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+              className="flex-1 px-3 py-1.5 text-xs font-bold text-white bg-[#1351B4] rounded-lg transition-all hover:bg-[#0C326F]"
             >
               Fechar
             </button>
@@ -210,7 +211,7 @@ function MultiSelectFilter({
                   onSelectionChange([]);
                   setSearchTerm('');
                 }}
-                className="flex-1 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                className="flex-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-all text-[#1351B4] hover:bg-blue-50"
               >
                 Limpar
               </button>
@@ -279,22 +280,22 @@ function MultiSelectDateFilter({
 
   return (
     <div ref={dropdownRef} className="relative">
-      <label className="text-xs font-bold text-slate-600 uppercase mb-2 flex items-center justify-between block">
+      <label className="text-xs font-bold text-black uppercase mb-2 flex items-center justify-between block">
         <span>{label}</span>
-        <span className="text-xs font-normal text-slate-500">({options.length})</span>
+        <span className="text-xs font-normal text-gray-600">({options.length})</span>
       </label>
 
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg cursor-pointer bg-white min-h-10 flex flex-wrap gap-1 items-center"
+        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl cursor-pointer bg-white min-h-10 flex flex-wrap gap-1 items-center text-gray-900"
       >
         {selectedValues.length === 0 ? (
-          <span className="text-slate-400">Selecione...</span>
+          <span className="text-gray-600">Selecione...</span>
         ) : (
           selectedValues.map(val => (
             <span
               key={val}
-              className="bg-indigo-100 text-indigo-700 text-xs px-2 py-1 rounded-full flex items-center gap-1 font-medium"
+              className="text-xs px-2 py-1 rounded-full flex items-center gap-1 font-bold border bg-blue-50 text-blue-900 border-[#1351B4]"
             >
               {formatDate(val)}
               <button
@@ -302,7 +303,7 @@ function MultiSelectDateFilter({
                   e.stopPropagation();
                   toggleSelection(val);
                 }}
-                className="hover:bg-indigo-200 rounded-full p-0.5"
+                className="rounded-full p-0.5 hover:bg-gray-300 transition-colors"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -316,7 +317,7 @@ function MultiSelectDateFilter({
               onSelectionChange([]);
               setSearchTerm('');
             }}
-            className="ml-auto text-slate-400 hover:text-slate-600"
+            className="ml-auto transition-colors text-[#1351B4] hover:text-[#0C326F]"
           >
             <X className="w-4 h-4" />
           </button>
@@ -328,47 +329,47 @@ function MultiSelectDateFilter({
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          className="absolute z-50 w-full mt-2 bg-white border border-slate-300 rounded-lg shadow-lg"
+          className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl"
         >
-          <div className="p-2 border-b border-slate-200 space-y-2">
+          <div className="p-2 border-b border-gray-100 space-y-2">
             <input
               type="text"
               placeholder="Buscar data (DD/MM/YYYY)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/20 outline-none text-gray-900 bg-white transition-all"
               onClick={(e) => e.stopPropagation()}
             />
             {/* Opção Ocultar Campos Vazios */}
             {onHideEmptyChange && (
-              <label className="flex items-center gap-2 text-xs cursor-pointer hover:bg-slate-50 p-1 rounded">
+              <label className="flex items-center gap-2 text-xs cursor-pointer hover:bg-gray-50 p-1 rounded">
                 <input
                   type="checkbox"
                   checked={hideEmpty}
                   onChange={(e) => onHideEmptyChange(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  className="rounded cursor-pointer accent-[#1351B4]"
                 />
-                <span className="text-slate-600 font-medium">Ocultar vazios</span>
+                <span className="text-gray-600 font-medium">Ocultar vazios</span>
               </label>
             )}
           </div>
 
           <div className="max-h-64 overflow-y-auto">
             {filteredOptions.length === 0 ? (
-              <div className="p-3 text-sm text-slate-500 text-center">
+              <div className="p-3 text-sm text-gray-400 text-center">
                 Nenhuma data encontrada
               </div>
             ) : (
               filteredOptions.map(option => (
                 <label
                   key={option}
-                  className="flex items-center gap-2 px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm"
+                  className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700"
                 >
                   <input
                     type="checkbox"
                     checked={selectedValues.includes(option)}
                     onChange={() => toggleSelection(option)}
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    className="rounded cursor-pointer accent-[#1351B4]"
                   />
                   <span>{formatDate(option)}</span>
                 </label>
@@ -376,10 +377,10 @@ function MultiSelectDateFilter({
             )}
           </div>
 
-          <div className="border-t border-slate-200 p-2 flex gap-2">
+          <div className="border-t border-gray-100 p-2 flex gap-2">
             <button
               onClick={() => setIsOpen(false)}
-              className="flex-1 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+              className="flex-1 px-3 py-1.5 text-xs font-bold text-white bg-[#1351B4] rounded-lg transition-all hover:bg-[#0C326F]"
             >
               Fechar
             </button>
@@ -389,7 +390,7 @@ function MultiSelectDateFilter({
                   onSelectionChange([]);
                   setSearchTerm('');
                 }}
-                className="flex-1 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                className="flex-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-all text-[#1351B4] hover:bg-blue-50"
               >
                 Limpar
               </button>
@@ -565,7 +566,6 @@ export default function App() {
     hasMore: false,
     loading: false
   });
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
   const [cacheStatus, setCacheStatus] = useState<{ status: 'loading' | 'ready' | 'error', message?: string, records?: number, duration?: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -583,6 +583,12 @@ export default function App() {
     momentumAnimationId: 0
   });
   const dragStartXRef = useRef(0);
+
+  // 🚀 Cache de batches carregados (para evitar re-fetches)
+  const loadedBatchesRef = useRef<Set<number>>(new Set()); // Track quais offsets já foram carregados
+  const allDataCacheRef = useRef<Formalizacao[]>([]); // Cache global de todos dados
+  const cacheTimestampRef = useRef<number>(0); // Timestamp do cache para invalidação
+  const CACHE_VALIDITY_MS = 5 * 60 * 1000; // Cache válido por 5 minutos
 
   // Estado de ordenação e scroll de colunas
   const [sortColumn, setSortColumn] = useState<string>('ano');
@@ -623,6 +629,100 @@ export default function App() {
   // Estado para rastrear qual filtro tem "Ocultar Vazios" ativado
   const [hideEmptyFields, setHideEmptyFields] = useState<{ [key: string]: boolean }>({});
 
+  // Estado do filtro de cabeçalho Excel-like
+  const [headerFilterOpen, setHeaderFilterOpen] = useState<string | null>(null);
+  const [headerFilterSearch, setHeaderFilterSearch] = useState('');
+  const [columnTextFilters, setColumnTextFilters] = useState<{ [key: string]: string }>({});
+  // Filtros multi-select para colunas sem filterOptions do servidor
+  const [headerFilters, setHeaderFilters] = useState<Record<string, string[]>>({});
+  const headerFilterRef = useRef<HTMLDivElement>(null);
+
+  // Fechar filtro de cabeçalho ao clicar fora
+  useEffect(() => {
+    if (!headerFilterOpen) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (headerFilterRef.current && !headerFilterRef.current.contains(event.target as Node)) {
+        setHeaderFilterOpen(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [headerFilterOpen]);
+
+  // Mapeamento de colunas para chaves de filtro (server-side cascade)
+  const columnToFilterKey: Record<string, string> = {
+    ano: 'ano', parlamentar: 'parlamentar', partido: 'partido',
+    demandas_formalizacao: 'demandas_formalizacao', regional: 'regional',
+    municipio: 'municipio', conveniado: 'conveniado', objeto: 'objeto',
+    area_estagio: 'area_estagio', recurso: 'recurso', tecnico: 'tecnico',
+    data_liberacao: 'data_liberacao', area_estagio_situacao_demanda: 'area_estagio_situacao_demanda',
+    situacao_analise_demanda: 'situacao_analise_demanda', data_analise_demanda: 'data_analise_demanda',
+    conferencista: 'conferencista', data_recebimento_demanda: 'data_recebimento_demanda',
+    data_retorno: 'data_retorno', falta_assinatura: 'falta_assinatura',
+    publicacao: 'publicacao', vigencia: 'vigencia',
+    encaminhado_em: 'encaminhado_em', concluida_em: 'concluida_em'
+  };
+
+  // Helper: obter opções de filtro para uma coluna (server-side ou extraído dos dados em cache)
+  const getColumnFilterOptions = (colKey: string): string[] => {
+    const filterKey = columnToFilterKey[colKey];
+    if (filterKey && filterOptions[filterKey] && filterOptions[filterKey].length > 0) {
+      return filterOptions[filterKey];
+    }
+    // Extrair valores únicos do cache de dados
+    const dataField = columnToDataField[colKey] || colKey;
+    const cache = allDataCacheRef.current || [];
+    if (cache.length === 0) return [];
+    const unique = new Set<string>();
+    for (let i = 0; i < cache.length; i++) {
+      const val = cache[i][dataField];
+      if (val !== null && val !== undefined && String(val).trim() !== '') {
+        unique.add(String(val).trim());
+      }
+    }
+    return Array.from(unique).sort();
+  };
+
+  // Helper: obter/setar valores de filtro selecionados para qualquer coluna
+  const getColumnFilterValues = (colKey: string): string[] => {
+    const filterKey = columnToFilterKey[colKey];
+    if (filterKey && (filters as any)[filterKey]) {
+      return (filters as any)[filterKey] as string[];
+    }
+    return headerFilters[colKey] || [];
+  };
+
+  const setColumnFilterValues = (colKey: string, values: string[]) => {
+    const filterKey = columnToFilterKey[colKey];
+    if (filterKey && filterKey in filters) {
+      setFilters({ ...filters, [filterKey]: values });
+    } else {
+      setHeaderFilters(prev => ({ ...prev, [colKey]: values }));
+    }
+  };
+
+  // Mapeamento de colunas para campos de dados (para filtros de texto)
+  const columnToDataField: Record<string, string> = {
+    seq: 'seq', ano: 'ano', parlamentar: 'parlamentar', partido: 'partido',
+    emenda: 'emenda', emendas_agregadoras: 'emendas_agregadoras', demanda: 'demanda',
+    demandas_formalizacao: 'demandas_formalizacao', numero_convenio: 'num_convenio',
+    classificacao_emenda_demanda: 'classificacao', tipo_formalizacao: 'tipo_formalizacao',
+    regional: 'regional', municipio: 'municipio', conveniado: 'conveniado', objeto: 'objeto',
+    portfolio: 'portfolio', valor: 'valor', posicao_anterior: 'posicao_anterior',
+    situacao_demandas_sempapel: 'situacao_demandas_sempapel', area_estagio: 'area_estagio',
+    recurso: 'recurso', tecnico: 'tecnico', data_liberacao: 'data_liberacao',
+    area_estagio_situacao_demanda: 'area_estagio_situacao_demanda',
+    situacao_analise_demanda: 'situacao_analise_demanda', data_analise_demanda: 'data_analise_demanda',
+    motivo_retorno_diligencia: 'motivo_retorno_diligencia',
+    data_retorno_diligencia: 'data_retorno_diligencia', conferencista: 'conferencista',
+    data_recebimento_demanda: 'data_recebimento_demanda', data_retorno: 'data_retorno',
+    observacao_motivo_retorno: 'observacao_motivo_retorno',
+    data_liberacao_assinatura_conferencista: 'data_liberacao_assinatura_conferencista',
+    data_liberacao_assinatura: 'data_liberacao_assinatura', falta_assinatura: 'falta_assinatura',
+    assinatura: 'assinatura', publicacao: 'publicacao', vigencia: 'vigencia',
+    encaminhado_em: 'encaminhado_em', concluida_em: 'concluida_em'
+  };
+
   // Estado para seleção múltipla de linhas
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   
@@ -631,6 +731,11 @@ export default function App() {
   const [atribuicaoTecnico, setAtribuicaoTecnico] = useState<{id: number, nome: string} | null>(null);
   const [atribuindoTecnico, setAtribuindoTecnico] = useState(false);
   const [tecnicosDisponiveis, setTecnicosDisponiveis] = useState<any[]>([]);
+
+  // Estado para modal de atribuição de conferencista
+  const [showAtribuirConferencistaModal, setShowAtribuirConferencistaModal] = useState(false);
+  const [atribuicaoConferencista, setAtribuicaoConferencista] = useState<{id: number, nome: string} | null>(null);
+  const [atribuindoConferencista, setAtribuindoConferencista] = useState(false);
 
   // Estado para modal de deletar formalizacao com senha
   const [showDeleteFormalizacaoModal, setShowDeleteFormalizacaoModal] = useState(false);
@@ -694,35 +799,33 @@ export default function App() {
   }, [filters, formalizacoes.length]);
 
   // Debounce para buscar formalizações com filtros quando filtros mudam
+  // ⚡ REMOVIDO: Sem debounce! Aplica filtros INSTANTANEAMENTE do cache
   useEffect(() => {
     if (activeTab !== 'formalizacao') return;
-
-    // Limpar timer anterior
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-
-    // Definir novo timer com debounce de 500ms
-    const timer = setTimeout(() => {
-      console.log('⏱️ Debounce trigger - Buscando formalizações com filtros...');
-      setPaginaAtual(0); // Reset para primeira página ao filtrar
-      fetchFormalizacoesComFiltros(0);
-    }, 500);
-
-    setDebounceTimer(timer);
-
-    // Cleanup
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
+    if (!formalizacoes || formalizacoes.length === 0) return; // Só aplica se tem cache
+    
+    console.log('⚡ FILTROS MUDARAM - Aplicando instantaneamente (sem debounce)');
+    setPaginaAtual(0);
+    
+    // Aplicar filtros IMEDIATAMENTE do cache em memória
+    fetchFormalizacoesComFiltros(0);
   }, [filters, searchTerm, activeTab, hideEmptyFields]);
 
-  // Carrega dados quando muda para aba de formalizações (se ainda não tem dados)
+  // ⚡ NOVO: Carregar TUDO o cache quando aba de formalizações abre
+  // Isto roda UMA ÚNICA VEZ quando activeTab muda para 'formalizacao'
   useEffect(() => {
-    if (activeTab === 'formalizacao' && formalizacaoSearchResult.data.length === 0 && !formalizacaoSearchResult.loading) {
-      console.log('📥 Aba de Formalização aberta, carregando primeira página...');
-      fetchFormalizacoesComFiltros(0);
-    }
+    if (activeTab !== 'formalizacao') return;
+    
+    // ⚠️ CRÍTICO: SEMPRE limpar cache antigo e recarregar TODOS os 37k registros
+    // Ignorar localStorage até que tenhamos versão correta
+    console.log('🔥 FORÇANDO RECARGA COMPLETA de 37k registros...');
+    allDataCacheRef.current = [];
+    cacheTimestampRef.current = 0;
+    localStorage.removeItem('formalizacoes_cache');
+    localStorage.removeItem('formalizacoes_cache_time');
+    
+    // Carregar TUDO do servidor
+    fetchFormalizacoesComFiltros(0);
   }, [activeTab]);
 
   // Carregar técnicos do banco de dados (usuários do sistema)
@@ -794,7 +897,16 @@ export default function App() {
   // Resetar paginação quando filtros mudam
   useEffect(() => {
     setPaginaAtual(0);
-  }, [filters, searchTerm]);
+  }, [filters, searchTerm, columnTextFilters, headerFilters]);
+
+  // Recarregar dados quando filtros de texto de coluna mudam
+  useEffect(() => {
+    const hasAnyTextFilter = Object.values(columnTextFilters).some(v => v && v.length > 0);
+    if (hasAnyTextFilter || Object.keys(columnTextFilters).length > 0) {
+      const timer = setTimeout(() => fetchFormalizacoesComFiltros(0), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [columnTextFilters]);
 
   // 🔍 Monitorar mudanças no visibleColumns
   useEffect(() => {
@@ -866,42 +978,54 @@ export default function App() {
 
   const fetchEmendas = async () => {
     try {
-      const response = await fetch('/api/emendas', {
+      console.log('📥 Buscando emendas (primeiros 1000 registros)...');
+      const response = await fetch('/api/emendas?limit=1000&offset=0', {
         headers: getHeaders()
       });
       const data = await response.json();
-      if (Array.isArray(data)) setEmendas(data);
+      if (Array.isArray(data)) {
+        console.log(`✓ ${data.length} emendas carregadas`);
+        setEmendas(data);
+      } else {
+        console.warn('⚠ Resposta não é array:', data);
+        setEmendas([]);
+      }
     } catch (error) {
-      console.error('Erro ao buscar emendas:', error);
+      console.error('❌ Erro ao buscar emendas:', error);
+      setEmendas([]);
     }
   };
 
   const fetchFormalizacoes = async () => {
     try {
-      // Requisição sem parâmetros busca TODOS os registros em paralelo (37k+)
-      const response = await fetch('/api/formalizacao', {
+      console.log('📥 Buscando formalizações (primeiros 1000)...');
+      // Requisição com LIMITE para não travar buscando 37k
+      const response = await fetch('/api/formalizacao/page/0', {
         headers: getHeaders()
       });
       const result = await response.json();
       
-      // O endpoint retorna { data, total }
+      // O endpoint pode retornar { data, total } ou direto um array
       const data = Array.isArray(result) ? result : (result.data || []);
       
       if (Array.isArray(data) && data.length > 0) {
-        console.log('✅ Formalizações carregadas:', data.length, 'registros de', result.total || data.length);
+        console.log(`✓ Formalizações carregadas: ${data.length} registros`);
         if (data.length > 0) {
-          console.log('📅 Primeiro registro - ano:', data[0].ano, 'parlamentar:', data[0].parlamentar);
+          console.log(`📅 Primeira: ${data[0].ano} - ${data[0].parlamentar || 'N/A'}`);
         }
         setFormalizacoes(data);
       } else {
-        console.warn('⚠️ Nenhuma formalização carregada', result);
+        console.warn('⚠ Nenhuma formalização carregada', result);
+        setFormalizacoes([]);
       }
     } catch (error) {
       console.error('❌ Erro ao buscar formalizações:', error);
+      setFormalizacoes([]);
     }
   };
 
   // Função para buscar formalizações com filtros do servidor
+  // ⚡ TOTAL CACHE: Carrega TUDO (não há limite de batches)
   const fetchFormalizacoesComFiltros = async (page: number = 0, filtersParam?: any) => {
     try {
       setFormalizacaoSearchResult(prev => ({ ...prev, loading: true }));
@@ -909,22 +1033,95 @@ export default function App() {
       const filtersToUse = filtersParam || filters;
       const activeFilterCount = Object.values(filtersToUse).filter(v => (Array.isArray(v) ? v.length > 0 : (v && v !== ''))).length;
       
-      // Se não tem dados em cache, carregar do servidor
-      let allData = formalizacoes;
-      if (!allData || allData.length === 0) {
-        console.log('📥 Cache vazio, carregando dados do servidor...');
-        const response = await fetch('/api/formalizacao', {
-          headers: getHeaders()
-        });
-        const result = await response.json();
-        allData = Array.isArray(result) ? result : (result.data || []);
+      // 🚀 Verificar se cache ainda é válido
+      const now = Date.now();
+      const cacheExpirado = (now - cacheTimestampRef.current) > CACHE_VALIDITY_MS;
+      
+      // ⚠️ CRÍTICO: Usar APENAS allDataCacheRef.current, ignorar formalizacoes
+      // (formalizacoes pode ter dados incompletos de antes)
+      let allData = allDataCacheRef.current && allDataCacheRef.current.length > 100 ? allDataCacheRef.current : [];
+      
+      // Se cache vazio OU cache expirou, carregar dados COMPLETOS
+      const indiceMinimo = page * itensPorPagina;
+      const precisaCarregarDados = allData.length === 0 || cacheExpirado;
+      
+      if (precisaCarregarDados) {
+        console.log(`🔄 Cache ${cacheExpirado ? 'EXPIRADO' : 'VAZIO'} - Carregando TODOS OS 37.352 REGISTROS (38 batches de 1000)...`);
+        
+        let dataFetched = [];
+        let offset = 0;
+        const batchSize = 1000; // Supabase tem limite de 1000 por request
+        let batchCount = 0;
+        
+        // ⚠️ IMPORTANTE: Loop até NÃO TER MAIS DADOS
+        while (true) {
+          try {
+            batchCount++;
+            console.log(`📦 Batch ${batchCount}: Iniciando fetch offset=${offset}...`);
+            
+            const response = await fetch(`/api/emendas?limit=${batchSize}&offset=${offset}`, {
+              headers: getHeaders()
+            });
+            
+            if (!response.ok) {
+              console.warn(`⚠️ Erro HTTP ${response.status} em offset ${offset}, parando`);
+              break;
+            }
+            
+            const batch = await response.json();
+            
+            // Validar batch
+            if (!Array.isArray(batch)) {
+              console.warn(`⚠️ Batch ${batchCount} não é array, parando`);
+              break;
+            }
+            
+            if (batch.length === 0) {
+              console.log(`✋ Fim dos dados em batch ${batchCount}: offset ${offset} retornou vazio`);
+              break;
+            }
+            
+            const totalNow = dataFetched.length + batch.length;
+            console.log(`✅ Batch ${batchCount}: ${batch.length} registros carregados (offset ${offset}, TOTAL ACUMULADO: ${totalNow})`);
+            dataFetched = dataFetched.concat(batch);
+            
+            // Se retornou menos do que fique pedido, é último batch
+            if (batch.length < batchSize) {
+              console.log(`✋ Último batch: retornou apenas ${batch.length} registros (menos que ${batchSize})`);
+              break;
+            }
+            
+            offset += batchSize; // Próximo offset
+          } catch (e) {
+            console.warn(`❌ Erro no batch ${batchCount}:`, e);
+            break;
+          }
+        }
+        
+        allData = dataFetched.length > 0 ? dataFetched : [];
+        console.log(`\n🎉 SUCESSO! CARREGADOS ${allData.length} REGISTROS EM ${batchCount} BATCHES\n`);
+        
+        // 💾 Atualizar cache global
+        allDataCacheRef.current = allData;
+        cacheTimestampRef.current = now;
         setFormalizacoes(allData);
+        
+        // 💾 Persistir em localStorage
+        try {
+          localStorage.setItem('formalizacoes_cache', JSON.stringify(allData));
+          localStorage.setItem('formalizacoes_cache_time', String(now));
+          console.log(`💾 Cache salvo em localStorage (${allData.length} registros)`);
+        } catch (e) {
+          console.warn(`⚠️ Erro ao salvar cache em localStorage:`, e);
+        }
+      } else {
+        console.log(`⚡ Cache COMPLETO em memória: ${allData.length} registros`);
       }
 
       const hasActiveFilters = activeFilterCount > 0;
       
       if (hasActiveFilters) {
-        console.log(`🔍 Aplicando filtros (${activeFilterCount}) aos ${allData.length} registros em cache...`);
+        console.log(`🔥 Aplicando ${activeFilterCount} filtro(s) CLIENTE-SIDE aos ${allData.length} registros...`);
       } else {
         console.log(`📄 Sem filtros: exibindo página ${page} de ${allData.length} registros`);
       }
@@ -1004,7 +1201,17 @@ export default function App() {
           const matchSearch = 
             (f.parlamentar && f.parlamentar.toLowerCase().includes(searchLower)) ||
             (f.conveniado && f.conveniado.toLowerCase().includes(searchLower)) ||
-            (f.objeto && f.objeto.toLowerCase().includes(searchLower));
+            (f.objeto && f.objeto.toLowerCase().includes(searchLower)) ||
+            (f.demanda && String(f.demanda).toLowerCase().includes(searchLower)) ||
+            (f.demandas_formalizacao && String(f.demandas_formalizacao).toLowerCase().includes(searchLower)) ||
+            (f.tecnico && f.tecnico.toLowerCase().includes(searchLower)) ||
+            (f.emenda && String(f.emenda).toLowerCase().includes(searchLower)) ||
+            (f.regional && f.regional.toLowerCase().includes(searchLower)) ||
+            (f.municipio && f.municipio.toLowerCase().includes(searchLower)) ||
+            (f.num_convenio && String(f.num_convenio).toLowerCase().includes(searchLower)) ||
+            (f.area_estagio && f.area_estagio.toLowerCase().includes(searchLower)) ||
+            (f.area_estagio_situacao_demanda && f.area_estagio_situacao_demanda.toLowerCase().includes(searchLower)) ||
+            (f.conferencista && f.conferencista.toLowerCase().includes(searchLower));
           if (!matchSearch) return false;
         }
 
@@ -1025,6 +1232,22 @@ export default function App() {
         }
         if (Array.isArray(filtersToUse.concluida_em) && filtersToUse.concluida_em.length > 0) {
           if (!matchesAnyFilter(f.concluida_em, filtersToUse.concluida_em)) return false;
+        }
+
+        // Filtros de texto por coluna (colunas sem multi-select)
+        for (const [colKey, textValue] of Object.entries(columnTextFilters)) {
+          if (!textValue || textValue.trim() === '') continue;
+          const dataField = columnToDataField[colKey] || colKey;
+          const fieldValue = String(f[dataField] || '').toLowerCase();
+          if (!fieldValue.includes(textValue.toLowerCase().trim())) return false;
+        }
+
+        // Filtros multi-select de cabeçalho (colunas extras)
+        for (const [colKey, selectedValues] of Object.entries(headerFilters)) {
+          if (!selectedValues || selectedValues.length === 0) continue;
+          const dataField = columnToDataField[colKey] || colKey;
+          const fieldValue = String(f[dataField] || '').trim();
+          if (!selectedValues.some(sv => fieldValue.toLowerCase().includes(sv.toLowerCase()))) return false;
         }
 
         return true;
@@ -1405,11 +1628,9 @@ export default function App() {
     return sorted;
   };
 
-  // Paginação com ordenação
-  const sortedFormalizacoes = activeTab === 'formalizacao' ? sortData(formalizacaoSearchResult.data, sortColumn, sortOrder) : [];
-  const inicioIndice = paginaAtual * itensPorPagina;
-  const fimIndice = inicioIndice + itensPorPagina;
-  const formalizacoesPaginadas = sortedFormalizacoes.slice(inicioIndice, fimIndice);
+  // Paginação com ordenação - formalizacaoSearchResult.data já está paginado (500 registros)
+  // NÃO fazer double-slice! Apenas ordenar os dados da página atual
+  const formalizacoesPaginadas = activeTab === 'formalizacao' ? sortData(formalizacaoSearchResult.data, sortColumn, sortOrder) : [];
   const totalPaginas = Math.ceil(formalizacaoSearchResult.total / itensPorPagina);
   
   // Debug: Log whenever we're about to render
@@ -1492,92 +1713,68 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
+    <div className="min-h-screen bg-white text-black font-sans">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+      <header className="bg-gradient-to-r from-[#1351B4] to-[#0C326F] sticky top-0 z-30 shadow-xl">
         <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-3">
-              <div className="bg-indigo-600 p-2 rounded-lg">
-                <FileText className="text-white w-6 h-6" />
+          <div className="flex justify-between items-center h-20">
+            {/* Left: Logo + Title + Nav Toolbar */}
+            <div className="flex items-center gap-4">
+              <img 
+                src={logo1Img} 
+                alt="Logo" 
+                className="h-14 object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              <div className="hidden md:flex flex-col">
+                <h1 className="text-sm font-bold text-white leading-tight">Controle de Formalização</h1>
+                <span className="text-[10px] text-white/50">Gestão de Emendas e Convênios</span>
               </div>
-              <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600">
-                Controle Formalização CGOF-GGCON
-              </h1>
-            </div>
-            <div className="flex items-center gap-8">
-              <nav className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <div className="h-8 w-px bg-white/20 hidden md:block" />
+              <nav className="hidden md:flex items-center gap-1 bg-white/10 p-0.5 rounded-lg">
                 {user?.role !== 'usuario' && (
                   <button 
                     onClick={() => setActiveTab('emendas')}
-                    className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'emendas' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeTab === 'emendas' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
                   >
                     Emendas
                   </button>
                 )}
                 <button 
                   onClick={() => setActiveTab('formalizacao')}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'formalizacao' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeTab === 'formalizacao' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
                 >
                   Formalização
                 </button>
                 {user?.role === 'admin' && (
                   <button 
                     onClick={() => setActiveTab('admin')}
-                    className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'admin' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'admin' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
                   >
-                    <BarChart3 className="w-4 h-4" />
-                    Dashboard Formalização
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    Dashboard
                   </button>
                 )}
               </nav>
-              <div className="h-8 w-px bg-slate-200 hidden md:block" />
+            </div>
+            {/* Right: Search + Tools + User */}
+            <div className="flex items-center gap-3">
               <div className="relative hidden md:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/60" />
                 <input 
                   type="text" 
                   placeholder="Buscar demanda, técnico..." 
-                  className="pl-10 pr-4 py-2 bg-slate-100 border-transparent focus:bg-white focus:border-indigo-500 rounded-full text-sm w-64 transition-all outline-none"
+                  className="pl-10 pr-4 py-1.5 bg-white/15 border border-white/30 text-white placeholder:text-white/50 focus:bg-white/25 focus:border-white/50 rounded-full text-xs w-56 transition-all outline-none backdrop-blur-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <div className="h-8 w-px bg-slate-200 hidden md:block mx-1" />
-              <button 
-                onClick={() => setIsSupabaseGuideOpen(true)}
-                className="hidden">
-              </button>
 
-              {/* Cache Status Indicator */}
-              {cacheStatus && (
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-                  cacheStatus.status === 'ready' ? 'bg-emerald-100 text-emerald-700' :
-                  cacheStatus.status === 'loading' ? 'bg-amber-100 text-amber-700' :
-                  'bg-red-100 text-red-700'
-                }`}
-                title={`Cache: ${cacheStatus.message}`}
-                >
-                  {cacheStatus.status === 'loading' && (
-                    <>
-                      <div className="animate-spin h-3 w-3 border-1.5 border-amber-700 border-t-transparent rounded-full"></div>
-                      {cacheStatus.message}
-                    </>
-                  )}
-                  {cacheStatus.status === 'ready' && (
-                    <>
-                      ✓ {cacheStatus.records?.toLocaleString('pt-BR')} registros ({cacheStatus.duration}ms)
-                    </>
-                  )}
-                  {cacheStatus.status === 'error' && (
-                    <>
-                      ✗ {cacheStatus.message}
-                    </>
-                  )}
-                </div>
-              )}
               <button 
                 onClick={() => setIsImportOpen(true)}
-                className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-full transition-all"
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white/90 hover:bg-white/20 rounded-lg transition-all border border-white/30"
               >
                 <Upload className="w-4 h-4" />
                 Importar CSV
@@ -1585,11 +1782,11 @@ export default function App() {
               
               {/* User dropdown */}
               <div className="relative group">
-                <div className="flex items-center gap-3 pl-3 border-l border-slate-200 cursor-pointer hover:opacity-75 transition-opacity">
+                <div className="flex items-center gap-2 pl-2 border-l border-white/30 cursor-pointer hover:opacity-75 transition-opacity">
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-slate-900">{user?.nome}</p>
-                    <p className="text-xs text-slate-500 flex items-center gap-1">
-                      <Shield className="w-3 h-3" />
+                    <p className="text-xs font-semibold text-white">{user?.nome}</p>
+                    <p className="text-[10px] text-white/60 flex items-center gap-1">
+                      <Shield className="w-2.5 h-2.5" />
                       {user?.role === 'admin' && 'Administrador'}
                       {user?.role === 'intermediario' && 'Intermediário'}
                       {user?.role === 'usuario' && 'Usuário'}
@@ -1597,7 +1794,7 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => logout()}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 rounded-lg transition-colors text-white/80 hover:text-white hover:bg-white/20"
                     title="Sair"
                   >
                     <LogOut className="w-5 h-5" />
@@ -1606,12 +1803,12 @@ export default function App() {
                 
                 {/* Admin menu dropdown */}
                 {isAdmin && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                     <button
                       onClick={() => {
                         setIsUserManagementOpen(true);
                       }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 first:rounded-t-lg border-b border-slate-100 font-medium"
+                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 first:rounded-t-xl border-b border-gray-100 font-bold"
                     >
                       <Users className="w-4 h-4" />
                       Gerenciar Usuários
@@ -1640,7 +1837,7 @@ export default function App() {
                           alert('❌ Erro ao conectar com o servidor');
                         }
                       }}
-                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 first:rounded-t-lg"
+                      className="w-full text-left px-4 py-2 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 last:rounded-b-xl border-b border-gray-100 font-bold transition-colors"
                     >
                       <RefreshCw className="w-4 h-4" />
                       Forçar Atualização BD
@@ -1663,16 +1860,16 @@ export default function App() {
 
       <main className="px-4 sm:px-6 lg:px-8 py-6">
         {supabaseStatus && !supabaseStatus.supabase && (
-          <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl mb-8 flex items-start gap-4 shadow-sm">
-            <div className="bg-amber-100 p-2 rounded-lg">
-              <AlertCircle className="text-amber-600 w-5 h-5" />
+          <div className="bg-white border border-blue-200 p-4 rounded-2xl mb-8 flex items-start gap-4 shadow-sm">
+            <div className="bg-blue-100 p-2 rounded-lg">
+              <AlertCircle className="text-blue-700 w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-amber-900">Supabase não configurado</h4>
-              <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+              <h4 className="text-sm font-bold text-blue-900">Supabase não configurado</h4>
+              <p className="text-xs text-red-800 mt-1 leading-relaxed">
                 O sistema está operando em modo offline (SQLite). Para salvar os dados na nuvem, configure as Secrets 
-                <code className="bg-amber-100 px-1 rounded mx-1 font-mono">SUPABASE_URL</code> e 
-                <code className="bg-amber-100 px-1 rounded mx-1 font-mono">SUPABASE_ANON_KEY</code> no AI Studio.
+                <code className="bg-blue-100 px-1 rounded mx-1 font-mono">SUPABASE_URL</code> e 
+                <code className="bg-blue-100 px-1 rounded mx-1 font-mono">SUPABASE_ANON_KEY</code> no AI Studio.
               </p>
             </div>
           </div>
@@ -1681,12 +1878,7 @@ export default function App() {
         <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
           {/* List Section - Full Width */}
           <div className="w-full">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Clock className="w-5 h-5 text-indigo-500" />
-                {activeTab === 'emendas' ? 'Emendas Recentes' : 'Formalizações Recentes'}
-              </h2>
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-end gap-2 mb-2">
                 {activeTab === 'formalizacao' && (
                   <>
                     {/* Botão Atribuir a Técnico - aparece quando há seleção */}
@@ -1695,41 +1887,42 @@ export default function App() {
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         onClick={() => setShowAtribuirTecnicoModal(true)}
-                        className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-2 bg-amber-100 text-amber-700 hover:bg-amber-200"
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-yellow-200 text-yellow-900 hover:bg-yellow-300 border border-yellow-600"
                       >
                         <User className="w-4 h-4" />
                         Atribuir a Técnico ({selectedRows.size})
                       </motion.button>
                     )}
-                    <button
-                      onClick={() => setIsFilterOpen(!isFilterOpen)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-2 ${
-                        isFilterOpen ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      <Filter className="w-4 h-4" />
-                      Filtros Avançados
-                    </button>
+                    {/* Botão Atribuir a Conferencista - aparece quando há seleção */}
+                    {selectedRows.size > 0 && (
+                      <motion.button
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        onClick={() => setShowAtribuirConferencistaModal(true)}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-green-200 text-green-900 hover:bg-green-300 border border-green-600"
+                      >
+                        <User className="w-4 h-4" />
+                        Atribuir a Conferencista ({selectedRows.size})
+                      </motion.button>
+                    )}
                     <button
                       onClick={() => setIsColumnMenuOpen(!isColumnMenuOpen)}
-                      className={`relative px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-2 border ${
-                        isColumnMenuOpen 
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
-                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      className={`relative px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                        isColumnMenuOpen ? 'bg-[#1351B4] text-white border-2 border-[#1351B4]' : 'bg-white text-gray-700 border border-gray-300 hover:border-[#1351B4] hover:text-[#1351B4]'
                       }`}
                     >
                       <Settings className="w-4 h-4" />
                       Colunas
-                      <span className={`ml-1 px-1.5 py-0.5 text-[10px] font-semibold rounded ${
-                        isColumnMenuOpen ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                      <span className={`ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded ${
+                        isColumnMenuOpen ? 'bg-white text-[#1351B4]' : 'bg-[#1351B4] text-white'
                       }`}>
                         {Object.values(visibleColumns).filter(Boolean).length}/{Object.keys(visibleColumns).length}
                       </span>
                       
                       {isColumnMenuOpen && (
-                        <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-2xl p-3 z-50 min-w-64 max-h-96 overflow-y-auto"
+                        <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl p-3 z-50 min-w-64 max-h-96 overflow-y-auto"
                              onClick={(e) => e.stopPropagation()}>
-                          <p className="text-xs font-semibold text-slate-600 mb-2 uppercase sticky top-0 bg-white pb-2">Mostrar/Ocultar Colunas</p>
+                          <p className="text-xs font-bold mb-2 uppercase sticky top-0 bg-white pb-2 text-[#1351B4]">Mostrar/Ocultar Colunas</p>
                           <div className="space-y-2">
                             {[
                               { key: 'seq', label: 'Seq' },
@@ -1773,7 +1966,7 @@ export default function App() {
                               { key: 'encaminhado_em', label: 'Encaminhado em' },
                               { key: 'concluida_em', label: 'Concluída em' }
                             ].map(col => (
-                              <label key={col.key} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1.5 rounded" onClick={(e) => e.stopPropagation()}>
+                              <label key={col.key} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1.5 rounded" onClick={(e) => e.stopPropagation()}>
                                 <input
                                   type="checkbox"
                                   checked={visibleColumns[col.key as keyof typeof visibleColumns]}
@@ -1784,9 +1977,9 @@ export default function App() {
                                       [col.key]: e.target.checked
                                     });
                                   }}
-                                  className="w-3 h-3 rounded"
+                                  className="w-3 h-3 rounded border-gray-400 accent-[#1351B4] cursor-pointer"
                                 />
-                                <span className="text-xs text-slate-700">{col.label}</span>
+                                <span className="text-xs text-gray-700">{col.label}</span>
                               </label>
                             ))}
                           </div>
@@ -1795,10 +1988,6 @@ export default function App() {
                     </button>
                   </>
                 )}
-                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-                  {activeTab === 'formalizacao' ? `${filteredFormalizacoes.length}/${formalizacoes.length}` : `${filteredEmendas.length}/${emendas.length}`} registros
-                </span>
-              </div>
             </div>
 
             {/* Filtros Avançados de Formalização - Multi-select com busca */}
@@ -1807,13 +1996,13 @@ export default function App() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-2xl p-4 mb-4 shadow-sm"
+                className="bg-white border border-gray-200 rounded-2xl p-5 mb-4 shadow-lg"
               >
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-slate-700">Filtros Avançados</h3>
+                  <h3 className="text-base font-bold text-gray-900">Filtros Avançados</h3>
                   <button
                     onClick={() => setIsFilterOpen(false)}
-                    className="p-1.5 hover:bg-red-100 rounded-lg transition-colors text-slate-500 hover:text-red-600"
+                    className="p-1.5 rounded-lg transition-colors text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                     title="Fechar filtros"
                   >
                     <X className="w-5 h-5" />
@@ -2098,7 +2287,7 @@ export default function App() {
                         objeto: [],
                       })
                     }
-                    className="px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all"
+                    className="px-4 py-2 text-sm font-bold text-white rounded-lg transition-all border border-[#1351B4] bg-[#1351B4] hover:bg-[#0C326F]"
                   >
                     Limpar Filtros
                   </button>
@@ -2110,20 +2299,20 @@ export default function App() {
             {activeTab === 'emendas' ? (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total em Emendas</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-[#1351B4]">Total em Emendas</p>
                   <p className="text-xl font-bold text-slate-900">
                     {formatCurrency(emendas.reduce((acc, curr) => acc + (curr.valor || 0), 0))}
                   </p>
                 </div>
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Desembolsado</p>
+                <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-[#1351B4]">Total Desembolsado</p>
                   <p className="text-xl font-bold text-emerald-600">
                     {formatCurrency(emendas.reduce((acc, curr) => acc + (curr.valor_desembolsado || 0), 0))}
                   </p>
                 </div>
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Saldo a Liberar</p>
-                  <p className="text-xl font-bold text-indigo-600">
+                <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-[#1351B4]">Saldo a Liberar</p>
+                  <p className="text-xl font-bold text-[#1351B4]">
                     {formatCurrency(emendas.reduce((acc, curr) => acc + ((curr.valor || 0) - (curr.valor_desembolsado || 0)), 0))}
                   </p>
                 </div>
@@ -2134,17 +2323,17 @@ export default function App() {
               <AdminPanel />
             ) : loading || (activeTab === 'formalizacao' && formalizacaoSearchResult.loading) ? (
               <div className="flex flex-col justify-center items-center py-16">
-                <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-b-indigo-600 mb-4"></div>
-                <p className="text-slate-600 font-medium">Carregando {activeTab === 'emendas' ? 'emendas' : 'formalizações'}...</p>
-                <p className="text-slate-400 text-sm mt-1">Por favor, aguarde.</p>
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-b-red-600 mb-4"></div>
+                <p className="text-black font-bold">Carregando {activeTab === 'emendas' ? 'emendas' : 'formalizações'}...</p>
+                <p className="text-gray-600 text-sm mt-1">Por favor, aguarde.</p>
               </div>
             ) : (activeTab === 'emendas' ? filteredEmendas : filteredFormalizacoes).length === 0 ? (
-              <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center">
-                <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Search className="text-slate-400 w-8 h-8" />
+              <div className="bg-white border border-dashed border-gray-300 rounded-2xl p-12 text-center">
+                <div className="bg-purple-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Search className="w-8 h-8 text-[#1351B4]" />
                 </div>
-                <h3 className="text-slate-900 font-medium">Nenhum registro encontrado</h3>
-                <p className="text-slate-500 text-sm mt-1">Tente ajustar sua busca ou importe novos dados.</p>
+                <h3 className="text-black font-bold">Nenhum registro encontrado</h3>
+                <p className="text-gray-600 text-sm mt-1">Tente ajustar sua busca ou importe novos dados.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -2154,18 +2343,18 @@ export default function App() {
                       layout
                       key={`emenda-${emenda.id || 'unknown'}-${index}`}
                       onClick={() => setSelectedEmenda(emenda)}
-                      className={`group bg-white border rounded-lg p-3 cursor-pointer transition-all hover:shadow-lg hover:border-indigo-200 ${selectedEmenda?.id === emenda.id ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-200'}`}
+                      className={`group bg-white border rounded-lg p-3 cursor-pointer transition-all hover:shadow-lg hover:border-[#1351B4]/50 ${selectedEmenda?.id === emenda.id ? 'border-2 border-[#1351B4] ring-2 ring-[#1351B4]/20' : 'border-gray-200'}`}
                     >
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white bg-[#1351B4]">
                             {emenda.parlamentar?.charAt(0)}
                           </div>
                           <div className="min-w-0">
-                            <h3 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-sm truncate">
+                            <h3 className="font-bold text-black group-hover:opacity-75 transition-colors text-sm truncate">
                               {emenda.parlamentar}
                             </h3>
-                            <p className="text-xs text-slate-500 flex items-center gap-1">
+                            <p className="text-xs text-gray-600 flex items-center gap-1">
                               <span className="font-semibold text-indigo-500">{emenda.partido}</span>
                               <span>•</span>
                               <span>{emenda.ano_refer}</span>
@@ -2173,22 +2362,22 @@ export default function App() {
                           </div>
                         </div>
                         <div className="text-right whitespace-nowrap ml-2">
-                          <p className="text-xs font-bold text-slate-900">{formatCurrency(emenda.valor)}</p>
+                          <p className="text-xs font-bold text-black">{formatCurrency(emenda.valor)}</p>
                           <span className={`text-[9px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded ${
                             emenda.status === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 
                             emenda.status === 'Em Processo' ? 'bg-amber-100 text-amber-700' : 
-                            'bg-slate-100 text-slate-600'
+                            'bg-gray-200 text-gray-700'
                           }`}>
                             {emenda.status || 'Pendente'}
                           </span>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-[11px]">
-                        <div className="flex items-center gap-1 text-slate-600 min-w-0">
+                        <div className="flex items-center gap-1 text-gray-700 min-w-0">
                           <User className="w-2.5 h-2.5 flex-shrink-0" />
                           <span className="truncate">{emenda.beneficiario}</span>
                         </div>
-                        <div className="flex items-center gap-1 text-slate-600">
+                        <div className="flex items-center gap-1 text-gray-700">
                           <Calendar className="w-2.5 h-2.5 flex-shrink-0" />
                           <span className="truncate">Vig: {emenda.vigencia || 'N/A'}</span>
                         </div>
@@ -2196,24 +2385,67 @@ export default function App() {
                     </motion.div>
                   ))
                 ) : (
-                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                    {/* Header com Estatísticas da Página */}
-                    <div className="px-6 py-4 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-slate-200">
-                      <div className="flex justify-between items-center">
-                        <div className="space-y-1">
-                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Status da Página</p>
-                          <p className="text-sm text-slate-700">
-                            <span className="font-bold text-indigo-600">{formalizacoesPaginadas.length}</span>
-                            {' '}
-                            registro{formalizacoesPaginadas.length !== 1 ? 's' : ''} de 
-                            {' '}
-                            <span className="font-bold text-indigo-600">{formalizacaoSearchResult.total.toLocaleString('pt-BR')}</span>
-                            {' '}
-                            total
-                          </p>
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                    {/* Compact Pagination Bar */}
+                    {activeTab === 'formalizacao' && totalPaginas > 1 && (
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border-b border-gray-200 flex-wrap">
+                        <button
+                          onClick={() => fetchFormalizacoesComFiltros(0)}
+                          disabled={paginaAtual === 0 || formalizacaoSearchResult.loading}
+                          className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
+                          title="Primeira página"
+                        >
+                          ⏮
+                        </button>
+                        <button
+                          onClick={() => fetchFormalizacoesComFiltros(Math.max(0, paginaAtual - 1))}
+                          disabled={paginaAtual === 0 || formalizacaoSearchResult.loading}
+                          className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
+                          title="Página anterior"
+                        >
+                          ◀
+                        </button>
+                        <div className="flex items-center gap-0.5">
+                          {Array.from({ length: Math.min(5, totalPaginas) }).map((_, i) => {
+                            const startPage = Math.max(0, Math.min(paginaAtual - 2, totalPaginas - 5));
+                            const pagina = startPage + i;
+                            return (
+                              <button
+                                key={`page-top-${pagina}`}
+                                onClick={() => fetchFormalizacoesComFiltros(pagina)}
+                                disabled={formalizacaoSearchResult.loading}
+                                className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${
+                                  paginaAtual === pagina
+                                    ? 'text-white bg-[#1351B4]'
+                                    : 'bg-white text-gray-600 border border-gray-300 hover:border-[#1351B4] hover:text-[#1351B4]'
+                                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                              >
+                                {pagina + 1}
+                              </button>
+                            );
+                          })}
                         </div>
+                        <button
+                          onClick={() => fetchFormalizacoesComFiltros(Math.min(totalPaginas - 1, paginaAtual + 1))}
+                          disabled={paginaAtual >= totalPaginas - 1 || formalizacaoSearchResult.loading}
+                          className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
+                          title="Próxima página"
+                        >
+                          ▶
+                        </button>
+                        <button
+                          onClick={() => fetchFormalizacoesComFiltros(totalPaginas - 1)}
+                          disabled={paginaAtual >= totalPaginas - 1 || formalizacaoSearchResult.loading}
+                          className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
+                          title="Última página"
+                        >
+                          ⏭
+                        </button>
+                        <span className="text-[10px] text-gray-500 ml-1">
+                          Pág. {paginaAtual + 1}/{totalPaginas} · {formalizacaoSearchResult.total.toLocaleString('pt-BR')} registros
+                        </span>
                       </div>
-                    </div>
+                    )}
                     
                     <div 
                       ref={tableContainerRef}
@@ -2221,8 +2453,8 @@ export default function App() {
                       onMouseMove={handleTableMouseMove}
                       onMouseUp={handleTableMouseUp}
                       onMouseLeave={handleTableMouseLeave}
-                      className={`overflow-x-auto bg-white border-b-2 border-slate-200 select-none user-select-none ${isDraggingScroll ? 'cursor-grabbing' : 'cursor-grab'}`}
-                      style={{ WebkitUserSelect: 'none', userSelect: 'none', minHeight: '500px' }}
+                      className={`overflow-x-auto bg-white select-none user-select-none ${isDraggingScroll ? 'cursor-grabbing' : 'cursor-grab'}`}
+                      style={{ WebkitUserSelect: 'none', userSelect: 'none', minHeight: '400px' }}
                     >
                       {(() => {
                         const columnDefinitions = [
@@ -2271,10 +2503,10 @@ export default function App() {
                         const visibleCols = columnDefinitions.filter(col => visibleColumns[col.key as keyof typeof visibleColumns]);
                         return (
                           <table className="min-w-fit text-sm">
-                            <thead className="bg-slate-100 border-b-2 border-slate-300 sticky top-0">
+                            <thead className="bg-[#1351B4] sticky top-0 z-20">
                               <tr>
                                 {/* Header do checkbox */}
-                                <th className="px-3 py-2 w-12 bg-slate-100">
+                                <th className="px-3 py-1.5 w-12 bg-[#1351B4] align-middle">
                                   <input
                                     type="checkbox"
                                     checked={selectedRows.size > 0 && selectedRows.size === formalizacoesPaginadas.length}
@@ -2283,15 +2515,11 @@ export default function App() {
                                         setSelectedRows(new Set());
                                       } else {
                                         const newSelected = new Set(selectedRows);
-                                        // Usar APENAS IDs válidos, NUNCA usar index como fallback
                                         formalizacoesPaginadas.forEach((f) => {
                                           if (f.id) {
                                             newSelected.add(String(f.id).trim());
-                                          } else {
-                                            console.warn('⚠️ Registro sem ID na página:', f);
                                           }
                                         });
-                                        console.log(`📋 Selecionados ${newSelected.size} registros (total na página: ${formalizacoesPaginadas.length})`);
                                         setSelectedRows(newSelected);
                                       }
                                     }}
@@ -2299,57 +2527,151 @@ export default function App() {
                                     title="Selecionar tudo na página"
                                   />
                                 </th>
-                                {visibleCols.map(col => (
-                                  <th 
-                                    key={col.key}
-                                    ref={(el) => {
-                                      if (el) columnHeaderRefs.current[col.key] = el;
-                                    }}
-                                    onClick={() => {
-                                      console.log(`📊 Header clicked: ${col.key}, Current sort: ${sortColumn}/${sortOrder}`);
-                                      
-                                      // Scroll horizontal até a coluna
-                                      const headerEl = columnHeaderRefs.current[col.key];
-                                      if (headerEl && tableContainerRef.current) {
-                                        const containerLeft = tableContainerRef.current.scrollLeft;
-                                        const containerWidth = tableContainerRef.current.clientWidth;
-                                        const headerLeft = headerEl.offsetLeft;
-                                        const headerWidth = headerEl.offsetWidth;
-                                        
-                                        // Calcular posição para colocar a coluna no centro
-                                        const targetScroll = headerLeft - (containerWidth / 2) + (headerWidth / 2);
-                                        
-                                        console.log(`🔄 Scrolling to ${targetScroll}px (container width: ${containerWidth}px)`);
-                                        
-                                        tableContainerRef.current.scrollTo({
-                                          left: targetScroll,
-                                          behavior: 'smooth'
-                                        });
-                                      }
-                                      
-                                      // Atualizar ordenação
-                                      if (sortColumn === col.key) {
-                                        setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                                      } else {
-                                        setSortColumn(col.key);
-                                        setSortOrder('asc');
-                                      }
-                                    }}
-                                    className={`px-3 py-2 text-left font-bold text-slate-700 text-xs whitespace-nowrap cursor-pointer hover:bg-slate-200 transition-colors ${
-                                      col.align === 'right' ? 'text-right' : ''
-                                    } ${sortColumn === col.key ? 'bg-indigo-200' : ''}`}
-                                    title={`Clique para ordenar por ${col.label}`}
-                                  >
-                                    <span className="flex items-center gap-1">
-                                      {col.label}
-                                      {sortColumn === col.key && (
-                                        <span className="ml-1 text-indigo-600">
-                                          {sortOrder === 'asc' ? '▲' : '▼'}
-                                        </span>
+                                {visibleCols.map(col => {
+                                  const selectedVals = getColumnFilterValues(col.key);
+                                  const hasActive = selectedVals.length > 0;
+                                  const isOpen = headerFilterOpen === col.key;
+                                  
+                                  return (
+                                    <th 
+                                      key={col.key}
+                                      ref={(el) => { if (el) columnHeaderRefs.current[col.key] = el; }}
+                                      className={`px-2 py-1.5 text-left text-white text-xs whitespace-nowrap cursor-pointer transition-colors hover:bg-[#0C326F] relative ${
+                                        col.align === 'right' ? 'text-right' : ''
+                                      } ${sortColumn === col.key ? 'bg-[#0C326F]' : ''}`}
+                                      style={{ minWidth: 70 }}
+                                    >
+                                      {/* Label + Sort (clicável para ordenar) */}
+                                      <div 
+                                        className="flex items-center gap-1 font-bold mb-1"
+                                        onClick={() => {
+                                          const headerEl = columnHeaderRefs.current[col.key];
+                                          if (headerEl && tableContainerRef.current) {
+                                            const containerWidth = tableContainerRef.current.clientWidth;
+                                            const headerLeft = headerEl.offsetLeft;
+                                            const headerWidth = headerEl.offsetWidth;
+                                            const targetScroll = headerLeft - (containerWidth / 2) + (headerWidth / 2);
+                                            tableContainerRef.current.scrollTo({ left: targetScroll, behavior: 'smooth' });
+                                          }
+                                          if (sortColumn === col.key) {
+                                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                                          } else {
+                                            setSortColumn(col.key);
+                                            setSortOrder('asc');
+                                          }
+                                        }}
+                                        title={`Ordenar por ${col.label}`}
+                                      >
+                                        {col.label}
+                                        {sortColumn === col.key && (
+                                          <span className="text-yellow-300 text-[10px]">
+                                            {sortOrder === 'asc' ? '▲' : '▼'}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {/* Botão de filtro (dentro do cabeçalho) */}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (isOpen) {
+                                            setHeaderFilterOpen(null);
+                                            setHeaderFilterSearch('');
+                                          } else {
+                                            setHeaderFilterOpen(col.key);
+                                            setHeaderFilterSearch('');
+                                          }
+                                        }}
+                                        className={`w-full px-1 py-0.5 text-[9px] rounded flex items-center justify-center gap-0.5 transition-all ${
+                                          hasActive 
+                                            ? 'bg-yellow-400 text-gray-800 font-bold' 
+                                            : 'bg-white/10 text-white/50 hover:bg-white/20 hover:text-white'
+                                        }`}
+                                        title={`Filtrar ${col.label}`}
+                                      >
+                                        <Filter className="w-2.5 h-2.5 flex-shrink-0" />
+                                        {hasActive ? <span>{selectedVals.length}</span> : <span className="text-[8px]">▼</span>}
+                                      </button>
+                                      {/* Dropdown multi-select */}
+                                      {isOpen && (
+                                        <div
+                                          ref={headerFilterRef}
+                                          className="absolute top-full left-0 z-[100] mt-1 w-60 bg-white rounded-lg shadow-2xl border border-gray-200"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <div className="p-2 border-b border-gray-100 space-y-1.5">
+                                            <input
+                                              type="text"
+                                              placeholder={`Buscar ${col.label}...`}
+                                              value={headerFilterSearch}
+                                              onChange={(e) => setHeaderFilterSearch(e.target.value)}
+                                              className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:border-[#1351B4] focus:ring-1 focus:ring-[#1351B4]/20 outline-none text-gray-900 bg-white"
+                                              autoFocus
+                                            />
+                                            <label className="flex items-center gap-1.5 text-[10px] cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
+                                              <input
+                                                type="checkbox"
+                                                checked={hideEmptyFields[col.key] || false}
+                                                onChange={(e) => {
+                                                  setHideEmptyFields({ ...hideEmptyFields, [col.key]: e.target.checked });
+                                                  fetchFormalizacoesComFiltros(0);
+                                                }}
+                                                className="rounded cursor-pointer accent-[#1351B4] w-3 h-3"
+                                              />
+                                              <span className="text-gray-600">Ocultar vazios</span>
+                                            </label>
+                                          </div>
+                                          <div className="max-h-56 overflow-y-auto">
+                                            {(() => {
+                                              const options = getColumnFilterOptions(col.key);
+                                              const searchVal = headerFilterSearch.toLowerCase();
+                                              const filtered = options.filter(opt => {
+                                                if (searchVal && !opt.toLowerCase().includes(searchVal)) return false;
+                                                if (hideEmptyFields[col.key] && (!opt || opt.trim() === '' || opt === '—')) return false;
+                                                return true;
+                                              });
+                                              if (filtered.length === 0) {
+                                                return <div className="p-2 text-[10px] text-gray-400 text-center">Nenhuma opção</div>;
+                                              }
+                                              return filtered.slice(0, 300).map(opt => (
+                                                <label key={opt} className="flex items-center gap-1.5 px-2 py-1 hover:bg-blue-50 cursor-pointer text-[11px] text-gray-700">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={selectedVals.includes(opt)}
+                                                    onChange={() => {
+                                                      const newValues = selectedVals.includes(opt)
+                                                        ? selectedVals.filter((v: string) => v !== opt)
+                                                        : [...selectedVals, opt];
+                                                      setColumnFilterValues(col.key, newValues);
+                                                    }}
+                                                    className="rounded cursor-pointer accent-[#1351B4] w-3 h-3 flex-shrink-0"
+                                                  />
+                                                  <span className="truncate">{opt || '(vazio)'}</span>
+                                                </label>
+                                              ));
+                                            })()}
+                                          </div>
+                                          <div className="border-t border-gray-100 px-2 py-1.5 flex gap-1">
+                                            <button
+                                              onClick={() => {
+                                                setColumnFilterValues(col.key, []);
+                                                setHideEmptyFields({ ...hideEmptyFields, [col.key]: false });
+                                              }}
+                                              className="flex-1 px-2 py-1 text-[10px] text-[#1351B4] hover:bg-blue-50 rounded font-medium"
+                                            >
+                                              Limpar
+                                            </button>
+                                            <button
+                                              onClick={() => { setHeaderFilterOpen(null); setHeaderFilterSearch(''); }}
+                                              className="flex-1 px-2 py-1 text-[10px] text-white bg-[#1351B4] rounded hover:bg-[#0C326F] font-medium"
+                                            >
+                                              OK
+                                            </button>
+                                          </div>
+                                        </div>
                                       )}
-                                    </span>
-                                  </th>
-                                ))}
+                                    </th>
+                                  );
+                                })}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200">
@@ -2429,8 +2751,8 @@ export default function App() {
                       })()}
                     </div>
 
-                  {/* Paginação para Formalização */}
-                  <div className="px-6 py-4 bg-white border-t border-slate-100 flex justify-between items-center flex-wrap gap-4">
+                  {/* Bottom Pagination */}
+                  <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-200 flex items-center flex-wrap gap-1.5">
                     {/* Botão de Deletar Selecionadas */}
                     {user?.role === 'admin' && selectedRows.size > 0 && (
                       <motion.button
@@ -2442,46 +2764,45 @@ export default function App() {
                             alert('❌ Nenhum registro selecionado');
                             return;
                           }
-                          // Usar o primeiro ID selecionado para abrir o modal (mas versão em lote)
-                          // Vou criar um estado separado para lote
                           setShowDeleteFormalizacaoModal(true);
-                          setFormalizacaoParaDeletar(null); // Null indica modo lote
+                          setFormalizacaoParaDeletar(null);
                         }}
-                        className="px-4 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2 shadow-md"
+                        className="px-2 py-1 text-[10px] font-bold text-white bg-red-600 rounded transition-colors flex items-center gap-1.5 hover:bg-red-700"
                       >
-                        <Trash2 className="w-4 h-4" />
-                        Deletar {selectedRows.size} Selecionad{selectedRows.size === 1 ? 'a' : 'as'}
+                        <Trash2 className="w-3 h-3" />
+                        Deletar {selectedRows.size}
                       </motion.button>
                     )}
                     <button
                       onClick={() => fetchFormalizacoesComFiltros(0)}
                       disabled={paginaAtual === 0 || formalizacaoSearchResult.loading}
-                      className="px-3 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
                       title="Primeira página"
                     >
-                      ⏮ Primeiro
+                      ⏮
                     </button>
                     <button
                       onClick={() => fetchFormalizacoesComFiltros(Math.max(0, paginaAtual - 1))}
                       disabled={paginaAtual === 0 || formalizacaoSearchResult.loading}
-                      className="px-3 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
                       title="Página anterior"
                     >
-                      ◀ Anterior
+                      ◀
                     </button>
-                    <div className="flex items-center gap-1 px-2">
+                    <div className="flex items-center gap-0.5">
                       {Array.from({ length: Math.min(5, totalPaginas) }).map((_, i) => {
-                        const pagina = Math.max(0, Math.min(paginaAtual > 2 ? paginaAtual - 2 + i : i, totalPaginas - 1));
+                        const startPage = Math.max(0, Math.min(paginaAtual - 2, totalPaginas - 5));
+                        const pagina = startPage + i;
                         return (
                           <button
-                            key={pagina}
+                            key={`page-form-${pagina}`}
                             onClick={() => fetchFormalizacoesComFiltros(pagina)}
                             disabled={formalizacaoSearchResult.loading}
-                            className={`px-2.5 py-1.5 text-sm font-bold rounded-lg transition-all ${
+                            className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${
                               paginaAtual === pagina
-                                ? 'bg-indigo-600 text-white shadow-md'
-                                : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
-                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                ? 'text-white bg-[#1351B4]'
+                                : 'bg-white text-gray-600 border border-gray-300 hover:border-[#1351B4] hover:text-[#1351B4]'
+                            } disabled:opacity-40 disabled:cursor-not-allowed`}
                           >
                             {pagina + 1}
                           </button>
@@ -2491,19 +2812,22 @@ export default function App() {
                     <button
                         onClick={() => fetchFormalizacoesComFiltros(Math.min(totalPaginas - 1, paginaAtual + 1))}
                         disabled={paginaAtual >= totalPaginas - 1 || formalizacaoSearchResult.loading}
-                        className="px-3 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
                         title="Próxima página"
                       >
-                        Próximo ▶
+                        ▶
                       </button>
                       <button
                         onClick={() => fetchFormalizacoesComFiltros(totalPaginas - 1)}
                         disabled={paginaAtual >= totalPaginas - 1 || formalizacaoSearchResult.loading}
-                        className="px-3 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
                         title="Última página"
                       >
                         ⏭
                       </button>
+                      <span className="text-[10px] text-gray-500 ml-1">
+                        Pág. {paginaAtual + 1}/{totalPaginas}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -2530,16 +2854,16 @@ export default function App() {
                   animate={{ x: 0, opacity: 1 }}
                   exit={{ x: '100%', opacity: 0 }}
                   transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                  className="fixed right-0 top-0 bottom-0 z-50 w-full lg:w-1/2 bg-white shadow-2xl overflow-y-auto"
+                  className="fixed right-0 top-0 bottom-0 z-50 w-full lg:w-1/2 bg-white shadow-2xl overflow-y-auto border-l border-slate-200"
                 >
                   {activeTab === 'emendas' && selectedEmenda ? (
                     <div className="flex flex-col h-full">
-                      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-start flex-shrink-0">
+                      <div className="bg-gradient-to-r from-[#1351B4] to-[#0C326F] px-6 py-4 flex justify-between items-start flex-shrink-0">
                         <div className="flex-1">
-                          <h2 className="text-lg font-bold text-slate-900 leading-tight mb-1">
+                          <h2 className="text-lg font-bold text-white leading-tight mb-1">
                             {selectedEmenda.parlamentar}
                           </h2>
-                          <p className="text-xs text-slate-500">{selectedEmenda.partido} • {selectedEmenda.municipio}</p>
+                          <p className="text-xs text-white/70">{selectedEmenda.partido} • {selectedEmenda.municipio}</p>
                         </div>
                         <div className="flex gap-1 flex-shrink-0 ml-2">
                           <button 
@@ -2547,19 +2871,19 @@ export default function App() {
                               setEditingEmenda(selectedEmenda);
                               setIsFormOpen(true);
                             }}
-                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            className="p-2 rounded-lg transition-colors text-white/80 hover:bg-white/20 hover:text-white"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => handleDelete(selectedEmenda.id!)}
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-2 text-white/60 rounded-lg transition-colors hover:bg-white/20 hover:text-white"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => setSelectedEmenda(null)}
-                            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -2580,18 +2904,18 @@ export default function App() {
 
                     <section>
                       <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Valores e Status</h4>
-                      <div className="bg-indigo-50 rounded-2xl p-4 space-y-3">
+                      <div className="bg-blue-50 rounded-2xl p-4 space-y-3">
                         <div className="flex justify-between items-center">
-                          <span className="text-xs text-indigo-600 font-medium">Valor Total</span>
-                          <span className="text-lg font-bold text-indigo-900">{formatCurrency(selectedEmenda.valor)}</span>
+                          <span className="text-xs font-bold text-[#1351B4]">Valor Total</span>
+                          <span className="text-lg font-bold text-blue-900">{formatCurrency(selectedEmenda.valor)}</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-xs text-slate-500">Desembolsado</span>
                           <span className="text-sm font-semibold text-slate-700">{formatCurrency(selectedEmenda.valor_desembolsado)}</span>
                         </div>
-                        <div className="pt-2 border-t border-indigo-100 flex justify-between items-center">
+                        <div className="pt-2 border-t border-blue-100 flex justify-between items-center">
                           <span className="text-xs text-slate-500">Status Atual</span>
-                          <span className="text-xs font-bold text-indigo-600">{selectedEmenda.status}</span>
+                          <span className="text-xs font-bold text-[#1351B4]">{selectedEmenda.status}</span>
                         </div>
                       </div>
                     </section>
@@ -2610,12 +2934,12 @@ export default function App() {
                     </div>
                   ) : activeTab === 'formalizacao' && selectedFormalizacao ? (
                     <div className="flex flex-col h-full">
-                      <div className="p-4 border-b border-slate-100 bg-emerald-50/50 flex justify-between items-start flex-shrink-0">
+                      <div className="bg-gradient-to-r from-[#1351B4] to-[#0C326F] px-6 py-4 flex justify-between items-start flex-shrink-0">
                         <div className="flex-1">
-                          <h2 className="text-lg font-bold text-slate-900 leading-tight mb-1">
+                          <h2 className="text-lg font-bold text-white leading-tight mb-1">
                             {selectedFormalizacao.parlamentar}
                           </h2>
-                          <p className="text-xs text-slate-500">{selectedFormalizacao.partido} • {selectedFormalizacao.municipio}</p>
+                          <p className="text-xs text-white/70">{selectedFormalizacao.partido} • {selectedFormalizacao.municipio}</p>
                         </div>
                         <div className="flex gap-1 flex-shrink-0 ml-2">
                           <button 
@@ -2623,19 +2947,19 @@ export default function App() {
                               setEditingFormalizacao(selectedFormalizacao);
                               setIsFormalizacaoFormOpen(true);
                             }}
-                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                            className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => handleDeleteFormalizacao(selectedFormalizacao.id!)}
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-2 text-white/60 rounded-lg transition-colors hover:bg-white/20 hover:text-white"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => setSelectedFormalizacao(null)}
-                            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -2752,7 +3076,7 @@ export default function App() {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl p-8">
               <div className="flex justify-between items-start mb-6">
                 <div className="bg-indigo-50 p-3 rounded-2xl">
-                  <DbIcon className="w-6 h-6 text-indigo-600" />
+                  <DbIcon className="w-6 h-6 text-[#1351B4]" />
                 </div>
                 <button onClick={() => setIsSupabaseGuideOpen(false)} className="p-2 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
               </div>
@@ -2784,7 +3108,7 @@ export default function App() {
               </div>
 
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-6">
-                <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-wider mb-2">
+                <div className="flex items-center gap-2 text-[#1351B4] font-bold text-xs uppercase tracking-wider mb-2">
                   <Info className="w-3 h-3" />
                   Dica de Importação
                 </div>
@@ -2915,18 +3239,18 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col"
             >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-[#1351B4] to-[#0C326F]">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">
+                  <h2 className="text-xl font-bold text-white">
                     {editingEmenda ? 'Editar Emenda' : 'Nova Emenda Parlamentar'}
                   </h2>
-                  <p className="text-xs text-slate-500 mt-1">Preencha os campos abaixo para registrar a emenda no sistema.</p>
+                  <p className="text-xs text-white/70 mt-1">Preencha os campos abaixo para registrar a emenda no sistema.</p>
                 </div>
                 <button 
                   onClick={() => setIsFormOpen(false)}
-                  className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                  className="p-2 hover:bg-white/20 rounded-full transition-colors"
                 >
-                  <X className="w-5 h-5 text-slate-500" />
+                  <X className="w-5 h-5 text-white/80" />
                 </button>
               </div>
 
@@ -2934,7 +3258,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* Basic Info */}
                   <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-indigo-600 mb-4 flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-[#1351B4] mb-4 flex items-center gap-2">
                       <User className="w-4 h-4" />
                       Informações do Parlamentar e Beneficiário
                     </h3>
@@ -2950,7 +3274,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
 
                   {/* Amendment Details */}
                   <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-indigo-600 mb-4 flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-[#1351B4] mb-4 flex items-center gap-2">
                       <FileText className="w-4 h-4" />
                       Detalhes da Emenda
                     </h3>
@@ -2966,7 +3290,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
 
                   {/* Values */}
                   <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-indigo-600 mb-4 flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-[#1351B4] mb-4 flex items-center gap-2">
                       <DollarSign className="w-4 h-4" />
                       Valores e Financeiro
                     </h3>
@@ -2985,7 +3309,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
 
                   {/* Formalization */}
                   <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-indigo-600 mb-4 flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-[#1351B4] mb-4 flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4" />
                       Formalização e Convênio
                     </h3>
@@ -3001,7 +3325,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
 
                   {/* Banking */}
                   <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-indigo-600 mb-4 flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-[#1351B4] mb-4 flex items-center gap-2">
                       <AlertCircle className="w-4 h-4" />
                       Dados Bancários
                     </h3>
@@ -3023,7 +3347,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   </button>
                   <button 
                     type="submit"
-                    className="px-8 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all active:scale-95"
+                    className="px-8 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#1351B4] hover:bg-[#0C326F] shadow-lg shadow-blue-200 transition-all active:scale-95"
                   >
                     {editingEmenda ? 'Atualizar Registro' : 'Salvar Emenda'}
                   </button>
@@ -3049,99 +3373,105 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+              className="relative bg-gray-50 w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
             >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              {/* Header */}
+              <div className="px-6 py-4 flex justify-between items-center bg-gradient-to-r from-[#1351B4] to-[#0C326F]">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">
+                  <h2 className="text-lg font-bold text-white">
                     {editingFormalizacao ? 'Editar Demanda' : 'Nova Demanda'}
                   </h2>
-                  <p className="text-xs text-slate-500 mt-1">Preencha os campos abaixo para atualizar as informações da demanda.</p>
+                  <p className="text-[11px] text-white/60 mt-0.5">Preencha os campos para atualizar as informações.</p>
                 </div>
                 <button 
                   onClick={() => setIsFormalizacaoFormOpen(false)}
-                  className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5 text-slate-500" />
+                  <X className="w-4 h-4 text-white/80" />
                 </button>
               </div>
 
-              <form onSubmit={handleSubmitFormalizacao} className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Estágio e Recurso Técnico */}
-                  <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-emerald-600 mb-4 flex items-center gap-2">
-                      <User className="w-4 h-4" />
-                      Estágio e Recurso Técnico
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Input label="Área - Estágio" name="area_estagio" defaultValue={editingFormalizacao?.area_estagio} disabled={user?.role === 'usuario' ? false : false} />
-                      <Input label="Recurso" name="recurso" defaultValue={editingFormalizacao?.recurso} disabled={user?.role === 'usuario'} />
-                      <Input label="Técnico" name="tecnico" defaultValue={editingFormalizacao?.tecnico} disabled={user?.role === 'usuario'} />
-                      <Input label="Data da Liberação" name="data_liberacao" type="date" defaultValue={editingFormalizacao?.data_liberacao} disabled={user?.role === 'usuario'} />
-                      <Input label="Área - Estágio Situação" name="area_estagio_situacao_demanda" defaultValue={editingFormalizacao?.area_estagio_situacao_demanda} disabled={user?.role === 'usuario'} />
-                    </div>
-                  </div>
+              <form onSubmit={handleSubmitFormalizacao} className="flex-1 overflow-y-auto p-6 space-y-6">
 
-                  {/* Análise e Diligência */}
-                  <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-emerald-600 mb-4 flex items-center gap-2">
-                      <FileText className="w-4 h-4" />
-                      Situação da Demanda - Análise
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Input label="Situação da Demanda" name="situacao_analise_demanda" defaultValue={editingFormalizacao?.situacao_analise_demanda} disabled={user?.role === 'usuario' ? false : false} />
-                      <Input label="Data - Análise Demanda" name="data_analise_demanda" type="date" defaultValue={editingFormalizacao?.data_analise_demanda} disabled={user?.role === 'usuario' ? false : false} />
-                      <Input label="Motivo do Retorno da Diligência" name="motivo_retorno_diligencia" defaultValue={editingFormalizacao?.motivo_retorno_diligencia} disabled={user?.role === 'usuario' ? false : false} />
-                      <Input label="Data do Retorno da Diligência" name="data_retorno_diligencia" type="date" defaultValue={editingFormalizacao?.data_retorno_diligencia} disabled={user?.role === 'usuario' ? false : false} />
-                    </div>
-                  </div>
-
-                  {/* Tramitação e Assinatura */}
-                  <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-emerald-600 mb-4 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" />
-                      Tramitação e Assinatura
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Input label="Conferencista" name="conferencista" defaultValue={editingFormalizacao?.conferencista} disabled={user?.role === 'usuario'} />
-                      <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={editingFormalizacao?.data_recebimento_demanda} disabled={user?.role === 'usuario'} />
-                      <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={editingFormalizacao?.data_retorno} disabled={user?.role === 'usuario' ? false : false} />
-                      <Input label="Obs. - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} className="md:col-span-3" disabled={user?.role === 'usuario' ? false : false} />
-                      <Input label="Data Lib. Assinatura - Conferencista" name="data_liberacao_assinatura_conferencista" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista} disabled={user?.role === 'usuario' ? false : false} />
-                      <Input label="Data Lib. de Assinatura" name="data_liberacao_assinatura" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura} disabled={user?.role === 'usuario'} />
-                      <Input label="Falta Assinatura" name="falta_assinatura" defaultValue={editingFormalizacao?.falta_assinatura} disabled={user?.role === 'usuario'} />
-                      <Input label="Assinatura" name="assinatura" type="date" defaultValue={editingFormalizacao?.assinatura} disabled={user?.role === 'usuario'} />
-                    </div>
-                  </div>
-
-                  {/* Prazos e Conclusão */}
-                  <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-emerald-600 mb-4 flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      Prazos e Conclusão
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Input label="Publicação" name="publicacao" type="date" defaultValue={editingFormalizacao?.publicacao} disabled={user?.role === 'usuario'} />
-                      <Input label="Vigência" name="vigencia" defaultValue={editingFormalizacao?.vigencia} disabled={user?.role === 'usuario'} />
-                      <Input label="Encaminhado em" name="encaminhado_em" type="date" defaultValue={editingFormalizacao?.encaminhado_em} disabled={user?.role === 'usuario'} />
-                      <Input label="Concluída em" name="concluida_em" type="date" defaultValue={editingFormalizacao?.concluida_em} disabled={user?.role === 'usuario'} />
-                    </div>
+                {/* Card 1: Estágio e Recurso Técnico */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                  <h3 className="text-xs font-bold text-[#1351B4] mb-4 flex items-center gap-2 uppercase tracking-wide">
+                    <User className="w-3.5 h-3.5" />
+                    Estágio e Recurso Técnico
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                    <Input label="Área - Estágio" name="area_estagio" defaultValue={editingFormalizacao?.area_estagio} />
+                    <Input label="Recurso" name="recurso" defaultValue={editingFormalizacao?.recurso} disabled={user?.role === 'usuario'} />
+                    <Input label="Técnico" name="tecnico" defaultValue={editingFormalizacao?.tecnico} disabled={user?.role === 'usuario'} />
+                    <Input label="Data da Liberação" name="data_liberacao" type="date" defaultValue={editingFormalizacao?.data_liberacao} disabled={user?.role === 'usuario'} />
+                    <Input label="Área - Estágio Situação" name="area_estagio_situacao_demanda" defaultValue={editingFormalizacao?.area_estagio_situacao_demanda} />
                   </div>
                 </div>
 
-                <div className="mt-12 flex justify-end gap-3">
+                {/* Card 2: Situação da Demanda - Análise */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                  <h3 className="text-xs font-bold text-[#1351B4] mb-4 flex items-center gap-2 uppercase tracking-wide">
+                    <FileText className="w-3.5 h-3.5" />
+                    Situação da Demanda - Análise
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                    <Input label="Situação da Demanda" name="situacao_analise_demanda" defaultValue={editingFormalizacao?.situacao_analise_demanda} />
+                    <Input label="Data - Análise Demanda" name="data_analise_demanda" type="date" defaultValue={editingFormalizacao?.data_analise_demanda} />
+                    <Input label="Motivo do Retorno da Diligência" name="motivo_retorno_diligencia" defaultValue={editingFormalizacao?.motivo_retorno_diligencia} />
+                    <Input label="Data do Retorno da Diligência" name="data_retorno_diligencia" type="date" defaultValue={editingFormalizacao?.data_retorno_diligencia} />
+                  </div>
+                </div>
+
+                {/* Card 3: Tramitação e Assinatura */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                  <h3 className="text-xs font-bold text-[#1351B4] mb-4 flex items-center gap-2 uppercase tracking-wide">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Tramitação e Assinatura
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                    <Input label="Conferencista" name="conferencista" defaultValue={editingFormalizacao?.conferencista} disabled={user?.role === 'usuario'} />
+                    <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={editingFormalizacao?.data_recebimento_demanda} disabled={user?.role === 'usuario'} />
+                    <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={editingFormalizacao?.data_retorno} />
+                  </div>
+                  <div className="mt-3">
+                    <Input label="Obs. - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} className="col-span-full" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 mt-3">
+                    <Input label="Data Lib. Assinatura - Conferencista" name="data_liberacao_assinatura_conferencista" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista} />
+                    <Input label="Data Lib. de Assinatura" name="data_liberacao_assinatura" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura} disabled={user?.role === 'usuario'} />
+                    <Input label="Falta Assinatura" name="falta_assinatura" defaultValue={editingFormalizacao?.falta_assinatura} disabled={user?.role === 'usuario'} />
+                    <Input label="Assinatura" name="assinatura" type="date" defaultValue={editingFormalizacao?.assinatura} disabled={user?.role === 'usuario'} />
+                  </div>
+                </div>
+
+                {/* Card 4: Prazos e Conclusão */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                  <h3 className="text-xs font-bold text-[#1351B4] mb-4 flex items-center gap-2 uppercase tracking-wide">
+                    <Calendar className="w-3.5 h-3.5" />
+                    Prazos e Conclusão
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                    <Input label="Publicação" name="publicacao" type="date" defaultValue={editingFormalizacao?.publicacao} disabled={user?.role === 'usuario'} />
+                    <Input label="Vigência" name="vigencia" type="date" defaultValue={editingFormalizacao?.vigencia} disabled={user?.role === 'usuario'} />
+                    <Input label="Encaminhado em" name="encaminhado_em" type="date" defaultValue={editingFormalizacao?.encaminhado_em} disabled={user?.role === 'usuario'} />
+                    <Input label="Concluída em" name="concluida_em" type="date" defaultValue={editingFormalizacao?.concluida_em} disabled={user?.role === 'usuario'} />
+                  </div>
+                </div>
+
+                {/* Footer buttons */}
+                <div className="flex justify-end gap-3 pt-2 pb-1">
                   <button 
                     type="button"
                     onClick={() => setIsFormalizacaoFormOpen(false)}
-                    className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                    className="px-5 py-2 rounded-lg text-xs font-semibold text-slate-600 bg-gray-100 hover:bg-gray-200 transition-colors"
                   >
                     Cancelar
                   </button>
                   <button 
                     type="submit"
-                    className="px-8 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all active:scale-95"
+                    className="px-6 py-2 rounded-lg text-xs font-semibold text-white bg-[#1351B4] hover:bg-[#0C326F] shadow-md transition-all active:scale-95 flex items-center gap-2"
                   >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
                     {editingFormalizacao ? 'Atualizar Registro' : 'Salvar Demanda'}
                   </button>
                 </div>
@@ -3376,6 +3706,228 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
         </AnimatePresence>
       </AnimatePresence>
 
+      {/* Modal de Atribuição de Conferencista */}
+      <AnimatePresence>
+        {showAtribuirConferencistaModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAtribuirConferencistaModal(false)}
+              className="fixed inset-0 bg-black/40 z-40"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 flex items-center justify-center z-50 p-4"
+            >
+              <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-green-100 p-2 rounded-lg">
+                      <User className="text-green-600 w-5 h-5" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900">Atribuir a Conferencista</h3>
+                  </div>
+                  <button
+                    onClick={() => setShowAtribuirConferencistaModal(false)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-green-900 font-medium">
+                    {selectedRows.size} registro(s) selecionado(s)
+                  </p>
+                </div>
+
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!atribuicaoConferencista || !atribuicaoConferencista.id) {
+                    alert('Selecione um conferencista');
+                    return;
+                  }
+
+                  const idsToUpdate = Array.from(selectedRows).map(id => {
+                    const numId = parseInt(id, 10);
+                    if (isNaN(numId) || numId <= 0) {
+                      console.error('❌ ID inválido:', id);
+                      return null;
+                    }
+                    return numId;
+                  }).filter(id => id !== null) as number[];
+
+                  if (idsToUpdate.length === 0) {
+                    alert('❌ Nenhum ID válido selecionado');
+                    return;
+                  }
+
+                  if (idsToUpdate.length !== selectedRows.size) {
+                    alert(`⚠️ ${selectedRows.size - idsToUpdate.length} registro(s) com ID inválido foram ignorados`);
+                  }
+
+                  const now = new Date();
+                  const dataRecebimento = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
+                  
+                  setAtribuindoConferencista(true);
+                  try {
+                    const response = await fetch('/api/formalizacao/atribuir-conferencista', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                      },
+                      body: JSON.stringify({
+                        ids: idsToUpdate,
+                        usuario_id: atribuicaoConferencista.id,
+                        data_recebimento_demanda: dataRecebimento
+                      })
+                    });
+                    
+                    if (!response.ok) {
+                      const error = await response.json();
+                      throw new Error(error.error || `Erro HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (!result.success && result.updated === 0) {
+                      alert(`⚠️ ATENÇÃO: Nenhum registro foi atualizado!\n\nVerifique se:\n1. Os IDs selecionados são válidos\n2. Há permissão para editar\n\nDetalhes: ${result.message || 'Desconhecido'}`);
+                      return;
+                    }
+                    
+                    if (result.updatedRecords && result.updatedRecords.length > 0) {
+                      setFormalizacaoSearchResult((prev: any) => ({
+                        ...prev,
+                        data: prev.data.map((f: any) => {
+                          const updated = result.updatedRecords.find((r: any) => r.id === f.id);
+                          return updated ? { ...f, ...updated } : f;
+                        })
+                      }));
+                    }
+                    
+                    setSelectedRows(new Set());
+                    setAtribuicaoConferencista(null);
+                    setShowAtribuirConferencistaModal(false);
+                    alert(`✅ Sucesso! Conferencista ${atribuicaoConferencista.nome} atribuído para ${result.updated} registro(s)!`);
+                  } catch (error: any) {
+                    alert(`❌ Erro ao atribuir conferencista:\n\n${error.message}`);
+                  } finally {
+                    setAtribuindoConferencista(false);
+                  }
+                }} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 ml-1 block mb-2">
+                      Selecione o Conferencista
+                    </label>
+                    <select
+                      value={atribuicaoConferencista?.id || ''}
+                      onChange={(e) => {
+                        const id = parseInt(e.target.value);
+                        const conferencista = tecnicosDisponiveis.find(t => t.id === id);
+                        setAtribuicaoConferencista(conferencista || null);
+                      }}
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:border-green-500 focus:ring-4 focus:ring-green-500/10 outline-none transition-all"
+                      disabled={atribuindoConferencista}
+                    >
+                      <option value="">-- Selecione --</option>
+                      {tecnicosDisponiveis.map(tecnico => (
+                        <option key={tecnico.id} value={tecnico.id}>
+                          {tecnico.nome} ({tecnico.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg">
+                    <p>A data de recebimento da demanda será preenchida automaticamente com a data de hoje.</p>
+                  </div>
+
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      type="button"
+                      onClick={() => setShowAtribuirConferencistaModal(false)}
+                      className="flex-1 px-4 py-2.5 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                      disabled={atribuindoConferencista}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (selectedRows.size === 0) {
+                          alert('❌ Nenhum registro selecionado');
+                          return;
+                        }
+
+                        const idsToUpdate = Array.from(selectedRows).map(id => parseInt(String(id))).filter(id => !isNaN(id));
+                        
+                        setAtribuindoConferencista(true);
+                        try {
+                          const response = await fetch('/api/formalizacao/remover-conferencista', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({ ids: idsToUpdate })
+                          });
+                          
+                          if (!response.ok) {
+                            const error = await response.json();
+                            throw new Error(error.error || 'Erro ao remover atribuição');
+                          }
+
+                          const result = await response.json();
+                          setSelectedRows(new Set());
+                          setAtribuicaoConferencista(null);
+                          setShowAtribuirConferencistaModal(false);
+                          fetchFormalizacoesComFiltros(0);
+                          alert(`✅ Atribuição de conferencista removida de ${result.updated} registro(s)!`);
+                        } catch (error: any) {
+                          alert(`❌ Erro ao remover atribuição:\n\n${error.message}`);
+                        } finally {
+                          setAtribuindoConferencista(false);
+                        }
+                      }}
+                      className="flex-1 px-4 py-2.5 rounded-lg font-medium text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      disabled={atribuindoConferencista || selectedRows.size === 0}
+                    >
+                      {atribuindoConferencista ? (
+                        <>
+                          <div className="animate-spin">⏳</div>
+                          Processando...
+                        </>
+                      ) : (
+                        'Remover'
+                      )}
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 px-4 py-2.5 rounded-lg font-medium text-white bg-green-500 hover:bg-green-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      disabled={atribuindoConferencista || !atribuicaoConferencista}
+                    >
+                      {atribuindoConferencista ? (
+                        <>
+                          <div className="animate-spin">⏳</div>
+                          Atribuindo...
+                        </>
+                      ) : (
+                        'Atribuir'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Modal de Deletar Formalizacao */}
       <AnimatePresence>
         {showDeleteFormalizacaoModal && (formalizacaoParaDeletar || selectedRows.size > 0) && (
@@ -3512,11 +4064,11 @@ function DetailItem({ label, value }: { label: string, value?: string | number }
 
 function Input({ label, className = '', disabled = false, ...props }: any) {
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
-      <label className="text-xs font-bold text-slate-500 ml-1">{label}</label>
+    <div className={`flex flex-col gap-1 ${className}`}>
+      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">{label}</label>
       <input 
         disabled={disabled}
-        className={`w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all ${disabled ? 'opacity-50 cursor-not-allowed bg-slate-100' : ''}`}
+        className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all ${disabled ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
         {...props}
       />
     </div>
@@ -3525,10 +4077,10 @@ function Input({ label, className = '', disabled = false, ...props }: any) {
 
 function Select({ label, children, className = '', ...props }: any) {
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
-      <label className="text-xs font-bold text-slate-500 ml-1">{label}</label>
+    <div className={`flex flex-col gap-1 ${className}`}>
+      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">{label}</label>
       <select 
-        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all appearance-none"
+        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none"
         {...props}
       >
         {children}

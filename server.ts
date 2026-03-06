@@ -1,5 +1,6 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
+import compression from "compression";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
@@ -61,6 +62,7 @@ const app = express();
   const FORMALIZACAO_CACHE_TTL = 10 * 60 * 1000; // 10 minutos
   const CACHE_TTL = 30 * 60 * 1000; // 30 minutos
 
+  app.use(compression({ level: 6, threshold: 1024 })); // Comprimir respostas > 1KB
   app.use(express.json({ limit: '200mb' }));
   app.use(express.urlencoded({ limit: '200mb', extended: true }));
 
@@ -760,29 +762,32 @@ const app = express();
   app.get("/api/emendas", authMiddleware, async (req: any, res) => {
     try {
       console.log('\n📥 GET /api/emendas - User:', req.user.email);
-      console.log('Supabase disponível:', !!supabase);
+      const limit = Math.min(parseInt(req.query.limit || '10000'), 10000);
+      const offset = parseInt(req.query.offset || '0');
       
-      if (supabase) {
-        console.log('Tentando buscar de emendas no Supabase...');
-        const { data, error } = await supabase
-          .from("emendas")
-          .select("*")
-          .order("created_at", { ascending: false });
-        
-        if (error) {
-          console.error('❌ Erro do Supabase:', error);
-          throw error;
-        }
-        
-        console.log('✓ Dados obtidos:', data?.length || 0, 'registros');
-        return res.json(data);
+      if (!supabase) {
+        console.log('⚠ Supabase não disponível');
+        return res.json([]);
+      }
+
+      console.log(`📥 Buscando ${limit} registros com offset ${offset}...`);
+      // Obs: Supabase tem limite de 1000 por request, então retorna com base em .range()
+      const { data, error, count } = await supabase
+        .from("formalizacao")
+        .select("*", { count: 'exact'})
+        .order("ano", { ascending: false })
+        .range(offset, offset + limit - 1);
+      
+      if (error) {
+        console.error('❌ Erro do Supabase:', error);
+        return res.status(500).json({ error: error.message });
       }
       
-      console.log('⚠ Supabase não disponível');
-      res.status(500).json({ error: "Supabase não configurado" });
+      console.log(`✓ Retornados: ${data?.length || 0}/${count} registros`);
+      res.json(data || []);
     } catch (error) {
       console.error('❌ Erro em /api/emendas:', error);
-      res.status(500).json({ error: "Erro ao buscar emendas", details: String(error) });
+      res.status(500).json({ error: "Erro ao buscar emendas" });
     }
   });
 
@@ -1147,6 +1152,9 @@ const app = express();
       }
       
       console.log(`✓ Retornando: ${data.length} registros`);
+      // Cache headers para dados
+      res.set('Cache-Control', 'public, max-age=300'); // Cache por 5 minutos
+      res.set('Content-Type', 'application/json');
       return res.json(data);
     } catch (error) {
       console.error('❌ Erro em /api/formalizacao:', error);
@@ -2409,6 +2417,151 @@ const app = express();
     } catch (error) {
       console.error('❌ Erro ao remover atribuição:', error);
       res.status(500).json({ error: "Erro ao remover atribuição", success: false });
+    }
+  });
+
+  // Atribuir conferencista a múltiplas formalizações
+  app.post("/api/formalizacao/atribuir-conferencista", authMiddleware, async (req: any, res) => {
+    try {
+      console.log('\n' + '='.repeat(60));
+      console.log('🔐 POST /api/formalizacao/atribuir-conferencista');
+      console.log('='.repeat(60));
+
+      const { ids, usuario_id, data_recebimento_demanda } = req.body;
+      console.log('✅ 1️⃣ Dados recebidos:');
+      console.log('   - IDs (quantidade):', ids?.length);
+      console.log('   - IDs (valores):', JSON.stringify(ids));
+      console.log('   - ID do usuário conferencista:', usuario_id);
+      console.log('   - Data Recebimento:', data_recebimento_demanda);
+      console.log('   - User role:', req.user.role);
+
+      if (req.user.role !== 'admin' && req.user.role !== 'intermediario') {
+        console.log('❌ Usuário não tem permissão');
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        console.log('❌ IDs inválidos:', ids);
+        return res.status(400).json({ error: "IDs não são válidos" });
+      }
+
+      const validIds = ids.filter((id: any) => {
+        const num = parseInt(id, 10);
+        if (isNaN(num) || num <= 0) {
+          console.warn(`⚠️ ID inválido descartado: ${id}`);
+          return false;
+        }
+        return true;
+      });
+
+      if (validIds.length === 0) {
+        return res.status(400).json({ error: "Nenhum ID válido fornecido" });
+      }
+
+      if (!usuario_id) {
+        return res.status(400).json({ error: "ID do usuário inválido" });
+      }
+
+      if (!supabase) {
+        return res.status(500).json({ error: "Supabase não configurado" });
+      }
+
+      const { data: usuarioData, error: usuarioError } = await supabase
+        .from('usuarios')
+        .select('id, nome, email')
+        .eq('id', usuario_id)
+        .single();
+
+      if (usuarioError || !usuarioData) {
+        console.log('❌ Conferencista não encontrado:', usuarioError);
+        return res.status(400).json({ error: "Conferencista não encontrado" });
+      }
+
+      console.log('✅ Conferencista encontrado:', usuarioData.nome);
+
+      if (!data_recebimento_demanda || !/^\d{4}-\d{2}-\d{2}$/.test(data_recebimento_demanda)) {
+        return res.status(400).json({ error: "Data em formato inválido (use YYYY-MM-DD)" });
+      }
+
+      console.log(`✅ Atualizando ${validIds.length} registro(s)...`);
+      const { error: updateError, data: updatedData } = await supabase
+        .from('formalizacao')
+        .update({
+          conferencista: usuarioData.nome,
+          data_recebimento_demanda: data_recebimento_demanda,
+          updated_at: new Date().toISOString()
+        })
+        .in('id', validIds)
+        .select('id, demandas_formalizacao, seq, conferencista, data_recebimento_demanda');
+
+      if (updateError) {
+        console.error('❌ Erro Supabase:', updateError);
+        return res.status(400).json({ error: updateError.message || "Erro ao atribuir conferencista" });
+      }
+
+      console.log('✅ Registros atualizados:', updatedData?.length || 0);
+
+      return res.json({
+        message: "Conferencista atribuído com sucesso",
+        updated: updatedData?.length || 0,
+        conferencista: usuarioData.nome,
+        updatedRecords: updatedData || [],
+        success: true
+      });
+    } catch (error) {
+      console.error('❌ ERRO:', error);
+      res.status(500).json({ error: "Erro ao atribuir conferencista", success: false });
+    }
+  });
+
+  // Remover atribuição de conferencista
+  app.post("/api/formalizacao/remover-conferencista", authMiddleware, async (req: any, res) => {
+    try {
+      const { ids } = req.body;
+
+      if (req.user.role !== 'admin' && req.user.role !== 'intermediario') {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "IDs não são válidos" });
+      }
+
+      const validIds = ids.filter((id: any) => {
+        const num = parseInt(id, 10);
+        return !isNaN(num) && num > 0;
+      });
+
+      if (validIds.length === 0) {
+        return res.status(400).json({ error: "Nenhum ID válido fornecido" });
+      }
+
+      if (!supabase) {
+        return res.status(500).json({ error: "Supabase não configurado" });
+      }
+
+      const { error: updateError, data: updatedData } = await supabase
+        .from('formalizacao')
+        .update({
+          conferencista: null,
+          data_recebimento_demanda: null,
+          updated_at: new Date().toISOString()
+        })
+        .in('id', validIds)
+        .select('id, conferencista');
+
+      if (updateError) {
+        return res.status(400).json({ error: updateError.message || "Erro ao remover atribuição" });
+      }
+
+      return res.json({
+        message: "Atribuição de conferencista removida com sucesso",
+        updated: updatedData?.length || 0,
+        success: true
+      });
+    } catch (error) {
+      console.error('❌ Erro ao remover atribuição de conferencista:', error);
+      res.status(500).json({ error: "Erro ao remover atribuição de conferencista", success: false });
     }
   });
 

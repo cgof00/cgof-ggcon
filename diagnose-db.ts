@@ -79,11 +79,15 @@ async function diagnose() {
     console.log('\n4️⃣ Verificando índices de performance...');
     console.log('⏳ (Indices são críticos para velocidade com 37k+ registros)');
 
-    const { data: indexInfo } = await supabase.rpc('get_table_indexes', { table_name: 'formalizacao' }).catch(() => ({ data: null }));
-    if (indexInfo) {
-      console.log('✅ Índices encontrados:', indexInfo);
-    } else {
-      console.log('⚠️  Resposta em branco (verificar console do Supabase)');
+    try {
+      const { data: indexInfo } = await supabase.rpc('get_table_indexes', { table_name: 'formalizacao' });
+      if (indexInfo) {
+        console.log('✅ Índices encontrados:', indexInfo);
+      } else {
+        console.log('⚠️  Resposta em branco (verificar console do Supabase)');
+      }
+    } catch (err) {
+      console.log('⚠️  Erro ao buscar índices (é ok em desenvolvimento)');
     }
 
     // 5. Performance test

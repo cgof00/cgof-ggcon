@@ -1,20 +1,45 @@
-/* Custom scrollbar styles */
+@import "tailwindcss";
+@import "./styles/designTokens.css";
+
+/* Custom scrollbar styles - institutional blue */
 ::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
   background: #f1f5f9;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #064e3b;
-  border-radius: 6px;
+  background: #93afd3;
+  border-radius: 4px;
+  border: 2px solid #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #047857;
+  background: #1351B4;
 }
 
-@import "tailwindcss";
+::-webkit-scrollbar-corner {
+  background: #f1f5f9;
+}
+
+/* Global defaults + Firefox scrollbar */
+* {
+  font-family: var(--font-family);
+  scrollbar-width: thin;
+  scrollbar-color: #93afd3 #f1f5f9;
+}
+
+body {
+  background: #f1f5f9;
+  color: #1a1a2e;
+}
+
+/* Selection color */
+::selection {
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+}

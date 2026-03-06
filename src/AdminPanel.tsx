@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Plus, Trash2, Shield, UserCheck, AlertCircle, Copy, CheckCircle, X, Key, Lock, BarChart3, TrendingUp, FileText, CheckCheck } from 'lucide-react';
+import { Users, Plus, Trash2, Shield, UserCheck, AlertCircle, Copy, CheckCircle, X, Key, Lock, BarChart3, TrendingUp, FileText, CheckCheck, ChevronDown, ChevronRight, Filter, Calendar, MapPin, RefreshCw } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
 interface Usuario {
@@ -32,6 +32,81 @@ export function AdminPanel() {
   // Dashboard states
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [rawFormalizacoes, setRawFormalizacoes] = useState<any[]>([]);
+
+  // Collapsible card states
+  const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({});
+
+  // Filter states
+  const [filtroTecnico, setFiltroTecnico] = useState('');
+  const [filtroRegional, setFiltroRegional] = useState('');
+  const [filtroDataInicial, setFiltroDataInicial] = useState('');
+  const [filtroDataFinal, setFiltroDataFinal] = useState('');
+  const [filtrosAtivos, setFiltrosAtivos] = useState(false);
+
+  const toggleCard = (cardId: string) => {
+    setCollapsedCards(prev => ({ ...prev, [cardId]: !prev[cardId] }));
+  };
+
+  // Extract unique técnicos for filter dropdown
+  const uniqueTecnicos = useMemo(() => {
+    return Array.from(new Set(rawFormalizacoes.map((f: any) => f.tecnico || 'Sem Técnico'))).sort();
+  }, [rawFormalizacoes]);
+
+  // Compute filtered dashboard data
+  const displayData = useMemo(() => {
+    if (!filtrosAtivos || !rawFormalizacoes.length) return dashboardData;
+
+    let filtered = [...rawFormalizacoes];
+    if (filtroTecnico) {
+      filtered = filtered.filter((f: any) => (f.tecnico || 'Sem Técnico') === filtroTecnico);
+    }
+    if (filtroDataInicial) {
+      filtered = filtered.filter((f: any) => {
+        const d = f.data_entrada || f.created_at || '';
+        return d >= filtroDataInicial;
+      });
+    }
+    if (filtroDataFinal) {
+      filtered = filtered.filter((f: any) => {
+        const d = f.data_entrada || f.created_at || '';
+        return d <= filtroDataFinal;
+      });
+    }
+
+    const totalEmendas = filtered.filter((f: any) => f.emenda && String(f.emenda).trim() !== '').length;
+    const totalDemandas = filtered.filter((f: any) => f.demandas_formalizacao && String(f.demandas_formalizacao).trim() !== '').length;
+
+    const tecnicoMap = new Map<string, { concluida: number; nao_concluida: number }>();
+    filtered.forEach((f: any) => {
+      const tecnico = f.tecnico || 'Sem Técnico';
+      const tem_conclusao = f.concluida_em && String(f.concluida_em).trim() !== '';
+      if (!tecnicoMap.has(tecnico)) tecnicoMap.set(tecnico, { concluida: 0, nao_concluida: 0 });
+      const s = tecnicoMap.get(tecnico)!;
+      if (tem_conclusao) s.concluida++; else s.nao_concluida++;
+    });
+    const demandaPorTecnico = Array.from(tecnicoMap.entries()).map(([tecnico, stats]) => ({
+      tecnico, concluida: stats.concluida, nao_concluida: stats.nao_concluida, total: stats.concluida + stats.nao_concluida
+    })).sort((a, b) => b.total - a.total);
+
+    const situacoes = [
+      'DEMANDA COM O TÉCNICO','EM ANÁLISE DA DOCUMENTAÇÃO','EM ANÁLISE DO PLANO DE TRABALHO',
+      'AGUARDANDO DOCUMENTAÇÃO','DEMANDA EM DILIGÊNCIA','DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS',
+      'DEMANDA EM DILIGÊNCIA PLANO DE TRABALHO - CRS','COMITÊ GESTOR','OUTRAS PENDÊNCIAS',
+      'EM FORMALIZAÇÃO','EM CONFERÊNCIA','CONFERÊNCIA COM PENDÊNCIA','EM ASSINATURA',
+      'EMPENHO CANCELADO','LAUDAS','PUBLICAÇÃO NO DOE','PROCESSO SIAFEM'
+    ];
+    const situacaoMap = new Map<string, number>();
+    situacoes.forEach(sit => {
+      const count = filtered.filter((f: any) => (f.area_estagio_situacao_demanda || '').toUpperCase().includes(sit)).length;
+      if (count > 0) situacaoMap.set(sit, count);
+    });
+    const distribuicaoSituacao = Array.from(situacaoMap.entries())
+      .map(([situacao, count]) => ({ situacao, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return { totalEmendas, totalDemandas, demandaPorTecnico, distribuicaoSituacao };
+  }, [rawFormalizacoes, dashboardData, filtrosAtivos, filtroTecnico, filtroDataInicial, filtroDataFinal]);
 
   // Apenas admins podem acessar esse painel
   if (user?.role !== 'admin') {
@@ -423,6 +498,7 @@ export function AdminPanel() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const formalizacoes = formRes.ok ? await formRes.json() : [];
+      setRawFormalizacoes(formalizacoes);
 
       // Total de Emendas: contar registros com coluna "emenda" preenchida
       const totalEmendas = formalizacoes.filter((f: any) => f.emenda && String(f.emenda).trim() !== '').length;
@@ -512,169 +588,256 @@ export function AdminPanel() {
 
   return (
     <div className="space-y-6">
-      {/* Dashboard Section */}
-      {dashboardLoading ? (
-        <div className="bg-white rounded-2xl shadow-lg p-6 text-center">
-          <p className="text-slate-600">Carregando dashboard...</p>
+      {/* Filter Bar */}
+      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Filter className="w-5 h-5 text-[#1351B4]" />
+          <h3 className="text-base font-bold text-slate-800">Filtros</h3>
+          {filtrosAtivos && (
+            <span className="ml-2 text-xs bg-[#1351B4] text-white px-2 py-0.5 rounded-full">Ativos</span>
+          )}
         </div>
-      ) : dashboardData ? (
-        <div className="space-y-6">
-          {/* Top Metrics Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Técnico</label>
+            <select
+              value={filtroTecnico}
+              onChange={e => setFiltroTecnico(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none"
+            >
+              <option value="">Todos</option>
+              {uniqueTecnicos.map((t: string) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Data Inicial</label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="date"
+                value={filtroDataInicial}
+                onChange={e => setFiltroDataInicial(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 text-sm text-slate-700 focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Data Final</label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="date"
+                value={filtroDataFinal}
+                onChange={e => setFiltroDataFinal(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 text-sm text-slate-700 focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none"
+              />
+            </div>
+          </div>
+          <div className="flex items-end gap-2">
+            <button
+              onClick={() => setFiltrosAtivos(true)}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-[#1351B4] hover:bg-[#0C326F] text-white text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
+            >
+              <Filter className="w-4 h-4" />
+              Aplicar
+            </button>
+            <button
+              onClick={() => {
+                setFiltroTecnico('');
+                setFiltroDataInicial('');
+                setFiltroDataFinal('');
+                setFiltroRegional('');
+                setFiltrosAtivos(false);
+              }}
+              className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Limpar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Dashboard Content */}
+      {dashboardLoading ? (
+        <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+          <RefreshCw className="w-8 h-8 text-[#1351B4] animate-spin mx-auto mb-3" />
+          <p className="text-slate-600 font-medium">Carregando dashboard...</p>
+        </div>
+      ) : displayData ? (
+        <div className="space-y-5">
+          {/* Metric Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-2xl p-6 border border-indigo-200 shadow-md"
+              className="bg-gradient-to-br from-[#1351B4]/5 to-[#1351B4]/15 rounded-2xl p-6 border border-[#1351B4]/20 shadow-md"
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wider mb-2">Total de Emendas</p>
-                  <p className="text-4xl font-bold text-indigo-900">{dashboardData.totalEmendas}</p>
+                  <p className="text-sm font-semibold text-[#1351B4] uppercase tracking-wider mb-2">Total de Emendas</p>
+                  <p className="text-4xl font-bold text-[#0C326F]">{displayData.totalEmendas}</p>
                 </div>
-                <div className="bg-indigo-200 p-3 rounded-xl">
-                  <FileText className="text-indigo-700 w-6 h-6" />
+                <div className="bg-[#1351B4]/15 p-3 rounded-xl">
+                  <FileText className="text-[#1351B4] w-6 h-6" />
                 </div>
               </div>
             </motion.div>
 
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="bg-gradient-to-br from-violet-50 to-violet-100 rounded-2xl p-6 border border-violet-200 shadow-md"
+              className="bg-gradient-to-br from-[#0C326F]/5 to-[#0C326F]/15 rounded-2xl p-6 border border-[#0C326F]/20 shadow-md"
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-violet-600 uppercase tracking-wider mb-2">Total de Demandas</p>
-                  <p className="text-4xl font-bold text-violet-900">{dashboardData.totalDemandas}</p>
+                  <p className="text-sm font-semibold text-[#0C326F] uppercase tracking-wider mb-2">Total de Demandas</p>
+                  <p className="text-4xl font-bold text-[#0C326F]">{displayData.totalDemandas}</p>
                 </div>
-                <div className="bg-violet-200 p-3 rounded-xl">
-                  <CheckCheck className="text-violet-700 w-6 h-6" />
+                <div className="bg-[#0C326F]/15 p-3 rounded-xl">
+                  <CheckCheck className="text-[#0C326F] w-6 h-6" />
                 </div>
               </div>
             </motion.div>
           </div>
 
-          {/* Demandas por Técnico */}
-          <motion.div 
+          {/* Demandas por Técnico - Collapsible */}
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200"
+            className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden"
           >
-            <div className="flex items-center gap-2 mb-4">
-              <BarChart3 className="text-amber-600 w-5 h-5" />
-              <h3 className="text-lg font-bold text-slate-900">Demandas por Técnico</h3>
-            </div>
-            
-            {dashboardData.demandaPorTecnico.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="text-left px-4 py-3 font-bold text-slate-700">Técnico</th>
-                      <th className="text-center px-4 py-3 font-bold text-slate-700">Concluídas</th>
-                      <th className="text-center px-4 py-3 font-bold text-slate-700">Não Concluídas</th>
-                      <th className="text-center px-4 py-3 font-bold text-slate-700">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dashboardData.demandaPorTecnico.map((item: any, idx: number) => (
-                      <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="px-4 py-3 text-slate-900 font-medium">{item.tecnico}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="inline-block bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold text-xs">
-                            {item.concluida}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="inline-block bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-semibold text-xs">
-                            {item.nao_concluida}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center font-bold text-slate-900">
-                          {item.total}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <button
+              onClick={() => toggleCard('tecnico')}
+              className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#1351B4] to-[#0C326F] text-white hover:from-[#0C326F] hover:to-[#1351B4] transition-all"
+            >
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                <h3 className="text-base font-bold">Demandas por Técnico</h3>
               </div>
-            ) : (
-              <p className="text-slate-500 text-center py-8">Nenhum técnico atribuído</p>
-            )}
+              {collapsedCards['tecnico'] ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+            <AnimatePresence initial={false}>
+              {!collapsedCards['tecnico'] && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden"
+                >
+                  <div className="p-6">
+                    {displayData.demandaPorTecnico.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b-2 border-[#1351B4]/20">
+                              <th className="text-left px-4 py-3 font-bold text-[#0C326F]">Técnico</th>
+                              <th className="text-center px-4 py-3 font-bold text-[#0C326F]">Concluídas</th>
+                              <th className="text-center px-4 py-3 font-bold text-[#0C326F]">Não Concluídas</th>
+                              <th className="text-center px-4 py-3 font-bold text-[#0C326F]">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {displayData.demandaPorTecnico.map((item: any, idx: number) => (
+                              <tr key={idx} className="border-b border-slate-100 hover:bg-[#1351B4]/5 transition-colors">
+                                <td className="px-4 py-3 text-slate-900 font-medium">{item.tecnico}</td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className="inline-block bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold text-xs">
+                                    {item.concluida}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className="inline-block bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-semibold text-xs">
+                                    {item.nao_concluida}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center font-bold text-[#0C326F]">{item.total}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-slate-500 text-center py-8">Nenhum técnico atribuído</p>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
 
-          {/* Situação da Demanda */}
-          <motion.div 
+          {/* Distribuição de Situação - Collapsible */}
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200"
+            className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden"
           >
-            <div className="flex items-center gap-2 mb-6">
-              <BarChart3 className="text-emerald-600 w-5 h-5" />
-              <h3 className="text-lg font-bold text-slate-900">Distribuição de Situação da Demanda</h3>
-            </div>
-            
-            {dashboardData.distribuicaoSituacao.length > 0 ? (
-              <div className="space-y-4">
-                {dashboardData.distribuicaoSituacao.map((item: any, idx: number) => {
-                  const maxCount = Math.max(...dashboardData.distribuicaoSituacao.map((i: any) => i.count));
-                  const percentage = (item.count / maxCount) * 100;
-                  
-                  const colors = [
-                    { bg: 'bg-blue-500', light: 'bg-blue-100', text: 'text-blue-700' },
-                    { bg: 'bg-indigo-500', light: 'bg-indigo-100', text: 'text-indigo-700' },
-                    { bg: 'bg-purple-500', light: 'bg-purple-100', text: 'text-purple-700' },
-                    { bg: 'bg-pink-500', light: 'bg-pink-100', text: 'text-pink-700' },
-                    { bg: 'bg-red-500', light: 'bg-red-100', text: 'text-red-700' },
-                    { bg: 'bg-orange-500', light: 'bg-orange-100', text: 'text-orange-700' },
-                    { bg: 'bg-amber-500', light: 'bg-amber-100', text: 'text-amber-700' },
-                    { bg: 'bg-yellow-500', light: 'bg-yellow-100', text: 'text-yellow-700' },
-                    { bg: 'bg-lime-500', light: 'bg-lime-100', text: 'text-lime-700' },
-                    { bg: 'bg-green-500', light: 'bg-green-100', text: 'text-green-700' },
-                    { bg: 'bg-emerald-500', light: 'bg-emerald-100', text: 'text-emerald-700' },
-                    { bg: 'bg-teal-500', light: 'bg-teal-100', text: 'text-teal-700' },
-                    { bg: 'bg-cyan-500', light: 'bg-cyan-100', text: 'text-cyan-700' },
-                    { bg: 'bg-sky-500', light: 'bg-sky-100', text: 'text-sky-700' },
-                    { bg: 'bg-violet-500', light: 'bg-violet-100', text: 'text-violet-700' },
-                    { bg: 'bg-fuchsia-500', light: 'bg-fuchsia-100', text: 'text-fuchsia-700' },
-                    { bg: 'bg-rose-500', light: 'bg-rose-100', text: 'text-rose-700' }
-                  ];
-                  const color = colors[idx % colors.length];
-                  
-                  return (
-                    <div key={idx} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-semibold text-slate-700 flex-1 pr-4">
-                          {item.situacao}
-                        </label>
-                        <div className={`${color.light} ${color.text} px-3 py-1 rounded-full font-bold text-sm min-w-12 text-center`}>
-                          {item.count}
+            <button
+              onClick={() => toggleCard('situacao')}
+              className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#1351B4] to-[#0C326F] text-white hover:from-[#0C326F] hover:to-[#1351B4] transition-all"
+            >
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                <h3 className="text-base font-bold">Distribuição de Situação da Demanda</h3>
+              </div>
+              {collapsedCards['situacao'] ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+            <AnimatePresence initial={false}>
+              {!collapsedCards['situacao'] && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden"
+                >
+                  <div className="p-6">
+                    {displayData.distribuicaoSituacao.length > 0 ? (
+                      <div className="space-y-4">
+                        {displayData.distribuicaoSituacao.map((item: any, idx: number) => {
+                          const maxCount = Math.max(...displayData.distribuicaoSituacao.map((i: any) => i.count));
+                          const percentage = (item.count / maxCount) * 100;
+                          return (
+                            <div key={idx} className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <label className="text-sm font-semibold text-slate-700 flex-1 pr-4">
+                                  {item.situacao}
+                                </label>
+                                <div className="bg-[#1351B4]/10 text-[#1351B4] px-3 py-1 rounded-full font-bold text-sm min-w-12 text-center">
+                                  {item.count}
+                                </div>
+                              </div>
+                              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${percentage}%` }}
+                                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                                  className="h-full bg-gradient-to-r from-[#1351B4] to-[#0C326F] rounded-full shadow-md"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12">
+                        <div className="bg-slate-50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                          <AlertCircle className="text-slate-400 w-8 h-8" />
                         </div>
+                        <p className="text-slate-500 font-medium">Nenhuma demanda com situação definida</p>
+                        <p className="text-slate-400 text-sm mt-1">Atualize os dados para ver as situações</p>
                       </div>
-                      <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${percentage}%` }}
-                          transition={{ duration: 0.8, ease: 'easeOut' }}
-                          className={`h-full ${color.bg} rounded-full shadow-md`}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="bg-slate-50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                  <AlertCircle className="text-slate-400 w-8 h-8" />
-                </div>
-                <p className="text-slate-500 font-medium">Nenhuma demanda com situação definida</p>
-                <p className="text-slate-400 text-sm mt-1">Atualize os dados para ver as situações</p>
-              </div>
-            )}
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </div>
       ) : null}
