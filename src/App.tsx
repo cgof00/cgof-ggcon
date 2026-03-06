@@ -30,7 +30,13 @@ import {
   Settings,
   BarChart3,
   RefreshCw,
-  Users
+  Users,
+  Check,
+  ClipboardList,
+  FileSearch,
+  Send,
+  PenLine,
+  BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Papa from 'papaparse';
@@ -1481,8 +1487,20 @@ export default function App() {
           }
         }
 
+        // Remoção otimista do cache local
+        const idsSet = new Set(ids);
+        const removeFromList = (list: any[]) => list.filter((f: any) => !idsSet.has(f.id));
+        if (allDataCacheRef.current.length > 0) {
+          allDataCacheRef.current = removeFromList(allDataCacheRef.current);
+        }
+        setFormalizacoes(prev => removeFromList(prev));
+        setFormalizacaoSearchResult(prev => ({
+          ...prev,
+          data: removeFromList(prev.data),
+          total: Math.max(0, prev.total - ids.length)
+        }));
+
         setSelectedRows(new Set());
-        fetchFormalizacoes();
         setShowDeleteFormalizacaoModal(false);
         setSenhaParaDeletarFormalizacao('');
         alert(`✅ ${ids.length} formalização(ões) deletada(s) com sucesso!`);
@@ -1505,7 +1523,18 @@ export default function App() {
         return;
       }
 
-      fetchFormalizacoes();
+      // Remoção otimista do cache local
+      const delId = formalizacaoParaDeletar.id;
+      const removeById = (list: any[]) => list.filter((f: any) => f.id !== delId);
+      if (allDataCacheRef.current.length > 0) {
+        allDataCacheRef.current = removeById(allDataCacheRef.current);
+      }
+      setFormalizacoes(prev => removeById(prev));
+      setFormalizacaoSearchResult(prev => ({
+        ...prev,
+        data: removeById(prev.data),
+        total: Math.max(0, prev.total - 1)
+      }));
       if (selectedFormalizacao?.id === formalizacaoParaDeletar.id) {
         setSelectedFormalizacao(null);
       }
@@ -1523,7 +1552,15 @@ export default function App() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const data: any = {};
+    // Collect falta_assinatura checkboxes as comma-separated string
+    const faltaAssinatura = formData.getAll('falta_assinatura');
+    if (faltaAssinatura.length > 0) {
+      data['falta_assinatura'] = faltaAssinatura.join(', ');
+    } else {
+      data['falta_assinatura'] = '';
+    }
     formData.forEach((value, key) => {
+      if (key === 'falta_assinatura') return; // already handled
       if (key.includes('valor')) {
         data[key] = value ? Number(value) : 0;
       } else {
@@ -1534,14 +1571,35 @@ export default function App() {
     try {
       const url = editingFormalizacao ? `/api/formalizacao/${editingFormalizacao.id}` : '/api/formalizacao';
       const method = editingFormalizacao ? 'PUT' : 'POST';
-      await fetch(url, {
+      const response = await fetch(url, {
         method,
         headers: getHeaders(),
         body: JSON.stringify(data),
       });
+
+      // Atualização otimista: atualizar cache local imediatamente
+      if (editingFormalizacao && response.ok) {
+        const updatedRecord = { ...editingFormalizacao, ...data };
+        const updateInList = (list: any[]) =>
+          list.map((f: any) => f.id === editingFormalizacao.id ? { ...f, ...data } : f);
+
+        // Atualizar cache em memória
+        if (allDataCacheRef.current.length > 0) {
+          allDataCacheRef.current = updateInList(allDataCacheRef.current);
+        }
+        setFormalizacoes(prev => updateInList(prev));
+        setFormalizacaoSearchResult(prev => ({
+          ...prev,
+          data: updateInList(prev.data)
+        }));
+        // Atualizar detalhe aberto se for o mesmo registro
+        if (selectedFormalizacao?.id === editingFormalizacao.id) {
+          setSelectedFormalizacao(updatedRecord);
+        }
+      }
+
       setIsFormalizacaoFormOpen(false);
       setEditingFormalizacao(null);
-      fetchFormalizacoes();
     } catch (error) {
       console.error('Erro ao salvar formalização:', error);
     }
@@ -2493,11 +2551,11 @@ export default function App() {
                           { key: 'data_liberacao_assinatura_conferencista', label: 'Data Lib. Assit. Conf.', render: (f: any) => formatDateForDisplay(f.data_liberacao_assinatura_conferencista || '—') },
                           { key: 'data_liberacao_assinatura', label: 'Data Lib. Assinatura', render: (f: any) => formatDateForDisplay(f.data_liberacao_assinatura || '—') },
                           { key: 'falta_assinatura', label: 'Falta Assinatura', render: (f: any) => f.falta_assinatura },
-                          { key: 'assinatura', label: 'Assinatura', render: (f: any) => f.assinatura },
-                          { key: 'publicacao', label: 'Publicação', render: (f: any) => f.publicacao },
-                          { key: 'vigencia', label: 'Vigência', render: (f: any) => f.vigencia },
-                          { key: 'encaminhado_em', label: 'Encaminhado em', render: (f: any) => f.encaminhado_em?.substring(0, 10) || '—' },
-                          { key: 'concluida_em', label: 'Concluída em', render: (f: any) => f.concluida_em?.substring(0, 10) || '—' }
+                          { key: 'assinatura', label: 'Assinatura', render: (f: any) => formatDateForDisplay(f.assinatura || '—') },
+                          { key: 'publicacao', label: 'Publicação', render: (f: any) => formatDateForDisplay(f.publicacao || '—') },
+                          { key: 'vigencia', label: 'Vigência', render: (f: any) => formatDateForDisplay(f.vigencia || '—') },
+                          { key: 'encaminhado_em', label: 'Encaminhado em', render: (f: any) => formatDateForDisplay(f.encaminhado_em || '—') },
+                          { key: 'concluida_em', label: 'Concluída em', render: (f: any) => formatDateForDisplay(f.concluida_em || '—') }
                         ];
                         
                         const visibleCols = columnDefinitions.filter(col => visibleColumns[col.key as keyof typeof visibleColumns]);
@@ -2933,130 +2991,179 @@ export default function App() {
                       </div>
                     </div>
                   ) : activeTab === 'formalizacao' && selectedFormalizacao ? (
-                    <div className="flex flex-col h-full">
-                      <div className="bg-gradient-to-r from-[#1351B4] to-[#0C326F] px-6 py-4 flex justify-between items-start flex-shrink-0">
-                        <div className="flex-1">
-                          <h2 className="text-lg font-bold text-white leading-tight mb-1">
-                            {selectedFormalizacao.parlamentar}
-                          </h2>
-                          <p className="text-xs text-white/70">{selectedFormalizacao.partido} • {selectedFormalizacao.municipio}</p>
-                        </div>
-                        <div className="flex gap-1 flex-shrink-0 ml-2">
-                          <button 
-                            onClick={() => {
-                              setEditingFormalizacao(selectedFormalizacao);
-                              setIsFormalizacaoFormOpen(true);
-                            }}
-                            className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteFormalizacao(selectedFormalizacao.id!)}
-                            className="p-2 text-white/60 rounded-lg transition-colors hover:bg-white/20 hover:text-white"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={() => setSelectedFormalizacao(null)}
-                            className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
+                    <div className="flex flex-col h-full bg-white">
+                      {/* Header */}
+                      <div className="bg-gradient-to-br from-[#1351B4] via-[#0F3D8C] to-[#0C326F] px-6 py-5 flex-shrink-0">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="text-[10px] font-semibold text-white/50 uppercase tracking-widest mb-1">Parlamentar</p>
+                            <h2 className="text-xl font-extrabold text-white leading-tight tracking-tight">
+                              {selectedFormalizacao.parlamentar || '—'}
+                            </h2>
+                            <div className="flex items-center gap-2 mt-2">
+                              {selectedFormalizacao.partido && (
+                                <span className="text-[10px] font-bold bg-white/15 text-white/90 px-2.5 py-1 rounded-full">{selectedFormalizacao.partido}</span>
+                              )}
+                              {selectedFormalizacao.municipio && (
+                                <span className="text-[10px] font-medium text-white/60">{selectedFormalizacao.municipio}</span>
+                              )}
+                              {selectedFormalizacao.ano && (
+                                <span className="text-[10px] font-bold bg-white/10 text-white/70 px-2 py-0.5 rounded">{selectedFormalizacao.ano}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0 ml-3">
+                            <button 
+                              onClick={() => {
+                                setEditingFormalizacao(selectedFormalizacao);
+                                setIsFormalizacaoFormOpen(true);
+                              }}
+                              className="p-2.5 text-white/70 hover:text-white hover:bg-white/15 rounded-xl transition-all"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteFormalizacao(selectedFormalizacao.id!)}
+                              className="p-2.5 text-white/40 hover:text-red-300 hover:bg-white/10 rounded-xl transition-all"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => setSelectedFormalizacao(null)}
+                              className="p-2.5 text-white/70 hover:text-white hover:bg-white/15 rounded-xl transition-all"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="overflow-y-auto flex-1 p-6 space-y-6">
-                    <section>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Identificação e Objeto</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <DetailItem label="Ano" value={selectedFormalizacao.ano} />
-                        <DetailItem label="Parlamentar" value={selectedFormalizacao.parlamentar} />
-                        <DetailItem label="Partido" value={selectedFormalizacao.partido} />
-                        <DetailItem label="Emenda" value={selectedFormalizacao.emenda} />
+                      <div className="overflow-y-auto flex-1 px-5 py-5 space-y-5">
+
+                    {/* Identificação e Objeto */}
+                    <section className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-5 rounded-full bg-[#1351B4]"></div>
+                        <h4 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">Identificação e Objeto</h4>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <DetailItem label="Emenda" value={selectedFormalizacao.emenda} highlight />
+                        <DetailItem label="Demanda" value={selectedFormalizacao.demanda} highlight />
                         <DetailItem label="Emendas Agregadoras" value={selectedFormalizacao.emendas_agregadoras} />
-                        <DetailItem label="Demanda" value={selectedFormalizacao.demanda} />
                         <DetailItem label="Demandas Formalização" value={selectedFormalizacao.demandas_formalizacao} />
                         <DetailItem label="Portfólio" value={selectedFormalizacao.portfolio} />
+                        <DetailItem label="Classificação" value={selectedFormalizacao.classificacao} />
                       </div>
-                      <div className="mt-3">
-                        <DetailItem label="Objeto" value={selectedFormalizacao.objeto} />
+                      <div className="rounded-lg bg-gray-50/80 px-3.5 py-2.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Objeto</span>
+                        <p className="text-[13px] font-semibold text-slate-800 mt-1 leading-relaxed">{selectedFormalizacao.objeto || '—'}</p>
                       </div>
                     </section>
 
-                    <section>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Localização e Convênio</h4>
-                      <div className="grid grid-cols-2 gap-4">
+                    {/* Localização e Convênio */}
+                    <section className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-5 rounded-full bg-teal-500"></div>
+                        <h4 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">Localização e Convênio</h4>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2.5">
                         <DetailItem label="Regional" value={selectedFormalizacao.regional} />
                         <DetailItem label="Município" value={selectedFormalizacao.municipio} />
                         <DetailItem label="Conveniado" value={selectedFormalizacao.conveniado} />
                         <DetailItem label="Nº Convênio" value={selectedFormalizacao.num_convenio} />
-                        <DetailItem label="Classificação" value={selectedFormalizacao.classificacao} />
                         <DetailItem label="Tipo de Formalização" value={selectedFormalizacao.tipo_formalizacao} />
                       </div>
                     </section>
 
-                    <section>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Financeiro</h4>
-                      <div className="bg-emerald-50 rounded-2xl p-4 space-y-3">
+                    {/* Financeiro */}
+                    <section className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-5 rounded-full bg-emerald-500"></div>
+                        <h4 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">Financeiro</h4>
+                      </div>
+                      <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-4 border border-emerald-100">
                         <div className="flex justify-between items-center">
-                          <span className="text-xs text-emerald-600 font-medium">Valor Total</span>
-                          <span className="text-lg font-bold text-emerald-900">{formatCurrency(selectedFormalizacao.valor)}</span>
+                          <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wide">Valor Total</span>
+                          <span className="text-xl font-extrabold text-emerald-800 tracking-tight">{formatCurrency(selectedFormalizacao.valor)}</span>
                         </div>
-                        <DetailItem label="Recurso" value={selectedFormalizacao.recurso} />
+                        <div className="mt-3">
+                          <DetailItem label="Recurso" value={selectedFormalizacao.recurso} />
+                        </div>
                       </div>
                     </section>
 
-                    <section>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Estágio e Situação</h4>
-                      <div className="grid grid-cols-2 gap-4">
+                    {/* Estágio e Situação */}
+                    <section className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-5 rounded-full bg-amber-500"></div>
+                        <h4 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">Estágio e Situação</h4>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2.5">
                         <DetailItem label="Posição Anterior" value={selectedFormalizacao.posicao_anterior} />
                         <DetailItem label="Situação SemPapel" value={selectedFormalizacao.situacao_demandas_sempapel} />
-                        <DetailItem label="Área - estágio" value={selectedFormalizacao.area_estagio} />
-                        <DetailItem label="Técnico" value={selectedFormalizacao.tecnico} />
-                        <DetailItem label="Data da Liberação" value={selectedFormalizacao.data_liberacao} />
+                        <DetailItem label="Área - Estágio" value={selectedFormalizacao.area_estagio} />
+                        <DetailItem label="Técnico" value={selectedFormalizacao.tecnico} highlight />
+                        <DetailItem label="Data da Liberação" value={formatDateForDisplay(selectedFormalizacao.data_liberacao || '')} />
                         <DetailItem label="Área - Estágio Situação" value={selectedFormalizacao.area_estagio_situacao_demanda} />
                       </div>
                     </section>
 
-                    <section>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Análise e Diligência</h4>
-                      <div className="grid grid-cols-2 gap-4">
+                    {/* Análise e Diligência */}
+                    <section className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-5 rounded-full bg-violet-500"></div>
+                        <h4 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">Análise e Diligência</h4>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2.5">
                         <DetailItem label="Situação Análise" value={selectedFormalizacao.situacao_analise_demanda} />
-                        <DetailItem label="Data Análise" value={selectedFormalizacao.data_analise_demanda} />
+                        <DetailItem label="Data Análise" value={formatDateForDisplay(selectedFormalizacao.data_analise_demanda || '')} />
                         <DetailItem label="Motivo Retorno Diligência" value={selectedFormalizacao.motivo_retorno_diligencia} />
-                        <DetailItem label="Data Retorno Diligência" value={selectedFormalizacao.data_retorno_diligencia} />
+                        <DetailItem label="Data Retorno Diligência" value={formatDateForDisplay(selectedFormalizacao.data_retorno_diligencia || '')} />
                       </div>
                     </section>
 
-                    <section>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Tramitação e Assinatura</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <DetailItem label="Conferencista" value={selectedFormalizacao.conferencista} />
-                        <DetailItem label="Data Recebimento" value={selectedFormalizacao.data_recebimento_demanda} />
-                        <DetailItem label="Data do Retorno" value={selectedFormalizacao.data_retorno} />
-                        <DetailItem label="Data Lib. Assinatura Conf." value={selectedFormalizacao.data_liberacao_assinatura_conferencista} />
-                        <DetailItem label="Data Lib. Assinatura" value={selectedFormalizacao.data_liberacao_assinatura} />
+                    {/* Tramitação e Assinatura */}
+                    <section className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-5 rounded-full bg-rose-500"></div>
+                        <h4 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">Tramitação e Assinatura</h4>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <DetailItem label="Conferencista" value={selectedFormalizacao.conferencista} highlight />
+                        <DetailItem label="Data Recebimento" value={formatDateForDisplay(selectedFormalizacao.data_recebimento_demanda || '')} />
+                        <DetailItem label="Data do Retorno" value={formatDateForDisplay(selectedFormalizacao.data_retorno || '')} />
+                        <DetailItem label="Data Lib. Assinatura Conf." value={formatDateForDisplay(selectedFormalizacao.data_liberacao_assinatura_conferencista || '')} />
+                        <DetailItem label="Data Lib. Assinatura" value={formatDateForDisplay(selectedFormalizacao.data_liberacao_assinatura || '')} />
                         <DetailItem label="Falta Assinatura" value={selectedFormalizacao.falta_assinatura} />
-                        <DetailItem label="Assinatura" value={selectedFormalizacao.assinatura} />
+                        <DetailItem label="Assinatura" value={formatDateForDisplay(selectedFormalizacao.assinatura || '')} />
                       </div>
                     </section>
 
-                    <section>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Prazos e Conclusão</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <DetailItem label="Publicação" value={selectedFormalizacao.publicacao} />
-                        <DetailItem label="Vigência" value={selectedFormalizacao.vigencia} />
-                        <DetailItem label="Encaminhado em" value={selectedFormalizacao.encaminhado_em} />
-                        <DetailItem label="Concluída em" value={selectedFormalizacao.concluida_em} />
+                    {/* Prazos e Conclusão */}
+                    <section className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-5 rounded-full bg-sky-500"></div>
+                        <h4 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">Prazos e Conclusão</h4>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <DetailItem label="Publicação" value={formatDateForDisplay(selectedFormalizacao.publicacao || '')} />
+                        <DetailItem label="Vigência" value={formatDateForDisplay(selectedFormalizacao.vigencia || '')} />
+                        <DetailItem label="Encaminhado em" value={formatDateForDisplay(selectedFormalizacao.encaminhado_em || '')} />
+                        <DetailItem label="Concluída em" value={formatDateForDisplay(selectedFormalizacao.concluida_em || '')} />
                       </div>
                     </section>
 
-                    <section>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Observações</h4>
-                      <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
-                        {selectedFormalizacao.observacao_motivo_retorno || 'Nenhuma observação registrada.'}
-                      </p>
+                    {/* Observações */}
+                    <section className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-5 rounded-full bg-slate-400"></div>
+                        <h4 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">Observações</h4>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                        <p className="text-[13px] text-slate-600 leading-relaxed">
+                          {selectedFormalizacao.observacao_motivo_retorno || 'Nenhuma observação registrada.'}
+                        </p>
+                      </div>
                     </section>
                       </div>
                     </div>
@@ -3391,66 +3498,210 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                 </button>
               </div>
 
-              <form onSubmit={handleSubmitFormalizacao} className="flex-1 overflow-y-auto p-6 space-y-6">
+              <form onSubmit={handleSubmitFormalizacao} className="flex-1 overflow-y-auto p-6 space-y-5">
 
-                {/* Card 1: Estágio e Recurso Técnico */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                  <h3 className="text-xs font-bold text-[#1351B4] mb-4 flex items-center gap-2 uppercase tracking-wide">
-                    <User className="w-3.5 h-3.5" />
-                    Estágio e Recurso Técnico
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                {/* Informações da Emenda (read-only) */}
+                {editingFormalizacao && (
+                  <div className="bg-[#1351B4]/5 border border-[#1351B4]/15 rounded-xl px-5 py-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <span className="text-[10px] font-semibold text-[#1351B4]/60 uppercase tracking-wider">Nome do Parlamentar</span>
+                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{editingFormalizacao.parlamentar || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-semibold text-[#1351B4]/60 uppercase tracking-wider">Emenda</span>
+                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{editingFormalizacao.emenda || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-semibold text-[#1351B4]/60 uppercase tracking-wider">Demanda</span>
+                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{editingFormalizacao.demanda || editingFormalizacao.demandas_formalizacao || '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 1️⃣ Atribuição da Demanda */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
+                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">1</div>
+                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
+                      <ClipboardList className="w-3.5 h-3.5" />
+                      Atribuição da Demanda
+                    </h3>
+                  </div>
+                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Técnico</label>
+                      <select
+                        name="tecnico"
+                        defaultValue={editingFormalizacao?.tecnico || ''}
+                        disabled={user?.role === 'usuario'}
+                        className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none ${user?.role === 'usuario' ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                      >
+                        <option value="">-- Selecione o Técnico --</option>
+                        {tecnicosDisponiveis.map((t: any) => (
+                          <option key={t.id} value={t.nome}>{t.nome} ({t.email})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <Input label="Data da Liberação" name="data_liberacao" type="date" defaultValue={editingFormalizacao?.data_liberacao} disabled={user?.role === 'usuario'} />
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Área – Estágio da Situação da Demanda</label>
+                      <select
+                        name="area_estagio_situacao_demanda"
+                        defaultValue={editingFormalizacao?.area_estagio_situacao_demanda || ''}
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none"
+                      >
+                        <option value="">-- Selecione --</option>
+                        <option value="DEMANDA COM O TÉCNICO">DEMANDA COM O TÉCNICO</option>
+                        <option value="EM ANÁLISE DA DOCUMENTAÇÃO">EM ANÁLISE DA DOCUMENTAÇÃO</option>
+                        <option value="EM ANÁLISE DO PLANO DE TRABALHO">EM ANÁLISE DO PLANO DE TRABALHO</option>
+                        <option value="AGUARDANDO DOCUMENTAÇÃO">AGUARDANDO DOCUMENTAÇÃO</option>
+                        <option value="DEMANDA EM DILIGÊNCIA">DEMANDA EM DILIGÊNCIA</option>
+                        <option value="DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS">DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS</option>
+                        <option value="DEMANDA EM DILIGÊNCIA PLANO DE TRABALHO - CRS">DEMANDA EM DILIGÊNCIA PLANO DE TRABALHO - CRS</option>
+                        <option value="COMITÊ GESTOR">COMITÊ GESTOR</option>
+                        <option value="OUTRAS PENDÊNCIAS">OUTRAS PENDÊNCIAS</option>
+                        <option value="EM FORMALIZAÇÃO">EM FORMALIZAÇÃO</option>
+                        <option value="EM CONFERÊNCIA">EM CONFERÊNCIA</option>
+                        <option value="CONFERÊNCIA COM PENDÊNCIA">CONFERÊNCIA COM PENDÊNCIA</option>
+                        <option value="EM ASSINATURA">EM ASSINATURA</option>
+                        <option value="EMPENHO CANCELADO">EMPENHO CANCELADO</option>
+                        <option value="LAUDAS">LAUDAS</option>
+                        <option value="PUBLICAÇÃO NO DOE">PUBLICAÇÃO NO DOE</option>
+                        <option value="PROCESSO SIAFEM">PROCESSO SIAFEM</option>
+                      </select>
+                    </div>
+                    <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={editingFormalizacao?.data_recebimento_demanda} disabled={user?.role === 'usuario'} />
                     <Input label="Área - Estágio" name="area_estagio" defaultValue={editingFormalizacao?.area_estagio} />
                     <Input label="Recurso" name="recurso" defaultValue={editingFormalizacao?.recurso} disabled={user?.role === 'usuario'} />
-                    <Input label="Técnico" name="tecnico" defaultValue={editingFormalizacao?.tecnico} disabled={user?.role === 'usuario'} />
-                    <Input label="Data da Liberação" name="data_liberacao" type="date" defaultValue={editingFormalizacao?.data_liberacao} disabled={user?.role === 'usuario'} />
-                    <Input label="Área - Estágio Situação" name="area_estagio_situacao_demanda" defaultValue={editingFormalizacao?.area_estagio_situacao_demanda} />
                   </div>
                 </div>
 
-                {/* Card 2: Situação da Demanda - Análise */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                  <h3 className="text-xs font-bold text-[#1351B4] mb-4 flex items-center gap-2 uppercase tracking-wide">
-                    <FileText className="w-3.5 h-3.5" />
-                    Situação da Demanda - Análise
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-                    <Input label="Situação da Demanda" name="situacao_analise_demanda" defaultValue={editingFormalizacao?.situacao_analise_demanda} />
+                {/* 2️⃣ Análise da Demanda */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
+                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">2</div>
+                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
+                      <FileSearch className="w-3.5 h-3.5" />
+                      Análise da Demanda
+                    </h3>
+                  </div>
+                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+                    <Input label="Situação - Análise Demanda" name="situacao_analise_demanda" defaultValue={editingFormalizacao?.situacao_analise_demanda} />
                     <Input label="Data - Análise Demanda" name="data_analise_demanda" type="date" defaultValue={editingFormalizacao?.data_analise_demanda} />
-                    <Input label="Motivo do Retorno da Diligência" name="motivo_retorno_diligencia" defaultValue={editingFormalizacao?.motivo_retorno_diligencia} />
-                    <Input label="Data do Retorno da Diligência" name="data_retorno_diligencia" type="date" defaultValue={editingFormalizacao?.data_retorno_diligencia} />
                   </div>
                 </div>
 
-                {/* Card 3: Tramitação e Assinatura */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                  <h3 className="text-xs font-bold text-[#1351B4] mb-4 flex items-center gap-2 uppercase tracking-wide">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Tramitação e Assinatura
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-                    <Input label="Conferencista" name="conferencista" defaultValue={editingFormalizacao?.conferencista} disabled={user?.role === 'usuario'} />
-                    <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={editingFormalizacao?.data_recebimento_demanda} disabled={user?.role === 'usuario'} />
-                    <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={editingFormalizacao?.data_retorno} />
+                {/* 3️⃣ Diligência */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
+                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">3</div>
+                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
+                      <Send className="w-3.5 h-3.5" />
+                      Diligência
+                    </h3>
                   </div>
-                  <div className="mt-3">
-                    <Input label="Obs. - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} className="col-span-full" />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 mt-3">
-                    <Input label="Data Lib. Assinatura - Conferencista" name="data_liberacao_assinatura_conferencista" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista} />
-                    <Input label="Data Lib. de Assinatura" name="data_liberacao_assinatura" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura} disabled={user?.role === 'usuario'} />
-                    <Input label="Falta Assinatura" name="falta_assinatura" defaultValue={editingFormalizacao?.falta_assinatura} disabled={user?.role === 'usuario'} />
-                    <Input label="Assinatura" name="assinatura" type="date" defaultValue={editingFormalizacao?.assinatura} disabled={user?.role === 'usuario'} />
+                  <div className="p-5 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+                      <Input label="Motivo do Retorno da Diligência" name="motivo_retorno_diligencia" defaultValue={editingFormalizacao?.motivo_retorno_diligencia} />
+                      <Input label="Data do Retorno da Diligência" name="data_retorno_diligencia" type="date" defaultValue={editingFormalizacao?.data_retorno_diligencia} />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+                      <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={editingFormalizacao?.data_retorno} />
+                    </div>
+                    <Input label="Observação - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} className="col-span-full" />
                   </div>
                 </div>
 
-                {/* Card 4: Prazos e Conclusão */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                  <h3 className="text-xs font-bold text-[#1351B4] mb-4 flex items-center gap-2 uppercase tracking-wide">
-                    <Calendar className="w-3.5 h-3.5" />
-                    Prazos e Conclusão
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                {/* 4️⃣ Conferência */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
+                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">4</div>
+                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
+                      <FileText className="w-3.5 h-3.5" />
+                      Conferência
+                    </h3>
+                  </div>
+                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Conferencista</label>
+                      <select
+                        name="conferencista"
+                        defaultValue={editingFormalizacao?.conferencista || ''}
+                        disabled={user?.role === 'usuario'}
+                        className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none ${user?.role === 'usuario' ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                      >
+                        <option value="">-- Selecione o Conferencista --</option>
+                        {tecnicosDisponiveis.map((t: any) => (
+                          <option key={t.id} value={t.nome}>{t.nome} ({t.email})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <Input label="Data Liberação da Assinatura - Conferencista" name="data_liberacao_assinatura_conferencista" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista} />
+                  </div>
+                </div>
+
+                {/* 5️⃣ Assinaturas */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
+                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">5</div>
+                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
+                      <PenLine className="w-3.5 h-3.5" />
+                      Assinaturas
+                    </h3>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+                      <Input label="Data Liberação de Assinatura" name="data_liberacao_assinatura" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura} disabled={user?.role === 'usuario'} />
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Falta Assinatura</label>
+                        <div className={`bg-white border border-gray-200 rounded-lg p-3 space-y-2 ${user?.role === 'usuario' ? 'opacity-50 pointer-events-none bg-gray-50' : ''}`}>
+                          {[
+                            'GESTOR ADMINISTRATIVO DRS',
+                            'GESTOR TÉCNICO DRS',
+                            'DIRETOR DRS',
+                            'COORDENADOR CRS',
+                            'DIRETOR GGCON',
+                            'ORDENADOR DE DESPESAS',
+                            'SECRETÁRIO',
+                            'GESTOR – CONVÊNIO / DEMANDANTE',
+                          ].map((opcao) => {
+                            const checked = editingFormalizacao?.falta_assinatura
+                              ? editingFormalizacao.falta_assinatura.split(',').map((s: string) => s.trim()).includes(opcao)
+                              : false;
+                            return (
+                              <label key={opcao} className="flex items-center gap-2.5 cursor-pointer group">
+                                <input
+                                  type="checkbox"
+                                  name="falta_assinatura"
+                                  value={opcao}
+                                  defaultChecked={checked}
+                                  className="w-4 h-4 rounded border-gray-300 text-[#1351B4] focus:ring-[#1351B4]/30 accent-[#1351B4]"
+                                />
+                                <span className="text-xs text-gray-700 group-hover:text-gray-900">{opcao}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+                      <Input label="Assinatura" name="assinatura" type="date" defaultValue={editingFormalizacao?.assinatura} disabled={user?.role === 'usuario'} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 6️⃣ Publicação e Finalização */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
+                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">6</div>
+                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
+                      <BookOpen className="w-3.5 h-3.5" />
+                      Publicação e Finalização
+                    </h3>
+                  </div>
+                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
                     <Input label="Publicação" name="publicacao" type="date" defaultValue={editingFormalizacao?.publicacao} disabled={user?.role === 'usuario'} />
                     <Input label="Vigência" name="vigencia" type="date" defaultValue={editingFormalizacao?.vigencia} disabled={user?.role === 'usuario'} />
                     <Input label="Encaminhado em" name="encaminhado_em" type="date" defaultValue={editingFormalizacao?.encaminhado_em} disabled={user?.role === 'usuario'} />
@@ -3463,13 +3714,13 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   <button 
                     type="button"
                     onClick={() => setIsFormalizacaoFormOpen(false)}
-                    className="px-5 py-2 rounded-lg text-xs font-semibold text-slate-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                    className="px-5 py-2.5 rounded-lg text-xs font-semibold text-slate-600 bg-gray-100 hover:bg-gray-200 transition-colors"
                   >
                     Cancelar
                   </button>
                   <button 
                     type="submit"
-                    className="px-6 py-2 rounded-lg text-xs font-semibold text-white bg-[#1351B4] hover:bg-[#0C326F] shadow-md transition-all active:scale-95 flex items-center gap-2"
+                    className="px-6 py-2.5 rounded-lg text-xs font-semibold text-white bg-[#1351B4] hover:bg-[#0C326F] shadow-md transition-all active:scale-95 flex items-center gap-2"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     {editingFormalizacao ? 'Atualizar Registro' : 'Salvar Demanda'}
@@ -3578,12 +3829,18 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       
                       // Atualizar dados localmente em vez de refetch (rápido!)
                       if (result.updatedRecords && result.updatedRecords.length > 0) {
+                        const updateMap = new Map(result.updatedRecords.map((r: any) => [r.id, r]));
+                        const updater = (list: any[]) => list.map((f: any) => {
+                          const u = updateMap.get(f.id);
+                          return u ? { ...f, ...u } : f;
+                        });
+                        if (allDataCacheRef.current.length > 0) {
+                          allDataCacheRef.current = updater(allDataCacheRef.current);
+                        }
+                        setFormalizacoes(prev => updater(prev));
                         setFormalizacaoSearchResult((prev: any) => ({
                           ...prev,
-                          data: prev.data.map((f: any) => {
-                            const updated = result.updatedRecords.find((r: any) => r.id === f.id);
-                            return updated ? { ...f, ...updated } : f;
-                          })
+                          data: updater(prev.data)
                         }));
                       }
                       
@@ -3801,12 +4058,18 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     }
                     
                     if (result.updatedRecords && result.updatedRecords.length > 0) {
+                      const updateMap = new Map(result.updatedRecords.map((r: any) => [r.id, r]));
+                      const updater = (list: any[]) => list.map((f: any) => {
+                        const u = updateMap.get(f.id);
+                        return u ? { ...f, ...u } : f;
+                      });
+                      if (allDataCacheRef.current.length > 0) {
+                        allDataCacheRef.current = updater(allDataCacheRef.current);
+                      }
+                      setFormalizacoes(prev => updater(prev));
                       setFormalizacaoSearchResult((prev: any) => ({
                         ...prev,
-                        data: prev.data.map((f: any) => {
-                          const updated = result.updatedRecords.find((r: any) => r.id === f.id);
-                          return updated ? { ...f, ...updated } : f;
-                        })
+                        data: updater(prev.data)
                       }));
                     }
                     
@@ -4053,11 +4316,14 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
   );
 }
 
-function DetailItem({ label, value }: { label: string, value?: string | number }) {
+function DetailItem({ label, value, highlight, icon }: { label: string, value?: string | number, highlight?: boolean, icon?: React.ReactNode }) {
   return (
-    <div className="flex flex-col">
-      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{label}</span>
-      <span className="text-sm text-slate-700 font-medium">{value || '—'}</span>
+    <div className={`rounded-lg px-3.5 py-2.5 transition-colors ${highlight ? 'bg-[#1351B4]/5 border border-[#1351B4]/10' : 'bg-gray-50/80'}`}>
+      <div className="flex items-center gap-1.5 mb-1">
+        {icon && <span className="text-[#1351B4]/50">{icon}</span>}
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none">{label}</span>
+      </div>
+      <span className={`text-[13px] font-semibold leading-snug ${value ? 'text-slate-800' : 'text-slate-300'}`}>{value || '—'}</span>
     </div>
   );
 }

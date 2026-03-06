@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Plus, Trash2, Shield, UserCheck, AlertCircle, Copy, CheckCircle, X, Key, Lock } from 'lucide-react';
+import { Users, Plus, Trash2, Shield, UserCheck, AlertCircle, Copy, CheckCircle, X, Key, Lock, Edit3 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
 interface Usuario {
@@ -33,6 +33,11 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [usuarioParaDeletar, setUsuarioParaDeletar] = useState<Usuario | null>(null);
   const [senhaParaDeletar, setSenhaParaDeletar] = useState('');
+
+  // Edit user modal states
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFormData, setEditFormData] = useState({ nome: '', email: '', role: 'usuario' as 'admin' | 'usuario' });
+  const [editUsuarioId, setEditUsuarioId] = useState<number | null>(null);
 
   // Apenas admins podem acessar esse painel
   if (user?.role !== 'admin') {
@@ -271,6 +276,62 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
     setTimeout(() => setCopiado(false), 2000);
   };
 
+  const abrirEditModal = (u: Usuario) => {
+    setEditUsuarioId(u.id);
+    setEditFormData({ nome: u.nome, email: u.email, role: u.role });
+    setErro('');
+    setSuccessMessage('');
+    setShowEditModal(true);
+  };
+
+  const handleEditarUsuario = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro('');
+    setSuccessMessage('');
+
+    if (!editUsuarioId) return;
+
+    if (!editFormData.nome.trim() || !editFormData.email.trim()) {
+      setErro('Nome e email são obrigatórios');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        setErro('Token não encontrado. Faça login novamente.');
+        return;
+      }
+
+      const response = await fetch(`/api/usuarios/${editUsuarioId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          nome: editFormData.nome.trim(),
+          email: editFormData.email.trim(),
+          role: editFormData.role,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: `Erro HTTP ${response.status}` }));
+        throw new Error(errorData.error || 'Erro ao atualizar usuário');
+      }
+
+      setSuccessMessage('Usuário atualizado com sucesso!');
+      setTimeout(() => {
+        setShowEditModal(false);
+        setSuccessMessage('');
+        carregarUsuarios();
+      }, 1500);
+    } catch (err: any) {
+      setErro(err.message || 'Erro ao atualizar usuário');
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -367,6 +428,13 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
                       </div>
                       <div className="flex gap-2 flex-wrap">
                         <button
+                          onClick={() => abrirEditModal(u)}
+                          className="flex-1 text-xs font-bold py-1.5 px-2 rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors flex items-center justify-center gap-1"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          Editar
+                        </button>
+                        <button
                           onClick={() => handleToggleAtivo(u.id, !u.ativo)}
                           className={`flex-1 text-xs font-bold py-1.5 px-2 rounded transition-colors ${
                             u.ativo
@@ -402,6 +470,118 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
                 </div>
               )}
             </div>
+
+            {/* Modal de Editar Usuário */}
+            <AnimatePresence>
+              {showEditModal && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowEditModal(false)}
+                    className="fixed inset-0 bg-black/40 z-40"
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="fixed inset-0 flex items-center justify-center z-50 p-4"
+                  >
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+                      <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-indigo-600 p-2 rounded-lg">
+                            <Edit3 className="text-white w-5 h-5" />
+                          </div>
+                          <h3 className="text-xl font-bold text-slate-900">Editar Usuário</h3>
+                        </div>
+                        <button
+                          onClick={() => setShowEditModal(false)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="w-6 h-6" />
+                        </button>
+                      </div>
+
+                      {successMessage && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 flex items-center gap-3"
+                        >
+                          <CheckCircle className="text-green-600 w-5 h-5" />
+                          <p className="text-green-700 text-sm font-semibold">{successMessage}</p>
+                        </motion.div>
+                      )}
+
+                      {erro && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-center gap-3"
+                        >
+                          <AlertCircle className="text-red-600 w-5 h-5" />
+                          <p className="text-red-700 text-sm">{erro}</p>
+                        </motion.div>
+                      )}
+
+                      <form onSubmit={handleEditarUsuario} className="space-y-4">
+                        <div>
+                          <label className="text-sm font-bold text-slate-700 ml-1">Nome</label>
+                          <input
+                            type="text"
+                            value={editFormData.nome}
+                            onChange={(e) => setEditFormData({ ...editFormData, nome: e.target.value })}
+                            className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-sm font-bold text-slate-700 ml-1">Email</label>
+                          <input
+                            type="email"
+                            value={editFormData.email}
+                            onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                            className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-sm font-bold text-slate-700 ml-1">Perfil</label>
+                          <select
+                            value={editFormData.role}
+                            onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value as 'admin' | 'usuario' })}
+                            className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                          >
+                            <option value="usuario">Usuário Padrão</option>
+                            <option value="admin">Administrador</option>
+                          </select>
+                        </div>
+
+                        <div className="flex gap-3 pt-4">
+                          <button
+                            type="button"
+                            onClick={() => setShowEditModal(false)}
+                            className="flex-1 bg-slate-200 text-slate-700 font-bold py-2.5 rounded-lg hover:bg-slate-300 transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="submit"
+                            className="flex-1 bg-indigo-600 text-white font-bold py-2.5 rounded-lg hover:bg-indigo-700 transition-colors"
+                          >
+                            Salvar Alterações
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
 
             {/* Modal de Criar Usuário */}
             <AnimatePresence>

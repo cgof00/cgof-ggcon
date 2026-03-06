@@ -408,11 +408,11 @@ const app = express();
       console.log('='.repeat(60));
       
       const { id } = req.params;
-      const { role, ativo, nome } = req.body;
+      const { role, ativo, nome, email } = req.body;
 
       console.log('✅ 1️⃣ Parâmetros extraídos:');
       console.log('   - ID:', id);
-      console.log('   - Updates:', { role, ativo, nome });
+      console.log('   - Updates:', { role, ativo, nome, email });
       console.log('   - User role:', req.user.role);
 
       if (req.user.role !== 'admin') {
@@ -444,6 +444,7 @@ const app = express();
       if (role !== undefined) updateData.role = role;
       if (ativo !== undefined) updateData.ativo = ativo;
       if (nome !== undefined) updateData.nome = nome;
+      if (email !== undefined) updateData.email = email.toLowerCase().trim();
 
       console.log('✅ 5️⃣ Dados de atualização preparados:', updateData);
       console.log('✅ 6️⃣ Iniciando UPDATE no Supabase...');
@@ -632,8 +633,8 @@ const app = express();
         return res.status(400).json({ error: "Erro ao verificar credenciais" });
       }
 
-      // Verificar a senha usando bcrypt
-      const senhasMatch = await bcrypt.compare(senha, adminData.senha_hash);
+      // Verificar a senha usando SHA-256
+      const senhasMatch = verifyPassword(senha, adminData.senha_hash);
       if (!senhasMatch) {
         console.log('❌ Senha do admin incorreta');
         return res.status(401).json({ error: "Senha incorreta" });
@@ -2214,8 +2215,8 @@ const app = express();
         return res.status(400).json({ error: "Erro ao verificar credenciais" });
       }
 
-      // Verificar a senha usando bcrypt
-      const senhasMatch = await bcrypt.compare(senha, adminData.senha_hash);
+      // Verificar a senha usando SHA-256
+      const senhasMatch = verifyPassword(senha, adminData.senha_hash);
       if (!senhasMatch) {
         console.log('❌ Senha do admin incorreta');
         return res.status(401).json({ error: "Senha incorreta" });

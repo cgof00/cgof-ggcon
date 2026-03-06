@@ -1,3 +1,15 @@
+// Helper: verify auth token
+function verifyToken(token: string): any {
+  try {
+    const payload = atob(token);
+    const decoded = JSON.parse(payload);
+    if (decoded.exp < Math.floor(Date.now() / 1000)) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
 export const onRequest: PagesFunction = async (context) => {
   const { request, env } = context;
 
@@ -8,6 +20,25 @@ export const onRequest: PagesFunction = async (context) => {
     return new Response(JSON.stringify({ 
       error: 'Variáveis de ambiente não configuradas' 
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  // Verify admin auth
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response(JSON.stringify({ error: 'Token não fornecido' }), {
+      status: 401, headers: { 'Content-Type': 'application/json' }
+    });
+  }
+  const decoded = verifyToken(authHeader.slice(7));
+  if (!decoded) {
+    return new Response(JSON.stringify({ error: 'Token inválido ou expirado' }), {
+      status: 401, headers: { 'Content-Type': 'application/json' }
+    });
+  }
+  if (decoded.role !== 'admin') {
+    return new Response(JSON.stringify({ error: 'Acesso negado' }), {
+      status: 403, headers: { 'Content-Type': 'application/json' }
+    });
   }
 
   // GET /api/usuarios (lista todos para admin)
