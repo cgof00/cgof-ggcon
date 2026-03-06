@@ -674,19 +674,44 @@ export default function App() {
     encaminhado_em: 'encaminhado_em', concluida_em: 'concluida_em'
   };
 
-  // Helper: obter opções de filtro para uma coluna (server-side ou extraído dos dados em cache)
+  // Helper: obter opções de filtro para uma coluna (CASCATA - filtra dados pelos OUTROS filtros ativos)
   const getColumnFilterOptions = (colKey: string): string[] => {
-    const filterKey = columnToFilterKey[colKey];
-    if (filterKey && filterOptions[filterKey] && filterOptions[filterKey].length > 0) {
-      return filterOptions[filterKey];
-    }
-    // Extrair valores únicos do cache de dados
-    const dataField = columnToDataField[colKey] || colKey;
     const cache = allDataCacheRef.current || [];
     if (cache.length === 0) return [];
+
+    // Aplicar TODOS os outros filtros ativos (exceto o da coluna atual) para cascata
+    const dataField = columnToDataField[colKey] || colKey;
+    const currentFilterKey = columnToFilterKey[colKey];
+
+    const filteredData = cache.filter((f: any) => {
+      // Verificar filtros do state 'filters' (exceto o da coluna atual)
+      for (const [fk, fv] of Object.entries(filters)) {
+        if (fk === currentFilterKey) continue; // pular o filtro da coluna atual
+        if (!Array.isArray(fv) || fv.length === 0) continue;
+        const fieldVal = String(f[fk] || '').toLowerCase().trim();
+        if (!fv.some((v: string) => fieldVal.includes(v.toLowerCase().trim()))) return false;
+      }
+      // Verificar headerFilters (exceto o da coluna atual)
+      for (const [hk, hv] of Object.entries(headerFilters)) {
+        if (hk === colKey) continue;
+        if (!hv || hv.length === 0) continue;
+        const hField = columnToDataField[hk] || hk;
+        const fieldVal = String(f[hField] || '').trim();
+        if (!hv.some(sv => fieldVal.toLowerCase().includes(sv.toLowerCase()))) return false;
+      }
+      // Verificar searchTerm
+      if (searchTerm) {
+        const s = searchTerm.toLowerCase();
+        const match = ['parlamentar','conveniado','objeto','demanda','demandas_formalizacao','tecnico','emenda','regional','municipio','num_convenio','area_estagio','area_estagio_situacao_demanda','conferencista']
+          .some(k => (f[k] && String(f[k]).toLowerCase().includes(s)));
+        if (!match) return false;
+      }
+      return true;
+    });
+
     const unique = new Set<string>();
-    for (let i = 0; i < cache.length; i++) {
-      const val = cache[i][dataField];
+    for (let i = 0; i < filteredData.length; i++) {
+      const val = filteredData[i][dataField];
       if (val !== null && val !== undefined && String(val).trim() !== '') {
         unique.add(String(val).trim());
       }
@@ -820,7 +845,7 @@ export default function App() {
     
     // Aplicar filtros IMEDIATAMENTE do cache em memória
     fetchFormalizacoesComFiltros(0);
-  }, [filters, searchTerm, activeTab, hideEmptyFields]);
+  }, [filters, searchTerm, activeTab, hideEmptyFields, headerFilters]);
 
   // ⚡ NOVO: Carregar TUDO o cache quando aba de formalizações abre
   // Isto roda UMA ÚNICA VEZ quando activeTab muda para 'formalizacao'
@@ -1594,7 +1619,23 @@ export default function App() {
     }
   };
 
-  // Silent background refresh: invalidate cache and reload data with progress bar
+  // Limpar TODOS os filtros (filters + headerFilters + columnTextFilters + searchTerm)
+  const clearAllFilters = () => {
+    setFilters({
+      ano: [], demandas_formalizacao: [], area_estagio: [], recurso: [], tecnico: [],
+      data_liberacao: [], area_estagio_situacao_demanda: [], situacao_analise_demanda: [],
+      data_analise_demanda: [], conferencista: [], data_recebimento_demanda: [],
+      data_retorno: [], falta_assinatura: [], publicacao: [], vigencia: [],
+      encaminhado_em: [], concluida_em: [], parlamentar: [], partido: [],
+      regional: [], municipio: [], conveniado: [], objeto: [],
+    });
+    setHeaderFilters({});
+    setColumnTextFilters({});
+    setSearchTerm('');
+    setHideEmptyFields({});
+  };
+
+  // Silent background refresh: invalidate cache and reload data with progress bar (preserva filtros)
   const silentRefreshData = async () => {
     console.log('🔄 Silent refresh: recarregando dados em background...');
     allDataCacheRef.current = [];
@@ -1603,6 +1644,16 @@ export default function App() {
     localStorage.removeItem('formalizacoes_cache_time');
     await fetchFormalizacoesComFiltros(paginaAtual);
   };
+
+  // Auto-refresh periódico silencioso (a cada 5 minutos, preserva filtros)
+  useEffect(() => {
+    if (activeTab !== 'formalizacao') return;
+    const interval = setInterval(() => {
+      console.log('⏰ Auto-refresh periódico silencioso...');
+      cacheTimestampRef.current = 0; // Invalida cache para forçar re-fetch na próxima aplicação de filtros
+    }, CACHE_VALIDITY_MS);
+    return () => clearInterval(interval);
+  }, [activeTab]);
 
   const handleSubmitFormalizacao = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -2413,33 +2464,7 @@ export default function App() {
                 {/* Botão Limpar Filtros */}
                 <div className="mt-4 flex justify-end">
                   <button
-                    onClick={() =>
-                      setFilters({
-                        ano: [],
-                        demandas_formalizacao: [],
-                        area_estagio: [],
-                        recurso: [],
-                        tecnico: [],
-                        data_liberacao: [],
-                        area_estagio_situacao_demanda: [],
-                        situacao_analise_demanda: [],
-                        data_analise_demanda: [],
-                        conferencista: [],
-                        data_recebimento_demanda: [],
-                        data_retorno: [],
-                        falta_assinatura: [],
-                        publicacao: [],
-                        vigencia: [],
-                        encaminhado_em: [],
-                        concluida_em: [],
-                        parlamentar: [],
-                        partido: [],
-                        regional: [],
-                        municipio: [],
-                        conveniado: [],
-                        objeto: [],
-                      })
-                    }
+                    onClick={() => clearAllFilters()}
                     className="px-4 py-2 text-sm font-bold text-white rounded-lg transition-all border border-[#1351B4] bg-[#1351B4] hover:bg-[#0C326F]"
                   >
                     Limpar Filtros
@@ -2487,6 +2512,13 @@ export default function App() {
                 </div>
                 <h3 className="text-black font-bold">Nenhum registro encontrado</h3>
                 <p className="text-gray-600 text-sm mt-1">Tente ajustar sua busca ou importe novos dados.</p>
+                <button
+                  onClick={() => clearAllFilters()}
+                  className="mt-4 px-6 py-2 text-sm font-bold text-white bg-[#1351B4] rounded-lg hover:bg-[#0C326F] transition-all inline-flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Voltar (Limpar Filtros)
+                </button>
               </div>
             ) : (
               <div className="space-y-2">
@@ -2830,8 +2862,21 @@ export default function App() {
                             <tbody className="divide-y divide-slate-200">
                               {formalizacoesPaginadas.length === 0 ? (
                                 <tr>
-                                  <td colSpan={visibleCols.length + 1} className="px-4 py-8 text-center text-slate-500 font-medium">
-                                    {formalizacaoSearchResult.loading ? 'Carregando registros...' : 'Nenhum registro encontrado com os filtros selecionados'}
+                                  <td colSpan={visibleCols.length + 1} className="px-4 py-8 text-center">
+                                    {formalizacaoSearchResult.loading ? (
+                                      <span className="text-slate-500 font-medium">Carregando registros...</span>
+                                    ) : (
+                                      <div className="flex flex-col items-center gap-3">
+                                        <span className="text-slate-500 font-medium">Nenhum registro encontrado com os filtros selecionados</span>
+                                        <button
+                                          onClick={() => clearAllFilters()}
+                                          className="px-4 py-1.5 text-xs font-bold text-white bg-[#1351B4] rounded-lg hover:bg-[#0C326F] transition-all inline-flex items-center gap-1.5"
+                                        >
+                                          <ArrowLeft className="w-3.5 h-3.5" />
+                                          Voltar (Limpar Filtros)
+                                        </button>
+                                      </div>
+                                    )}
                                   </td>
                                 </tr>
                               ) : (
