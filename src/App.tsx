@@ -509,6 +509,7 @@ export default function App() {
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const [adminAlertas, setAdminAlertas] = useState<{id: number, tipo: string, descricao: string, data: string}[]>([]);
   const [showAlertasDropdown, setShowAlertasDropdown] = useState(false);
+  const [refreshProgress, setRefreshProgress] = useState<{ active: boolean; loaded: number; total: number; startTime: number } | null>(null);
   const [emendas, setEmendas] = useState<Emenda[]>([]);
   const [formalizacoes, setFormalizacoes] = useState<Formalizacao[]>([]);
   const [loading, setLoading] = useState(true);
@@ -826,9 +827,15 @@ export default function App() {
   useEffect(() => {
     if (activeTab !== 'formalizacao') return;
     
-    // ⚠️ CRÍTICO: SEMPRE limpar cache antigo e recarregar TODOS os 37k registros
-    // Ignorar localStorage até que tenhamos versão correta
-    console.log('🔥 FORÇANDO RECARGA COMPLETA de 37k registros...');
+    // Se já temos cache em memória válido, apenas reaplicar filtros sem re-fetch
+    const cacheValido = allDataCacheRef.current.length > 100 && (Date.now() - cacheTimestampRef.current) < CACHE_VALIDITY_MS;
+    if (cacheValido) {
+      console.log(`⚡ Cache válido em memória: ${allDataCacheRef.current.length} registros, reaproveitando`);
+      fetchFormalizacoesComFiltros(0);
+      return;
+    }
+    
+    console.log('🔥 FORÇANDO RECARGA COMPLETA...');
     allDataCacheRef.current = [];
     cacheTimestampRef.current = 0;
     localStorage.removeItem('formalizacoes_cache');
@@ -977,20 +984,26 @@ export default function App() {
   }, [user]);
 
   // 🔔 Alertas para admin: demandas analisadas E conferidas
-  const alertasVistosRef = useRef<Set<number>>(new Set());
-  const alertasInitializedRef = useRef(false);
+  // Persist seen IDs in localStorage so alerts survive page reloads
+  const alertasVistosRef = useRef<Set<number>>(new Set<number>());
+  const alertasInitRef = useRef(false);
+  if (!alertasInitRef.current) {
+    alertasInitRef.current = true;
+    try {
+      const saved = localStorage.getItem('alertas_vistos_ids');
+      if (saved) { (JSON.parse(saved) as number[]).forEach(id => alertasVistosRef.current.add(id)); }
+    } catch {}
+  }
+  const saveAlertasVistos = (ids: Set<number>) => {
+    try { localStorage.setItem('alertas_vistos_ids', JSON.stringify([...ids])); } catch {}
+  };
   useEffect(() => {
     if (!isAdmin || formalizacoes.length === 0) return;
     const prontas = formalizacoes.filter(
       (f: Formalizacao) => f.data_analise_demanda && f.data_liberacao_assinatura_conferencista
     );
-    // Na primeira carga, marcar todas as existentes como já vistas
-    if (!alertasInitializedRef.current) {
-      alertasInitializedRef.current = true;
-      prontas.forEach((f: Formalizacao) => alertasVistosRef.current.add(f.id));
-      return;
-    }
-    const novas = prontas.filter((f: Formalizacao) => !alertasVistosRef.current.has(f.id));
+    const seenIds = alertasVistosRef.current;
+    const novas = prontas.filter((f: Formalizacao) => !seenIds.has(f.id));
     if (novas.length > 0) {
       setAdminAlertas(prev => {
         const existingIds = new Set(prev.map(a => a.id));
@@ -1086,60 +1099,59 @@ export default function App() {
       const precisaCarregarDados = allData.length === 0 || cacheExpirado;
       
       if (precisaCarregarDados) {
-        console.log(`🔄 Cache ${cacheExpirado ? 'EXPIRADO' : 'VAZIO'} - Carregando TODOS OS 37.352 REGISTROS (38 batches de 1000)...`);
+        console.log(`🔄 Cache ${cacheExpirado ? 'EXPIRADO' : 'VAZIO'} - Carregando registros em paralelo...`);
         
-        let dataFetched = [];
-        let offset = 0;
-        const batchSize = 1000; // Supabase tem limite de 1000 por request
-        let batchCount = 0;
+        const batchSize = 1000;
+        const PARALLEL_WAVES = 6; // 6 requests simultâneas
+        const startTime = Date.now();
+        let dataFetched: any[] = [];
+        let totalEstimate = 38000; // estimativa inicial
+        setRefreshProgress({ active: true, loaded: 0, total: totalEstimate, startTime });
         
-        // ⚠️ IMPORTANTE: Loop até NÃO TER MAIS DADOS
-        while (true) {
-          try {
-            batchCount++;
-            console.log(`📦 Batch ${batchCount}: Iniciando fetch offset=${offset}...`);
+        // Fase 1: primeira request para descobrir se há dados
+        const firstResp = await fetch(`/api/emendas?limit=${batchSize}&offset=0`, { headers: getHeaders() });
+        const firstBatch = firstResp.ok ? await firstResp.json() : [];
+        if (!Array.isArray(firstBatch) || firstBatch.length === 0) {
+          allData = [];
+          setRefreshProgress(null);
+        } else {
+          dataFetched = [...firstBatch];
+          setRefreshProgress(p => p ? { ...p, loaded: dataFetched.length } : null);
+          
+          if (firstBatch.length === batchSize) {
+            // Fase 2: carregar restante em ondas paralelas
+            let nextOffset = batchSize;
+            let keepGoing = true;
             
-            const response = await fetch(`/api/emendas?limit=${batchSize}&offset=${offset}`, {
-              headers: getHeaders()
-            });
-            
-            if (!response.ok) {
-              console.warn(`⚠️ Erro HTTP ${response.status} em offset ${offset}, parando`);
-              break;
+            while (keepGoing) {
+              const offsets = Array.from({ length: PARALLEL_WAVES }, (_, i) => nextOffset + i * batchSize);
+              const promises = offsets.map(off =>
+                fetch(`/api/emendas?limit=${batchSize}&offset=${off}`, { headers: getHeaders() })
+                  .then(r => r.ok ? r.json() : [])
+                  .then(d => ({ offset: off, data: Array.isArray(d) ? d : [] }))
+                  .catch(() => ({ offset: off, data: [] as any[] }))
+              );
+              const results = await Promise.all(promises);
+              results.sort((a, b) => a.offset - b.offset);
+              
+              for (const r of results) {
+                if (r.data.length === 0) { keepGoing = false; break; }
+                dataFetched = dataFetched.concat(r.data);
+                if (r.data.length < batchSize) { keepGoing = false; break; }
+              }
+              
+              setRefreshProgress(p => p ? { ...p, loaded: dataFetched.length, total: Math.max(p.total, dataFetched.length + batchSize) } : null);
+              nextOffset += PARALLEL_WAVES * batchSize;
             }
-            
-            const batch = await response.json();
-            
-            // Validar batch
-            if (!Array.isArray(batch)) {
-              console.warn(`⚠️ Batch ${batchCount} não é array, parando`);
-              break;
-            }
-            
-            if (batch.length === 0) {
-              console.log(`✋ Fim dos dados em batch ${batchCount}: offset ${offset} retornou vazio`);
-              break;
-            }
-            
-            const totalNow = dataFetched.length + batch.length;
-            console.log(`✅ Batch ${batchCount}: ${batch.length} registros carregados (offset ${offset}, TOTAL ACUMULADO: ${totalNow})`);
-            dataFetched = dataFetched.concat(batch);
-            
-            // Se retornou menos do que fique pedido, é último batch
-            if (batch.length < batchSize) {
-              console.log(`✋ Último batch: retornou apenas ${batch.length} registros (menos que ${batchSize})`);
-              break;
-            }
-            
-            offset += batchSize; // Próximo offset
-          } catch (e) {
-            console.warn(`❌ Erro no batch ${batchCount}:`, e);
-            break;
           }
+          
+          allData = dataFetched;
         }
         
-        allData = dataFetched.length > 0 ? dataFetched : [];
-        console.log(`\n🎉 SUCESSO! CARREGADOS ${allData.length} REGISTROS EM ${batchCount} BATCHES\n`);
+        const elapsed = Date.now() - startTime;
+        console.log(`🎉 CARREGADOS ${allData.length} registros em ${elapsed}ms (paralelo)`);
+        setRefreshProgress(p => p ? { ...p, loaded: allData.length, total: allData.length } : null);
+        setTimeout(() => setRefreshProgress(null), 2000);
         
         // 💾 Atualizar cache global
         allDataCacheRef.current = allData;
@@ -1873,7 +1885,14 @@ export default function App() {
               {isAdmin && adminAlertas.length > 0 && (
                 <div className="relative">
                   <button
-                    onClick={() => setShowAlertasDropdown(!showAlertasDropdown)}
+                    onClick={() => {
+                      setShowAlertasDropdown(!showAlertasDropdown);
+                      // Mark current alerts as seen when opening dropdown
+                      if (!showAlertasDropdown && adminAlertas.length > 0) {
+                        adminAlertas.forEach(a => alertasVistosRef.current.add(a.id));
+                        saveAlertasVistos(alertasVistosRef.current);
+                      }
+                    }}
                     className="relative p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/20 transition-colors"
                     title="Alertas de demandas"
                   >
@@ -1889,6 +1908,7 @@ export default function App() {
                         <button
                           onClick={() => {
                             adminAlertas.forEach(a => alertasVistosRef.current.add(a.id));
+                            saveAlertasVistos(alertasVistosRef.current);
                             setAdminAlertas([]);
                             setShowAlertasDropdown(false);
                           }}
@@ -2458,13 +2478,13 @@ export default function App() {
 
             {activeTab === 'admin' ? (
               <AdminPanel />
-            ) : loading || (activeTab === 'formalizacao' && formalizacaoSearchResult.loading) ? (
+            ) : loading && formalizacoes.length === 0 && formalizacaoSearchResult.data.length === 0 ? (
               <div className="flex flex-col justify-center items-center py-16">
                 <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-b-red-600 mb-4"></div>
                 <p className="text-black font-bold">Carregando {activeTab === 'emendas' ? 'emendas' : 'formalizações'}...</p>
                 <p className="text-gray-600 text-sm mt-1">Por favor, aguarde.</p>
               </div>
-            ) : (activeTab === 'emendas' ? filteredEmendas : filteredFormalizacoes).length === 0 ? (
+            ) : (activeTab === 'emendas' ? filteredEmendas : filteredFormalizacoes).length === 0 && !formalizacaoSearchResult.loading ? (
               <div className="bg-white border border-dashed border-gray-300 rounded-2xl p-12 text-center">
                 <div className="bg-purple-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Search className="w-8 h-8 text-[#1351B4]" />
@@ -4437,6 +4457,33 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
           background: #CBD5E1;
         }
       `}</style>
+
+      {/* Floating refresh progress bar */}
+      {refreshProgress && refreshProgress.active && (
+        <div className="fixed bottom-6 right-6 z-[9999] bg-white rounded-xl shadow-2xl border border-slate-200 p-4 min-w-[280px] max-w-[340px]">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <RefreshCw className="w-3.5 h-3.5 text-[#1351B4] animate-spin" />
+              Atualizando dados...
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono">
+              {refreshProgress.loaded.toLocaleString()}{refreshProgress.total > 0 ? ` / ~${refreshProgress.total.toLocaleString()}` : ''}
+            </span>
+          </div>
+          <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-[#1351B4] to-[#0C326F] rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${refreshProgress.total > 0 ? Math.min(100, (refreshProgress.loaded / refreshProgress.total) * 100) : 0}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1.5">
+            {refreshProgress.loaded === refreshProgress.total && refreshProgress.loaded > 0
+              ? `Concluído em ${((Date.now() - refreshProgress.startTime) / 1000).toFixed(1)}s`
+              : `${((Date.now() - refreshProgress.startTime) / 1000).toFixed(0)}s decorridos`
+            }
+          </p>
+        </div>
+      )}
     </div>
   );
 }
