@@ -497,7 +497,8 @@ export function AdminPanel() {
       const formRes = await fetch('/api/formalizacao', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const formalizacoes = formRes.ok ? await formRes.json() : [];
+      const formResult = formRes.ok ? await formRes.json() : [];
+      const formalizacoes = Array.isArray(formResult) ? formResult : (formResult.data || []);
       setRawFormalizacoes(formalizacoes);
 
       // Total de Emendas: contar registros com coluna "emenda" preenchida
