@@ -1655,7 +1655,8 @@ export default function App() {
 
             if (!response.ok) {
               const errText = await response.text();
-              let errMsg = 'Falha no import';
+              console.error(`❌ Servidor retornou ${response.status}: ${errText.substring(0, 500)}`);
+              let errMsg = `Servidor retornou erro ${response.status}`;
               try { const errJson = JSON.parse(errText); errMsg = errJson.details || errJson.error || errMsg; } catch {}
               throw new Error(errMsg);
             }

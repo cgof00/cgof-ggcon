@@ -1836,18 +1836,28 @@ const app = express();
       // ── PASSO 1: PROCV - buscar todos os codigo_num existentes no banco ──
       const allExistingCodigos = new Set<string>();
       let dbOffset = 0;
-      const batchSize = 5000;
+      const batchSize = 2000;
+      let procvError = false;
       while (true) {
-        const { data: existData, error: existError } = await supabase
-          .from("emendas")
-          .select("codigo_num")
-          .not("codigo_num", "is", null)
-          .range(dbOffset, dbOffset + batchSize - 1);
-        if (existError) {
-          console.error('❌ Erro ao buscar codigos existentes:', existError);
-          break;
+        let retries = 3;
+        let existData: any[] | null = null;
+        while (retries > 0) {
+          const result = await supabase
+            .from("emendas")
+            .select("codigo_num")
+            .not("codigo_num", "is", null)
+            .range(dbOffset, dbOffset + batchSize - 1);
+          if (result.error) {
+            retries--;
+            console.error(`❌ Erro ao buscar codigos (tentativa ${3 - retries}/3):`, result.error.message);
+            if (retries > 0) await new Promise(r => setTimeout(r, 2000));
+          } else {
+            existData = result.data;
+            break;
+          }
         }
-        if (!existData || existData.length === 0) break;
+        if (!existData) { procvError = true; break; }
+        if (existData.length === 0) break;
         for (const row of existData) {
           if (row.codigo_num && String(row.codigo_num).trim() !== '') {
             allExistingCodigos.add(String(row.codigo_num).trim());
@@ -1855,6 +1865,9 @@ const app = express();
         }
         if (existData.length < batchSize) break;
         dbOffset += batchSize;
+      }
+      if (procvError) {
+        return res.status(500).json({ error: "Falha ao consultar emendas existentes no banco. Tente novamente." });
       }
       console.log(`📋 ${allExistingCodigos.size} emendas já existem no banco`);
 
