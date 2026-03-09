@@ -1815,7 +1815,48 @@ const app = express();
     }
   });
 
-  // 📥 Importar Relatório de Emendas - importa emendas e sincroniza com formalização
+  // � Buscar todos os codigo_num existentes na tabela emendas (para PROCV no frontend)
+  app.get("/api/emendas/codigos", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) return res.status(401).json({ error: 'Token não fornecido' });
+      const authToken = authHeader.replace('Bearer ', '');
+      const decoded = verifyToken(authToken);
+      if (!decoded) return res.status(401).json({ error: 'Token inválido ou expirado' });
+      if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+      console.log('📋 Buscando todos os codigo_num existentes...');
+      const allCodigos: string[] = [];
+      let offset = 0;
+      const batchSize = 5000;
+      while (true) {
+        const { data, error } = await supabase
+          .from("emendas")
+          .select("codigo_num")
+          .not("codigo_num", "is", null)
+          .range(offset, offset + batchSize - 1);
+        if (error) {
+          console.error('❌ Erro ao buscar codigos:', error);
+          return res.status(500).json({ error: error.message });
+        }
+        if (!data || data.length === 0) break;
+        for (const row of data) {
+          if (row.codigo_num && String(row.codigo_num).trim() !== '') {
+            allCodigos.push(String(row.codigo_num).trim());
+          }
+        }
+        if (data.length < batchSize) break;
+        offset += batchSize;
+      }
+      console.log(`✅ ${allCodigos.length} codigos encontrados no banco`);
+      return res.json({ codigos: allCodigos });
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar codigos:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 📥 Importar Relatório de Emendas - insere apenas emendas novas e sincroniza com formalização
   app.post("/api/emendas/import-report", async (req, res) => {
     try {
       const items = req.body;
@@ -1831,198 +1872,36 @@ const app = express();
 
       if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
 
-      // ── PASSO 1: Mapear CSV para colunas da tabela emendas ──
-      const emendasColumnMapping: any = {
-        "Detalhes da Demanda": "detalhes",
-        "Natureza": "natureza",
-        "Ano Referência": "ano_refer",
-        "Ano Referencia": "ano_refer",
-        "Código/Nº Emenda": "codigo_num",
-        "Codigo/Nº Emenda": "codigo_num",
-        "Nº Emenda Agregadora": "num_emenda",
-        "Parecer LDO": "parecer_ld",
-        "Situação Emenda": "situacao_e",
-        "Situacao Emenda": "situacao_e",
-        "Situação Demanda": "situacao_d",
-        "Situacao Demanda": "situacao_d",
-        "Data da Última Tramitação Emenda": "data_ult_e",
-        "Data da Ultima Tramitacao Emenda": "data_ult_e",
-        "Data da Última Tramitação Demanda": "data_ult_d",
-        "Data da Ultima Tramitacao Demanda": "data_ult_d",
-        "Nº da Indicação": "num_indicacao",
-        "Nº da Indicacao": "num_indicacao",
-        "Parlamentar": "parlamentar",
-        "Partido": "partido",
-        "Tipo Beneficiário": "tipo_beneficiario",
-        "Tipo Beneficiario": "tipo_beneficiario",
-        "Beneficiário": "beneficiario",
-        "Beneficiario": "beneficiario",
-        "CNPJ": "cnpj",
-        "Município": "municipio",
-        "Municipio": "municipio",
-        "Objeto": "objeto",
-        "Órgão Entidade/Responsável": "orgao_entidade",
-        "Orgao Entidade/Responsavel": "orgao_entidade",
-        "Regional": "regional",
-        "Nº de Convênio": "num_convenio",
-        "Nº de Convenio": "num_convenio",
-        "Nº de Processo": "num_processo",
-        "Assinatura": "data_assinatura",
-        "Publicação": "data_publicacao",
-        "Publicacao": "data_publicacao",
-        "Agência": "agencia",
-        "Agencia": "agencia",
-        "Conta": "conta",
-        "Valor": "valor",
-        "Valor da Demanda": "valor_desembolsado",
-        "Portfólio": "portfolio",
-        "Portfolio": "portfolio",
-        "Qtd. Dias na Etapa": "qtd_dias",
-        "Vigência": "vigencia",
-        "Vigencia": "vigencia",
-        "Data da Primeira Notificação LOA Recebida pelo Beneficiário": "data_prorrogacao",
-        "Data da Primeira Notificacao LOA Recebida pelo Beneficiario": "data_prorrogacao",
-        "Dados Bancários": "dados_bancarios",
-        "Dados Bancarios": "dados_bancarios",
-        "Status do Pagamento": "status",
-        "Data do Pagamento": "data_pagamento",
-        "Nº do Código Único": "num_codigo",
-        "Nº do Codigo Unico": "num_codigo",
-        "Notas e Empenho": "notas_empenho",
-        "Valor Total Empenho": "valor_total_empenhado",
-        "Notas de Lançamento": "notas_liquidacao",
-        "Notas de Lancamento": "notas_liquidacao",
-        "Valor Total Lançamento": "valor_total_liquidado",
-        "Valor Total Lancamento": "valor_total_liquidado",
-        "Programações Desembolso": "programa",
-        "Programacoes Desembolso": "programa",
-        "Valor Total Programação Desembolso": "valor_total_pago",
-        "Valor Total Programacao Desembolso": "valor_total_pago",
-        "Ordem Bancária": "ordem_bancaria",
-        "Ordem Bancaria": "ordem_bancaria",
-        "Data pagamento Ordem Bancária": "data_paga",
-        "Data pagamento Ordem Bancaria": "data_paga",
-        "Valor Total Ordem Bancária": "valor_total_ordem_bancaria",
-        "Valor Total Ordem Bancaria": "valor_total_ordem_bancaria"
-      };
+      console.log(`📥 Import Report: Recebido ${items.length} registros já mapeados para inserção`);
 
-      const validEmendasColumns = [
-        'detalhes', 'natureza', 'ano_refer', 'codigo_num', 'num_emenda', 'parecer_ld',
-        'situacao_e', 'situacao_d', 'data_ult_e', 'data_ult_d', 'num_indicacao',
-        'parlamentar', 'partido', 'tipo_beneficiario', 'beneficiario', 'cnpj',
-        'municipio', 'objeto', 'orgao_entidade', 'regional', 'num_convenio',
-        'num_processo', 'data_assinatura', 'data_publicacao', 'agencia', 'conta',
-        'valor', 'valor_desembolsado', 'portfolio', 'qtd_dias', 'vigencia',
-        'data_prorrogacao', 'dados_bancarios', 'status', 'data_pagamento',
-        'num_codigo', 'notas_empenho', 'valor_total_empenhado', 'notas_liquidacao',
-        'valor_total_liquidado', 'programa', 'valor_total_pago', 'ordem_bancaria',
-        'data_paga', 'valor_total_ordem_bancaria'
-      ];
-
-      const numericFields = ['valor', 'valor_desembolsado', 'valor_total_empenhado', 'valor_total_liquidado', 'valor_total_pago', 'valor_total_ordem_bancaria'];
-
-      // Mapear itens do CSV para colunas do banco
-      const mappedItems = items.map(item => {
-        const mapped: any = {};
-        let hasData = false;
-        Object.keys(item).forEach(csvKey => {
-          const dbKey = emendasColumnMapping[csvKey] || csvKey;
-          if (validEmendasColumns.includes(dbKey)) {
-            let val = item[csvKey];
-            if (val === undefined || val === null || val === '') return;
-            hasData = true;
-            if (numericFields.includes(dbKey)) {
-              const cleanVal = String(val || '0').replace(/\s/g, '').replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
-              const parsed = parseFloat(cleanVal);
-              mapped[dbKey] = isNaN(parsed) ? 0 : parsed;
-            } else if (dbKey === 'qtd_dias') {
-              const parsed = parseInt(String(val || '0').replace(/\D/g, ''));
-              mapped[dbKey] = (isNaN(parsed) || parsed > 2147483647) ? 0 : parsed;
-            } else {
-              mapped[dbKey] = val !== null && val !== undefined ? String(val) : null;
-            }
-          }
-        });
-        return hasData ? mapped : null;
-      }).filter((item: any) => item !== null);
-
-      if (mappedItems.length === 0) {
-        return res.status(400).json({ error: "Nenhum dado compatível encontrado no arquivo." });
-      }
-
-      console.log(`📥 Import Report: ${mappedItems.length} registros mapeados`);
-
-      // ── PASSO 2: Inserir/Atualizar emendas no banco ──
+      // Itens já vêm mapeados e filtrados (somente novos) do frontend
       let emendasInserted = 0;
       const errors: string[] = [];
 
-      // Obter codigo_num das emendas para verificar duplicatas
-      const codigosImportados = mappedItems
-        .filter((item: any) => item.codigo_num && String(item.codigo_num).trim() !== '')
-        .map((item: any) => String(item.codigo_num).trim());
-
-      let codigosExistentes: string[] = [];
-      if (codigosImportados.length > 0) {
-        const { data: existentes } = await supabase
-          .from("emendas")
-          .select("codigo_num")
-          .in("codigo_num", codigosImportados);
-        codigosExistentes = (existentes || []).map((r: any) => String(r.codigo_num).trim());
-      }
-
-      // Separar novos e existentes
-      const novosItems = mappedItems.filter((item: any) => {
-        if (!item.codigo_num || String(item.codigo_num).trim() === '') return true;
-        return !codigosExistentes.includes(String(item.codigo_num).trim());
-      });
-
-      // Inserir novos registros na tabela emendas
-      if (novosItems.length > 0) {
-        for (let i = 0; i < novosItems.length; i += 100) {
-          const chunk = novosItems.slice(i, i + 100);
-          const { data, error } = await supabase.from("emendas").insert(chunk).select();
-          if (error) {
-            console.error(`❌ Erro ao inserir emendas chunk:`, error);
-            errors.push(`Erro ao inserir emendas: ${error.message}`);
-          } else {
-            emendasInserted += data?.length || 0;
-          }
+      // Inserir em lotes de 100
+      for (let i = 0; i < items.length; i += 100) {
+        const chunk = items.slice(i, i + 100);
+        const { data, error } = await supabase.from("emendas").insert(chunk).select("id");
+        if (error) {
+          console.error(`❌ Erro ao inserir emendas chunk ${Math.floor(i/100)+1}:`, error);
+          errors.push(`Lote ${Math.floor(i/100)+1}: ${error.message}`);
+        } else {
+          emendasInserted += data?.length || 0;
         }
       }
 
-      console.log(`✅ ${emendasInserted} emendas inseridas (${codigosExistentes.length} duplicatas ignoradas)`);
+      console.log(`✅ ${emendasInserted} emendas inseridas`);
 
-      // ── PASSO 3: Sincronizar com tabela de formalização ──
-      // Mapeamento: emendas → formalização
-      // emendas.codigo_num   → formalizacao.emenda (chave de correspondência)
-      // emendas.detalhes     → formalizacao.demanda
-      // emendas.natureza     → formalizacao.classificacao_emenda_demanda
-      // emendas.ano_refer    → formalizacao.ano
-      // emendas.num_emenda   → formalizacao.emendas_agregadoras
-      // emendas.situacao_d   → formalizacao.situacao_demandas_sempapel
-      // emendas.parlamentar  → formalizacao.parlamentar
-      // emendas.partido      → formalizacao.partido
-      // emendas.beneficiario → formalizacao.conveniado
-      // emendas.municipio    → formalizacao.municipio
-      // emendas.objeto       → formalizacao.objeto
-      // emendas.regional     → formalizacao.regional
-      // emendas.num_convenio → formalizacao.numero_convenio
-      // emendas.valor        → formalizacao.valor
-      // emendas.portfolio    → formalizacao.portfolio
-
-      // Coletar todos os codigo_num dos itens importados para buscar correspondências na formalização
-      const allCodigosNum = mappedItems
-        .filter((item: any) => item.codigo_num && String(item.codigo_num).trim() !== '')
-        .map((item: any) => String(item.codigo_num).trim());
+      // Sincronizar com formalização
+      const codigosInseridos = items
+        .filter((it: any) => it.codigo_num && String(it.codigo_num).trim() !== '')
+        .map((it: any) => String(it.codigo_num).trim());
 
       let formalizacaoUpdated = 0;
       let notInFormalizacao = 0;
 
-      if (allCodigosNum.length > 0) {
-        // Buscar registros de formalização que correspondem às emendas importadas
-        const uniqueCodigos = [...new Set(allCodigosNum)];
-        
-        // Buscar em lotes de 100
+      if (codigosInseridos.length > 0) {
+        const uniqueCodigos = [...new Set(codigosInseridos)];
         const formalizacoesEncontradas: any[] = [];
         for (let i = 0; i < uniqueCodigos.length; i += 100) {
           const batch = uniqueCodigos.slice(i, i + 100);
@@ -2030,37 +1909,26 @@ const app = express();
             .from("formalizacao")
             .select("id, emenda")
             .in("emenda", batch);
-          
           if (fError) {
-            console.error('Erro ao buscar formalizações:', fError);
-            errors.push(`Erro ao buscar formalizações: ${fError.message}`);
+            errors.push(`Buscar formalizações: ${fError.message}`);
           } else if (formalizacoes) {
             formalizacoesEncontradas.push(...formalizacoes);
           }
         }
 
-        // Criar mapa de emenda → id da formalização
         const formalizacaoMap = new Map<string, number[]>();
         for (const f of formalizacoesEncontradas) {
-          const emendaKey = String(f.emenda).trim();
-          if (!formalizacaoMap.has(emendaKey)) {
-            formalizacaoMap.set(emendaKey, []);
-          }
-          formalizacaoMap.get(emendaKey)!.push(f.id);
+          const key = String(f.emenda).trim();
+          if (!formalizacaoMap.has(key)) formalizacaoMap.set(key, []);
+          formalizacaoMap.get(key)!.push(f.id);
         }
 
-        // Para cada emenda importada, atualizar a formalização correspondente
-        for (const emendaItem of mappedItems) {
-          const codigoNum = emendaItem.codigo_num ? String(emendaItem.codigo_num).trim() : '';
-          if (!codigoNum) continue;
+        for (const emendaItem of items) {
+          const cod = emendaItem.codigo_num ? String(emendaItem.codigo_num).trim() : '';
+          if (!cod) continue;
+          const fIds = formalizacaoMap.get(cod);
+          if (!fIds || fIds.length === 0) { notInFormalizacao++; continue; }
 
-          const formalizacaoIds = formalizacaoMap.get(codigoNum);
-          if (!formalizacaoIds || formalizacaoIds.length === 0) {
-            notInFormalizacao++;
-            continue;
-          }
-
-          // Montar dados para atualizar na formalização
           const updateData: any = {};
           if (emendaItem.detalhes) updateData.demanda = emendaItem.detalhes;
           if (emendaItem.natureza) updateData.classificacao_emenda_demanda = emendaItem.natureza;
@@ -2076,19 +1944,12 @@ const app = express();
           if (emendaItem.num_convenio) updateData.numero_convenio = emendaItem.num_convenio;
           if (emendaItem.valor !== undefined && emendaItem.valor !== null) updateData.valor = emendaItem.valor;
           if (emendaItem.portfolio) updateData.portfolio = emendaItem.portfolio;
-
           if (Object.keys(updateData).length === 0) continue;
 
-          // Atualizar todos os registros de formalização que correspondem
-          for (const fId of formalizacaoIds) {
-            const { error: updateError } = await supabase
-              .from("formalizacao")
-              .update(updateData)
-              .eq("id", fId);
-
+          for (const fId of fIds) {
+            const { error: updateError } = await supabase.from("formalizacao").update(updateData).eq("id", fId);
             if (updateError) {
-              console.error(`❌ Erro ao atualizar formalização ${fId}:`, updateError);
-              errors.push(`Erro ao atualizar formalização ID ${fId}: ${updateError.message}`);
+              errors.push(`Formalização ${fId}: ${updateError.message}`);
             } else {
               formalizacaoUpdated++;
             }
@@ -2096,18 +1957,17 @@ const app = express();
         }
       }
 
-      // Limpar cache de formalização
       formalizacaoCache = null;
       formalizacaoCacheTimestamp = 0;
 
-      console.log(`📊 Resultado: ${emendasInserted} emendas inseridas | ${formalizacaoUpdated} formalizações atualizadas | ${notInFormalizacao} sem formalização`);
+      console.log(`📊 Resultado: ${emendasInserted} inseridas | ${formalizacaoUpdated} formalizações | ${notInFormalizacao} sem formalização`);
 
       return res.json({
         emendas_inserted: emendasInserted,
         formalizacao_updated: formalizacaoUpdated,
         not_in_formalizacao: notInFormalizacao,
         errors: errors.length > 0 ? errors : undefined,
-        message: `${emendasInserted} emendas importadas, ${formalizacaoUpdated} formalizações atualizadas, ${notInFormalizacao} sem correspondência`
+        message: `${emendasInserted} emendas importadas, ${formalizacaoUpdated} formalizações atualizadas`
       });
 
     } catch (error: any) {

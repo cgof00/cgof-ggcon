@@ -634,7 +634,7 @@ export default function App() {
   const reportFileInputRef = useRef<HTMLInputElement>(null);
   const [isImportReportOpen, setIsImportReportOpen] = useState(false);
   const [importingReport, setImportingReport] = useState(false);
-  const [importReportResult, setImportReportResult] = useState<{ inserted: number; updated: number; notInFormalizacao: number; errors: string[] } | null>(null);
+  const [importReportResult, setImportReportResult] = useState<{ inserted: number; updated: number; notInFormalizacao: number; errors: string[]; skipped?: number } | null>(null);
   
   // Drag scroll states
   const [isDraggingScroll, setIsDraggingScroll] = useState(false);
@@ -1547,17 +1547,136 @@ export default function App() {
           const data = results.data as any[];
           if (!data || data.length === 0) throw new Error('Arquivo vazio.');
 
-          console.log(`📥 Importar Relatório: ${data.length} registros...`);
+          console.log(`📥 Importar Relatório: ${data.length} registros no arquivo`);
 
+          // ── Mapeamento de colunas CSV → banco ──
+          const columnMapping: Record<string, string> = {
+            "Detalhes da Demanda": "detalhes", "Natureza": "natureza",
+            "Ano Referência": "ano_refer", "Ano Referencia": "ano_refer",
+            "Código/Nº Emenda": "codigo_num", "Codigo/Nº Emenda": "codigo_num",
+            "Nº Emenda Agregadora": "num_emenda", "Parecer LDO": "parecer_ld",
+            "Situação Emenda": "situacao_e", "Situacao Emenda": "situacao_e",
+            "Situação Demanda": "situacao_d", "Situacao Demanda": "situacao_d",
+            "Data da Última Tramitação Emenda": "data_ult_e", "Data da Ultima Tramitacao Emenda": "data_ult_e",
+            "Data da Última Tramitação Demanda": "data_ult_d", "Data da Ultima Tramitacao Demanda": "data_ult_d",
+            "Nº da Indicação": "num_indicacao", "Nº da Indicacao": "num_indicacao",
+            "Parlamentar": "parlamentar", "Partido": "partido",
+            "Tipo Beneficiário": "tipo_beneficiario", "Tipo Beneficiario": "tipo_beneficiario",
+            "Beneficiário": "beneficiario", "Beneficiario": "beneficiario",
+            "CNPJ": "cnpj", "Município": "municipio", "Municipio": "municipio",
+            "Objeto": "objeto",
+            "Órgão Entidade/Responsável": "orgao_entidade", "Orgao Entidade/Responsavel": "orgao_entidade",
+            "Regional": "regional",
+            "Nº de Convênio": "num_convenio", "Nº de Convenio": "num_convenio",
+            "Nº de Processo": "num_processo",
+            "Assinatura": "data_assinatura",
+            "Publicação": "data_publicacao", "Publicacao": "data_publicacao",
+            "Agência": "agencia", "Agencia": "agencia", "Conta": "conta",
+            "Valor": "valor", "Valor da Demanda": "valor_desembolsado",
+            "Portfólio": "portfolio", "Portfolio": "portfolio",
+            "Qtd. Dias na Etapa": "qtd_dias",
+            "Vigência": "vigencia", "Vigencia": "vigencia",
+            "Data da Primeira Notificação LOA Recebida pelo Beneficiário": "data_prorrogacao",
+            "Data da Primeira Notificacao LOA Recebida pelo Beneficiario": "data_prorrogacao",
+            "Dados Bancários": "dados_bancarios", "Dados Bancarios": "dados_bancarios",
+            "Status do Pagamento": "status", "Data do Pagamento": "data_pagamento",
+            "Nº do Código Único": "num_codigo", "Nº do Codigo Unico": "num_codigo",
+            "Notas e Empenho": "notas_empenho", "Valor Total Empenho": "valor_total_empenhado",
+            "Notas de Lançamento": "notas_liquidacao", "Notas de Lancamento": "notas_liquidacao",
+            "Valor Total Lançamento": "valor_total_liquidado", "Valor Total Lancamento": "valor_total_liquidado",
+            "Programações Desembolso": "programa", "Programacoes Desembolso": "programa",
+            "Valor Total Programação Desembolso": "valor_total_pago", "Valor Total Programacao Desembolso": "valor_total_pago",
+            "Ordem Bancária": "ordem_bancaria", "Ordem Bancaria": "ordem_bancaria",
+            "Data pagamento Ordem Bancária": "data_paga", "Data pagamento Ordem Bancaria": "data_paga",
+            "Valor Total Ordem Bancária": "valor_total_ordem_bancaria", "Valor Total Ordem Bancaria": "valor_total_ordem_bancaria"
+          };
+
+          const validColumns = new Set([
+            'detalhes', 'natureza', 'ano_refer', 'codigo_num', 'num_emenda', 'parecer_ld',
+            'situacao_e', 'situacao_d', 'data_ult_e', 'data_ult_d', 'num_indicacao',
+            'parlamentar', 'partido', 'tipo_beneficiario', 'beneficiario', 'cnpj',
+            'municipio', 'objeto', 'orgao_entidade', 'regional', 'num_convenio',
+            'num_processo', 'data_assinatura', 'data_publicacao', 'agencia', 'conta',
+            'valor', 'valor_desembolsado', 'portfolio', 'qtd_dias', 'vigencia',
+            'data_prorrogacao', 'dados_bancarios', 'status', 'data_pagamento',
+            'num_codigo', 'notas_empenho', 'valor_total_empenhado', 'notas_liquidacao',
+            'valor_total_liquidado', 'programa', 'valor_total_pago', 'ordem_bancaria',
+            'data_paga', 'valor_total_ordem_bancaria'
+          ]);
+
+          const numericFields = new Set(['valor', 'valor_desembolsado', 'valor_total_empenhado', 'valor_total_liquidado', 'valor_total_pago', 'valor_total_ordem_bancaria']);
+
+          // ── PASSO 1: Mapear CSV para formato do banco ──
+          const mappedItems: any[] = [];
+          for (const item of data) {
+            const mapped: any = {};
+            let hasData = false;
+            for (const csvKey of Object.keys(item)) {
+              const dbKey = columnMapping[csvKey] || csvKey;
+              if (!validColumns.has(dbKey)) continue;
+              const val = item[csvKey];
+              if (val === undefined || val === null || val === '') continue;
+              hasData = true;
+              if (numericFields.has(dbKey)) {
+                const cleanVal = String(val).replace(/\s/g, '').replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+                const parsed = parseFloat(cleanVal);
+                mapped[dbKey] = isNaN(parsed) ? 0 : parsed;
+              } else if (dbKey === 'qtd_dias') {
+                const parsed = parseInt(String(val).replace(/\D/g, ''));
+                mapped[dbKey] = (isNaN(parsed) || parsed > 2147483647) ? 0 : parsed;
+              } else {
+                mapped[dbKey] = String(val);
+              }
+            }
+            if (hasData) mappedItems.push(mapped);
+          }
+
+          if (mappedItems.length === 0) throw new Error('Nenhum dado compatível encontrado no arquivo.');
+
+          console.log(`📋 ${mappedItems.length} registros mapeados do CSV`);
+
+          // ── PASSO 2: PROCV - buscar codigo_num existentes no banco ──
+          console.log('🔍 Buscando emendas existentes no banco (PROCV)...');
+          const codResponse = await fetch('/api/emendas/codigos', { headers: getHeaders() });
+          if (!codResponse.ok) {
+            const errText = await codResponse.text();
+            throw new Error(`Erro ao buscar emendas existentes: ${errText}`);
+          }
+          const { codigos: codigosExistentes } = await codResponse.json();
+          const existingSet = new Set<string>(codigosExistentes || []);
+          console.log(`📊 ${existingSet.size} emendas já existem no banco`);
+
+          // ── PASSO 3: Filtrar apenas emendas NOVAS ──
+          const novosItems = mappedItems.filter(item => {
+            const cod = item.codigo_num ? String(item.codigo_num).trim() : '';
+            if (!cod) return false; // sem codigo_num não importa
+            return !existingSet.has(cod);
+          });
+
+          const duplicatas = mappedItems.length - novosItems.length;
+          console.log(`✅ ${novosItems.length} emendas NOVAS para importar (${duplicatas} já existem)`);
+
+          if (novosItems.length === 0) {
+            setImportReportResult({
+              inserted: 0,
+              updated: 0,
+              notInFormalizacao: 0,
+              errors: [],
+              skipped: duplicatas
+            });
+            return;
+          }
+
+          // ── PASSO 4: Enviar somente as novas em chunks ──
           const chunkSize = 500;
           let totalInserted = 0;
           let totalUpdated = 0;
           let totalNotInFormalizacao = 0;
           const allErrors: string[] = [];
 
-          for (let i = 0; i < data.length; i += chunkSize) {
-            const chunk = data.slice(i, i + chunkSize);
-            console.log(`   Enviando chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(data.length / chunkSize)}...`);
+          for (let i = 0; i < novosItems.length; i += chunkSize) {
+            const chunk = novosItems.slice(i, i + chunkSize);
+            console.log(`   Enviando chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(novosItems.length / chunkSize)} (${chunk.length} registros)...`);
 
             const response = await fetch('/api/emendas/import-report', {
               method: 'POST',
@@ -1566,8 +1685,10 @@ export default function App() {
             });
 
             if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.details || errorData.error || 'Falha no import');
+              const errText = await response.text();
+              let errMsg = 'Falha no import';
+              try { const errJson = JSON.parse(errText); errMsg = errJson.details || errJson.error || errMsg; } catch {}
+              throw new Error(errMsg);
             }
 
             const result = await response.json();
@@ -1583,10 +1704,11 @@ export default function App() {
             inserted: totalInserted,
             updated: totalUpdated,
             notInFormalizacao: totalNotInFormalizacao,
-            errors: allErrors
+            errors: allErrors,
+            skipped: duplicatas
           });
 
-          console.log(`✅ Relatório importado: ${totalInserted} emendas, ${totalUpdated} formalizações atualizadas, ${totalNotInFormalizacao} sem formalização`);
+          console.log(`✅ Relatório importado: ${totalInserted} novas emendas, ${duplicatas} ignoradas, ${totalUpdated} formalizações atualizadas`);
 
           // Recarregar dados
           setEmendas([]);
@@ -3713,10 +3835,14 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     <h3 className="text-sm font-bold text-emerald-800 mb-3 flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4" /> Resultado da Importação
                     </h3>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <div className="bg-white rounded-xl p-3 text-center">
                         <p className="text-lg font-bold text-[#1351B4]">{importReportResult.inserted}</p>
-                        <p className="text-[10px] text-slate-500 font-medium">Emendas Importadas</p>
+                        <p className="text-[10px] text-slate-500 font-medium">Novas Emendas Importadas</p>
+                      </div>
+                      <div className="bg-white rounded-xl p-3 text-center">
+                        <p className="text-lg font-bold text-slate-400">{importReportResult.skipped || 0}</p>
+                        <p className="text-[10px] text-slate-500 font-medium">Já Existiam (ignoradas)</p>
                       </div>
                       <div className="bg-white rounded-xl p-3 text-center">
                         <p className="text-lg font-bold text-emerald-600">{importReportResult.updated}</p>
