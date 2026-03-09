@@ -45,6 +45,7 @@ import Papa from 'papaparse';
 import { useAuth } from './AuthContext';
 import { AdminPanel } from './AdminPanel';
 import { UserManagementPanel } from './UserManagementPanel';
+import { EmendasDataTable } from './components/EmendasDataTable';
 import logo1Img from './img/logo1.png';
 
 // 🎯 Componente MultiSelectFilter com busca
@@ -570,6 +571,52 @@ export default function App() {
     encaminhado_em: true,
     concluida_em: true
   });
+  // Colunas visíveis para tabela de Emendas
+  const [emendasVisibleColumns, setEmendasVisibleColumns] = useState<Record<string, boolean>>({
+    ano_refer: true,
+    codigo_num: true,
+    num_emenda: false,
+    natureza: true,
+    parlamentar: true,
+    partido: true,
+    beneficiario: true,
+    cnpj: false,
+    tipo_beneficiario: false,
+    municipio: true,
+    regional: true,
+    objeto: false,
+    valor: true,
+    valor_desembolsado: false,
+    num_convenio: false,
+    num_processo: false,
+    situacao_e: true,
+    situacao_d: true,
+    status: true,
+    parecer_ld: false,
+    orgao_entidade: false,
+    portfolio: false,
+    vigencia: false,
+    data_assinatura: false,
+    data_publicacao: false,
+    data_pagamento: false,
+    agencia: false,
+    conta: false,
+    dados_bancarios: false,
+    qtd_dias: false,
+    detalhes: false,
+    notas_empenho: false,
+    valor_total_empenhado: false,
+    notas_liquidacao: false,
+    valor_total_liquidado: false,
+    programa: false,
+    valor_total_pago: false,
+    ordem_bancaria: false,
+    data_paga: false,
+    valor_total_ordem_bancaria: false,
+  });
+  const [emendasSortColumn, setEmendasSortColumn] = useState<string>('ano_refer');
+  const [emendasSortOrder, setEmendasSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [isEmendasColumnMenuOpen, setIsEmendasColumnMenuOpen] = useState(false);
   const [formalizacaoSearchResult, setFormalizacaoSearchResult] = useState<any>({
     data: [],
     total: 0,
@@ -579,6 +626,10 @@ export default function App() {
   });
   const [cacheStatus, setCacheStatus] = useState<{ status: 'loading' | 'ready' | 'error', message?: string, records?: number, duration?: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const reportFileInputRef = useRef<HTMLInputElement>(null);
+  const [isImportReportOpen, setIsImportReportOpen] = useState(false);
+  const [importingReport, setImportingReport] = useState(false);
+  const [importReportResult, setImportReportResult] = useState<{ inserted: number; updated: number; notInFormalizacao: number; errors: string[] } | null>(null);
   
   // Drag scroll states
   const [isDraggingScroll, setIsDraggingScroll] = useState(false);
@@ -1475,6 +1526,78 @@ export default function App() {
     });
   };
 
+  const handleReportUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportingReport(true);
+    setImportReportResult(null);
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: 'greedy',
+      encoding: 'ISO-8859-1',
+      transformHeader: (header) => header.trim(),
+      complete: async (results) => {
+        try {
+          const data = results.data as any[];
+          if (!data || data.length === 0) throw new Error('Arquivo vazio.');
+
+          console.log(`📥 Importar Relatório: ${data.length} registros...`);
+
+          const chunkSize = 500;
+          let totalInserted = 0;
+          let totalUpdated = 0;
+          let totalNotInFormalizacao = 0;
+          const allErrors: string[] = [];
+
+          for (let i = 0; i < data.length; i += chunkSize) {
+            const chunk = data.slice(i, i + chunkSize);
+            console.log(`   Enviando chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(data.length / chunkSize)}...`);
+
+            const response = await fetch('/api/emendas/import-report', {
+              method: 'POST',
+              headers: getHeaders(),
+              body: JSON.stringify(chunk),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.details || errorData.error || 'Falha no import');
+            }
+
+            const result = await response.json();
+            totalInserted += result.emendas_inserted || 0;
+            totalUpdated += result.formalizacao_updated || 0;
+            totalNotInFormalizacao += result.not_in_formalizacao || 0;
+            if (result.errors) allErrors.push(...result.errors);
+
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+
+          setImportReportResult({
+            inserted: totalInserted,
+            updated: totalUpdated,
+            notInFormalizacao: totalNotInFormalizacao,
+            errors: allErrors
+          });
+
+          console.log(`✅ Relatório importado: ${totalInserted} emendas, ${totalUpdated} formalizações atualizadas, ${totalNotInFormalizacao} sem formalização`);
+
+          // Recarregar dados
+          setEmendas([]);
+          setTimeout(fetchEmendas, 500);
+
+        } catch (error: any) {
+          console.error('❌ Erro ao importar relatório:', error);
+          alert(`❌ Erro ao importar relatório: ${error.message}`);
+        } finally {
+          setImportingReport(false);
+          if (reportFileInputRef.current) reportFileInputRef.current.value = '';
+        }
+      }
+    });
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm('Tem certeza que deseja excluir esta emenda?')) return;
     try {
@@ -2083,6 +2206,99 @@ export default function App() {
           {/* List Section - Full Width */}
           <div className="w-full">
             <div className="flex items-center justify-end gap-2 mb-2">
+                {activeTab === 'emendas' && (
+                  <>
+                    {isAdmin && (
+                      <button
+                        onClick={() => setIsImportReportOpen(true)}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-700"
+                      >
+                        <FileSearch className="w-4 h-4" />
+                        Importar Relatório de Emendas
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setIsEmendasColumnMenuOpen(!isEmendasColumnMenuOpen)}
+                      className={`relative px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                        isEmendasColumnMenuOpen ? 'bg-teal-700 text-white border-2 border-teal-700' : 'bg-white text-gray-700 border border-gray-300 hover:border-teal-700 hover:text-teal-700'
+                      }`}
+                    >
+                      <Settings className="w-4 h-4" />
+                      Colunas
+                      <span className={`ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded ${
+                        isEmendasColumnMenuOpen ? 'bg-white text-teal-700' : 'bg-teal-700 text-white'
+                      }`}>
+                        {Object.values(emendasVisibleColumns).filter(Boolean).length}/{Object.keys(emendasVisibleColumns).length}
+                      </span>
+                      
+                      {isEmendasColumnMenuOpen && (
+                        <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl p-3 z-50 min-w-64 max-h-96 overflow-y-auto"
+                             onClick={(e) => e.stopPropagation()}>
+                          <p className="text-xs font-bold mb-2 uppercase sticky top-0 bg-white pb-2 text-teal-700">Mostrar/Ocultar Colunas</p>
+                          <div className="space-y-2">
+                            {[
+                              { key: 'ano_refer', label: 'Ano' },
+                              { key: 'codigo_num', label: 'Código/Nº Emenda' },
+                              { key: 'num_emenda', label: 'Nº Emenda Agregadora' },
+                              { key: 'natureza', label: 'Natureza' },
+                              { key: 'parlamentar', label: 'Parlamentar' },
+                              { key: 'partido', label: 'Partido' },
+                              { key: 'beneficiario', label: 'Beneficiário' },
+                              { key: 'cnpj', label: 'CNPJ' },
+                              { key: 'tipo_beneficiario', label: 'Tipo Beneficiário' },
+                              { key: 'municipio', label: 'Município' },
+                              { key: 'regional', label: 'Regional' },
+                              { key: 'objeto', label: 'Objeto' },
+                              { key: 'valor', label: 'Valor' },
+                              { key: 'valor_desembolsado', label: 'Valor Demanda' },
+                              { key: 'num_convenio', label: 'Nº Convênio' },
+                              { key: 'num_processo', label: 'Nº Processo' },
+                              { key: 'situacao_e', label: 'Situação Emenda' },
+                              { key: 'situacao_d', label: 'Situação Demanda' },
+                              { key: 'status', label: 'Status Pagamento' },
+                              { key: 'parecer_ld', label: 'Parecer LDO' },
+                              { key: 'orgao_entidade', label: 'Órgão/Entidade' },
+                              { key: 'portfolio', label: 'Portfólio' },
+                              { key: 'vigencia', label: 'Vigência' },
+                              { key: 'data_assinatura', label: 'Assinatura' },
+                              { key: 'data_publicacao', label: 'Publicação' },
+                              { key: 'data_pagamento', label: 'Data Pagamento' },
+                              { key: 'agencia', label: 'Agência' },
+                              { key: 'conta', label: 'Conta' },
+                              { key: 'dados_bancarios', label: 'Dados Bancários' },
+                              { key: 'qtd_dias', label: 'Qtd. Dias' },
+                              { key: 'detalhes', label: 'Detalhes Demanda' },
+                              { key: 'notas_empenho', label: 'Notas Empenho' },
+                              { key: 'valor_total_empenhado', label: 'Total Empenho' },
+                              { key: 'notas_liquidacao', label: 'Notas Liquidação' },
+                              { key: 'valor_total_liquidado', label: 'Total Liquidado' },
+                              { key: 'programa', label: 'Programa Desembolso' },
+                              { key: 'valor_total_pago', label: 'Total Pago' },
+                              { key: 'ordem_bancaria', label: 'Ordem Bancária' },
+                              { key: 'data_paga', label: 'Data Ordem Bancária' },
+                              { key: 'valor_total_ordem_bancaria', label: 'Total Ordem Bancária' },
+                            ].map(col => (
+                              <label key={col.key} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1.5 rounded" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={emendasVisibleColumns[col.key] || false}
+                                  onChange={(e) => {
+                                    setEmendasVisibleColumns(prev => ({
+                                      ...prev,
+                                      [col.key]: e.target.checked
+                                    }));
+                                  }}
+                                  className="w-3 h-3 rounded border-gray-400 accent-teal-700 cursor-pointer"
+                                />
+                                <span className="text-xs text-gray-700">{col.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  </>
+                )}
                 {activeTab === 'formalizacao' && (
                   <>
                     {/* Botão Atribuir a Técnico - aparece quando há seleção */}
@@ -2476,21 +2692,21 @@ export default function App() {
             {/* Stats Summary */}
             {activeTab === 'emendas' ? (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-[#1351B4]">Total em Emendas</p>
+                <div className="bg-white border border-teal-200 rounded-2xl p-4 shadow-sm">
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-teal-700">Total em Emendas</p>
                   <p className="text-xl font-bold text-slate-900">
                     {formatCurrency(emendas.reduce((acc, curr) => acc + (curr.valor || 0), 0))}
                   </p>
                 </div>
-                <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-[#1351B4]">Total Desembolsado</p>
+                <div className="bg-white border border-teal-200 rounded-2xl p-4 shadow-sm">
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-teal-700">Total Desembolsado</p>
                   <p className="text-xl font-bold text-emerald-600">
                     {formatCurrency(emendas.reduce((acc, curr) => acc + (curr.valor_desembolsado || 0), 0))}
                   </p>
                 </div>
-                <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-[#1351B4]">Saldo a Liberar</p>
-                  <p className="text-xl font-bold text-[#1351B4]">
+                <div className="bg-white border border-teal-200 rounded-2xl p-4 shadow-sm">
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-teal-700">Saldo a Liberar</p>
+                  <p className="text-xl font-bold text-teal-700">
                     {formatCurrency(emendas.reduce((acc, curr) => acc + ((curr.valor || 0) - (curr.valor_desembolsado || 0)), 0))}
                   </p>
                 </div>
@@ -2523,52 +2739,18 @@ export default function App() {
             ) : (
               <div className="space-y-2">
                 {activeTab === 'emendas' ? (
-                  filteredEmendas.map((emenda, index) => (
-                    <motion.div
-                      layout
-                      key={`emenda-${emenda.id || 'unknown'}-${index}`}
-                      onClick={() => setSelectedEmenda(emenda)}
-                      className={`group bg-white border rounded-lg p-3 cursor-pointer transition-all hover:shadow-lg hover:border-[#1351B4]/50 ${selectedEmenda?.id === emenda.id ? 'border-2 border-[#1351B4] ring-2 ring-[#1351B4]/20' : 'border-gray-200'}`}
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white bg-[#1351B4]">
-                            {emenda.parlamentar?.charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="font-bold text-black group-hover:opacity-75 transition-colors text-sm truncate">
-                              {emenda.parlamentar}
-                            </h3>
-                            <p className="text-xs text-gray-600 flex items-center gap-1">
-                              <span className="font-semibold text-indigo-500">{emenda.partido}</span>
-                              <span>•</span>
-                              <span>{emenda.ano_refer}</span>
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right whitespace-nowrap ml-2">
-                          <p className="text-xs font-bold text-black">{formatCurrency(emenda.valor)}</p>
-                          <span className={`text-[9px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded ${
-                            emenda.status === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 
-                            emenda.status === 'Em Processo' ? 'bg-amber-100 text-amber-700' : 
-                            'bg-gray-200 text-gray-700'
-                          }`}>
-                            {emenda.status || 'Pendente'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-[11px]">
-                        <div className="flex items-center gap-1 text-gray-700 min-w-0">
-                          <User className="w-2.5 h-2.5 flex-shrink-0" />
-                          <span className="truncate">{emenda.beneficiario}</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-gray-700">
-                          <Calendar className="w-2.5 h-2.5 flex-shrink-0" />
-                          <span className="truncate">Vig: {emenda.vigencia || 'N/A'}</span>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))
+                  <EmendasDataTable
+                    data={filteredEmendas}
+                    loading={loading}
+                    visibleColumns={emendasVisibleColumns}
+                    sortColumn={emendasSortColumn}
+                    sortOrder={emendasSortOrder}
+                    onSortChange={(col, order) => { setEmendasSortColumn(col); setEmendasSortOrder(order); }}
+                    onRowClick={(emenda) => setSelectedEmenda(emenda)}
+                    selectedEmenda={selectedEmenda}
+                    formatCurrency={formatCurrency}
+                    formatDate={formatDateForDisplay}
+                  />
                 ) : (
                   <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                     {/* Compact Pagination Bar */}
@@ -3470,6 +3652,100 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
           </div>
         )}
       </AnimatePresence>
+
+      {/* Import Report Modal */}
+      <AnimatePresence>
+        {isImportReportOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { if (!importingReport) { setIsImportReportOpen(false); setImportReportResult(null); } }} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl p-8">
+              <div className="flex justify-between items-start mb-6">
+                <div className="bg-emerald-50 p-3 rounded-2xl">
+                  <FileSearch className="w-6 h-6 text-emerald-600" />
+                </div>
+                <button onClick={() => { if (!importingReport) { setIsImportReportOpen(false); setImportReportResult(null); } }} className="p-2 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Importar Relatório de Emendas</h2>
+              <p className="text-slate-500 text-sm mb-4">
+                Importe um arquivo CSV com os dados das emendas. O sistema irá:
+              </p>
+              <ul className="text-slate-500 text-xs mb-6 space-y-1 list-disc list-inside">
+                <li>Importar os registros para a tabela de <strong>Emendas</strong></li>
+                <li>Verificar quais emendas existem na tabela de <strong>Formalização</strong></li>
+                <li>Atualizar a Formalização com os dados correspondentes</li>
+              </ul>
+              
+              {!importReportResult ? (
+                <div 
+                  onClick={() => !importingReport && reportFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 transition-all group"
+                >
+                  <input type="file" ref={reportFileInputRef} onChange={handleReportUpload} accept=".csv" className="hidden" />
+                  {importingReport ? (
+                    <div className="flex flex-col items-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mb-4"></div>
+                      <p className="text-sm font-medium text-slate-600">Processando relatório...</p>
+                      <p className="text-xs text-slate-400 mt-1">Importando emendas e atualizando formalização</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="bg-slate-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                        <Upload className="text-slate-400 w-6 h-6" />
+                      </div>
+                      <p className="text-sm font-bold text-slate-900">Clique para selecionar</p>
+                      <p className="text-xs text-slate-500 mt-1">Apenas arquivos .csv</p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+                    <h3 className="text-sm font-bold text-emerald-800 mb-3 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" /> Resultado da Importação
+                    </h3>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-white rounded-xl p-3 text-center">
+                        <p className="text-lg font-bold text-[#1351B4]">{importReportResult.inserted}</p>
+                        <p className="text-[10px] text-slate-500 font-medium">Emendas Importadas</p>
+                      </div>
+                      <div className="bg-white rounded-xl p-3 text-center">
+                        <p className="text-lg font-bold text-emerald-600">{importReportResult.updated}</p>
+                        <p className="text-[10px] text-slate-500 font-medium">Formalizações Atualizadas</p>
+                      </div>
+                      <div className="bg-white rounded-xl p-3 text-center">
+                        <p className="text-lg font-bold text-amber-600">{importReportResult.notInFormalizacao}</p>
+                        <p className="text-[10px] text-slate-500 font-medium">Sem Formalização</p>
+                      </div>
+                    </div>
+                  </div>
+                  {importReportResult.notInFormalizacao > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                      <p className="text-xs text-amber-800">
+                        <strong>{importReportResult.notInFormalizacao}</strong> emendas do relatório não foram encontradas na tabela de Formalização e não puderam ser sincronizadas.
+                      </p>
+                    </div>
+                  )}
+                  {importReportResult.errors.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 max-h-32 overflow-y-auto">
+                      <p className="text-xs font-bold text-red-800 mb-1">Erros:</p>
+                      {importReportResult.errors.slice(0, 10).map((err, i) => (
+                        <p key={i} className="text-xs text-red-700">{err}</p>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => { setIsImportReportOpen(false); setImportReportResult(null); }}
+                    className="w-full bg-[#1351B4] text-white py-3 rounded-xl font-semibold hover:bg-[#0C326F] transition-all"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {isFormOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
