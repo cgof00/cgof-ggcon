@@ -1984,6 +1984,116 @@ const app = express();
     }
   });
 
+  // Sincronizar emendas → formalização (para quando emendas são importadas direto no Supabase)
+  app.post("/api/emendas/sync-formalizacao", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) return res.status(401).json({ error: 'Token não fornecido' });
+      const authToken = authHeader.replace('Bearer ', '');
+      const decoded = verifyToken(authToken);
+      if (!decoded) return res.status(401).json({ error: 'Token inválido ou expirado' });
+      if (decoded.role !== 'admin') return res.status(403).json({ error: 'Apenas administradores' });
+      if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+      console.log('🔄 Sincronizando emendas → formalização...');
+
+      // Buscar todos os codigos da formalizacao que têm campo emenda preenchido
+      const allFormalizacoes: any[] = [];
+      let fOffset = 0;
+      while (true) {
+        const { data: fData, error: fErr } = await supabase
+          .from("formalizacao")
+          .select("id, emenda")
+          .not("emenda", "is", null)
+          .range(fOffset, fOffset + 2000 - 1);
+        if (fErr) { console.error('Erro formalizacao:', fErr); break; }
+        if (!fData || fData.length === 0) break;
+        allFormalizacoes.push(...fData);
+        if (fData.length < 2000) break;
+        fOffset += 2000;
+      }
+
+      // Criar mapa emenda → [formalizacao_ids]
+      const formalizacaoMap = new Map<string, number[]>();
+      for (const f of allFormalizacoes) {
+        const key = String(f.emenda).trim();
+        if (!key) continue;
+        if (!formalizacaoMap.has(key)) formalizacaoMap.set(key, []);
+        formalizacaoMap.get(key)!.push(f.id);
+      }
+
+      const emendasCodigos = [...formalizacaoMap.keys()];
+      console.log(`📋 ${emendasCodigos.length} códigos de emenda únicos na formalização`);
+
+      // Buscar emendas correspondentes no banco
+      let updated = 0;
+      let notFound = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < emendasCodigos.length; i += 100) {
+        const batch = emendasCodigos.slice(i, i + 100);
+        const { data: emendas, error: eErr } = await supabase
+          .from("emendas")
+          .select("*")
+          .in("codigo_num", batch);
+
+        if (eErr) { errors.push(eErr.message); continue; }
+        if (!emendas) continue;
+
+        const emendaMap = new Map<string, any>();
+        for (const e of emendas) {
+          if (e.codigo_num) emendaMap.set(String(e.codigo_num).trim(), e);
+        }
+
+        for (const cod of batch) {
+          const emenda = emendaMap.get(cod);
+          if (!emenda) { notFound++; continue; }
+
+          const fIds = formalizacaoMap.get(cod);
+          if (!fIds) continue;
+
+          const updateData: any = {};
+          if (emenda.detalhes) updateData.demanda = emenda.detalhes;
+          if (emenda.natureza) updateData.classificacao_emenda_demanda = emenda.natureza;
+          if (emenda.ano_refer) updateData.ano = emenda.ano_refer;
+          if (emenda.num_emenda) updateData.emendas_agregadoras = emenda.num_emenda;
+          if (emenda.situacao_d) updateData.situacao_demandas_sempapel = emenda.situacao_d;
+          if (emenda.parlamentar) updateData.parlamentar = emenda.parlamentar;
+          if (emenda.partido) updateData.partido = emenda.partido;
+          if (emenda.beneficiario) updateData.conveniado = emenda.beneficiario;
+          if (emenda.municipio) updateData.municipio = emenda.municipio;
+          if (emenda.objeto) updateData.objeto = emenda.objeto;
+          if (emenda.regional) updateData.regional = emenda.regional;
+          if (emenda.num_convenio) updateData.numero_convenio = emenda.num_convenio;
+          if (emenda.valor !== undefined && emenda.valor !== null) updateData.valor = emenda.valor;
+          if (emenda.portfolio) updateData.portfolio = emenda.portfolio;
+          if (Object.keys(updateData).length === 0) continue;
+
+          for (const fId of fIds) {
+            const { error: uErr } = await supabase.from("formalizacao").update(updateData).eq("id", fId);
+            if (uErr) { errors.push(`F#${fId}: ${uErr.message}`); } 
+            else { updated++; }
+          }
+        }
+      }
+
+      formalizacaoCache = null;
+      formalizacaoCacheTimestamp = 0;
+
+      console.log(`✅ Sync: ${updated} formalizações atualizadas, ${notFound} emendas não encontradas`);
+      return res.json({
+        updated,
+        not_found: notFound,
+        total_formalizacoes: allFormalizacoes.length,
+        errors: errors.length > 0 ? errors.slice(0, 20) : undefined,
+        message: `${updated} formalizações atualizadas com dados das emendas`
+      });
+    } catch (error: any) {
+      console.error('❌ Erro sync:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/cache/reset", async (req, res) => {
     try {
       console.log('🔄 Resetando cache de formalizações...');

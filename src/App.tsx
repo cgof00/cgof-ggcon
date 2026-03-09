@@ -635,6 +635,8 @@ export default function App() {
   const [isImportReportOpen, setIsImportReportOpen] = useState(false);
   const [importingReport, setImportingReport] = useState(false);
   const [importReportResult, setImportReportResult] = useState<{ inserted: number; updated: number; notInFormalizacao: number; errors: string[]; skipped?: number } | null>(null);
+  const [syncingFormalizacao, setSyncingFormalizacao] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ updated: number; not_found: number; total_formalizacoes: number; message: string } | null>(null);
   
   // Drag scroll states
   const [isDraggingScroll, setIsDraggingScroll] = useState(false);
@@ -1696,6 +1698,32 @@ export default function App() {
     });
   };
 
+  const handleSyncFormalizacao = async () => {
+    if (syncingFormalizacao) return;
+    if (!confirm('Sincronizar dados das emendas para a tabela formalização?\nIsso vai atualizar as formalizações que têm emenda correspondente.')) return;
+    setSyncingFormalizacao(true);
+    setSyncResult(null);
+    try {
+      const response = await fetch('/api/emendas/sync-formalizacao', {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+      if (!response.ok) {
+        const errText = await response.text();
+        let errMsg = `Erro ${response.status}`;
+        try { const j = JSON.parse(errText); errMsg = j.error || errMsg; } catch {}
+        throw new Error(errMsg);
+      }
+      const result = await response.json();
+      setSyncResult(result);
+      alert(`✅ ${result.message}`);
+    } catch (error: any) {
+      alert(`❌ Erro ao sincronizar: ${error.message}`);
+    } finally {
+      setSyncingFormalizacao(false);
+    }
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm('Tem certeza que deseja excluir esta emenda?')) return;
     try {
@@ -2307,13 +2335,23 @@ export default function App() {
                 {activeTab === 'emendas' && (
                   <>
                     {isAdmin && (
-                      <button
-                        onClick={() => setIsImportReportOpen(true)}
-                        className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-700"
-                      >
-                        <FileSearch className="w-4 h-4" />
-                        Importar Relatório de Emendas
-                      </button>
+                      <>
+                        <button
+                          onClick={handleSyncFormalizacao}
+                          disabled={syncingFormalizacao}
+                          className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-teal-600 text-white hover:bg-teal-700 border border-teal-700 disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-4 h-4 ${syncingFormalizacao ? 'animate-spin' : ''}`} />
+                          {syncingFormalizacao ? 'Sincronizando...' : 'Sincronizar Emendas → Formalização'}
+                        </button>
+                        <button
+                          onClick={() => setIsImportReportOpen(true)}
+                          className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-700"
+                        >
+                          <FileSearch className="w-4 h-4" />
+                          Importar Relatório de Emendas
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={() => setIsEmendasColumnMenuOpen(!isEmendasColumnMenuOpen)}
