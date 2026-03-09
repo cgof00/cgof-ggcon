@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import { createServer as createViteServer } from "vite";
 import compression from "compression";
 import path from "path";
@@ -1815,52 +1815,11 @@ const app = express();
     }
   });
 
-  // � Buscar todos os codigo_num existentes na tabela emendas (para PROCV no frontend)
-  app.get("/api/emendas/codigos", async (req, res) => {
-    try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader) return res.status(401).json({ error: 'Token não fornecido' });
-      const authToken = authHeader.replace('Bearer ', '');
-      const decoded = verifyToken(authToken);
-      if (!decoded) return res.status(401).json({ error: 'Token inválido ou expirado' });
-      if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
-
-      console.log('📋 Buscando todos os codigo_num existentes...');
-      const allCodigos: string[] = [];
-      let offset = 0;
-      const batchSize = 5000;
-      while (true) {
-        const { data, error } = await supabase
-          .from("emendas")
-          .select("codigo_num")
-          .not("codigo_num", "is", null)
-          .range(offset, offset + batchSize - 1);
-        if (error) {
-          console.error('❌ Erro ao buscar codigos:', error);
-          return res.status(500).json({ error: error.message });
-        }
-        if (!data || data.length === 0) break;
-        for (const row of data) {
-          if (row.codigo_num && String(row.codigo_num).trim() !== '') {
-            allCodigos.push(String(row.codigo_num).trim());
-          }
-        }
-        if (data.length < batchSize) break;
-        offset += batchSize;
-      }
-      console.log(`✅ ${allCodigos.length} codigos encontrados no banco`);
-      return res.json({ codigos: allCodigos });
-    } catch (error: any) {
-      console.error('❌ Erro ao buscar codigos:', error);
-      return res.status(500).json({ error: error.message });
-    }
-  });
-
-  // 📥 Importar Relatório de Emendas - insere apenas emendas novas e sincroniza com formalização
+  // Importar Relatório de Emendas - recebe CSV mapeado, faz PROCV no servidor, insere somente novas
   app.post("/api/emendas/import-report", async (req, res) => {
     try {
       const items = req.body;
-      if (!Array.isArray(items)) return res.status(400).json({ error: "Dados inválidos" });
+      if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: "Dados inválidos ou vazios" });
 
       // Validação de autenticação
       const authHeader = req.headers.authorization;
@@ -1872,28 +1831,63 @@ const app = express();
 
       if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
 
-      console.log(`📥 Import Report: Recebido ${items.length} registros já mapeados para inserção`);
+      console.log(`📥 Import Report: Recebido ${items.length} registros mapeados`);
 
-      // Itens já vêm mapeados e filtrados (somente novos) do frontend
+      // ── PASSO 1: PROCV - buscar todos os codigo_num existentes no banco ──
+      const allExistingCodigos = new Set<string>();
+      let dbOffset = 0;
+      const batchSize = 5000;
+      while (true) {
+        const { data: existData, error: existError } = await supabase
+          .from("emendas")
+          .select("codigo_num")
+          .not("codigo_num", "is", null)
+          .range(dbOffset, dbOffset + batchSize - 1);
+        if (existError) {
+          console.error('❌ Erro ao buscar codigos existentes:', existError);
+          break;
+        }
+        if (!existData || existData.length === 0) break;
+        for (const row of existData) {
+          if (row.codigo_num && String(row.codigo_num).trim() !== '') {
+            allExistingCodigos.add(String(row.codigo_num).trim());
+          }
+        }
+        if (existData.length < batchSize) break;
+        dbOffset += batchSize;
+      }
+      console.log(`📋 ${allExistingCodigos.size} emendas já existem no banco`);
+
+      // ── PASSO 2: Filtrar somente emendas NOVAS ──
+      const novosItems = items.filter((item: any) => {
+        const cod = item.codigo_num ? String(item.codigo_num).trim() : '';
+        if (!cod) return false;
+        return !allExistingCodigos.has(cod);
+      });
+      const skipped = items.length - novosItems.length;
+      console.log(`✅ ${novosItems.length} emendas NOVAS para importar (${skipped} já existiam)`);
+
+      // ── PASSO 3: Inserir novas emendas ──
       let emendasInserted = 0;
       const errors: string[] = [];
 
-      // Inserir em lotes de 100
-      for (let i = 0; i < items.length; i += 100) {
-        const chunk = items.slice(i, i + 100);
-        const { data, error } = await supabase.from("emendas").insert(chunk).select("id");
-        if (error) {
-          console.error(`❌ Erro ao inserir emendas chunk ${Math.floor(i/100)+1}:`, error);
-          errors.push(`Lote ${Math.floor(i/100)+1}: ${error.message}`);
-        } else {
-          emendasInserted += data?.length || 0;
+      if (novosItems.length > 0) {
+        for (let i = 0; i < novosItems.length; i += 100) {
+          const chunk = novosItems.slice(i, i + 100);
+          const { data: insertData, error: insertError } = await supabase.from("emendas").insert(chunk).select("id");
+          if (insertError) {
+            console.error(`❌ Erro ao inserir emendas chunk ${Math.floor(i/100)+1}:`, insertError);
+            errors.push(`Lote ${Math.floor(i/100)+1}: ${insertError.message}`);
+          } else {
+            emendasInserted += insertData?.length || 0;
+          }
         }
       }
 
       console.log(`✅ ${emendasInserted} emendas inseridas`);
 
-      // Sincronizar com formalização
-      const codigosInseridos = items
+      // ── PASSO 4: Sincronizar novas emendas com formalização ──
+      const codigosInseridos = novosItems
         .filter((it: any) => it.codigo_num && String(it.codigo_num).trim() !== '')
         .map((it: any) => String(it.codigo_num).trim());
 
@@ -1923,7 +1917,7 @@ const app = express();
           formalizacaoMap.get(key)!.push(f.id);
         }
 
-        for (const emendaItem of items) {
+        for (const emendaItem of novosItems) {
           const cod = emendaItem.codigo_num ? String(emendaItem.codigo_num).trim() : '';
           if (!cod) continue;
           const fIds = formalizacaoMap.get(cod);
@@ -1960,14 +1954,15 @@ const app = express();
       formalizacaoCache = null;
       formalizacaoCacheTimestamp = 0;
 
-      console.log(`📊 Resultado: ${emendasInserted} inseridas | ${formalizacaoUpdated} formalizações | ${notInFormalizacao} sem formalização`);
+      console.log(`📊 Resultado: ${emendasInserted} inseridas | ${skipped} ignoradas | ${formalizacaoUpdated} formalizações | ${notInFormalizacao} sem formalização`);
 
       return res.json({
         emendas_inserted: emendasInserted,
+        skipped,
         formalizacao_updated: formalizacaoUpdated,
         not_in_formalizacao: notInFormalizacao,
         errors: errors.length > 0 ? errors : undefined,
-        message: `${emendasInserted} emendas importadas, ${formalizacaoUpdated} formalizações atualizadas`
+        message: `${emendasInserted} emendas importadas, ${skipped} já existiam, ${formalizacaoUpdated} formalizações atualizadas`
       });
 
     } catch (error: any) {

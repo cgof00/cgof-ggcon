@@ -1633,50 +1633,19 @@ export default function App() {
 
           if (mappedItems.length === 0) throw new Error('Nenhum dado compatível encontrado no arquivo.');
 
-          console.log(`📋 ${mappedItems.length} registros mapeados do CSV`);
+          console.log(`📋 ${mappedItems.length} registros mapeados do CSV. Enviando para o servidor (PROCV será feito no servidor)...`);
 
-          // ── PASSO 2: PROCV - buscar codigo_num existentes no banco ──
-          console.log('🔍 Buscando emendas existentes no banco (PROCV)...');
-          const codResponse = await fetch('/api/emendas/codigos', { headers: getHeaders() });
-          if (!codResponse.ok) {
-            const errText = await codResponse.text();
-            throw new Error(`Erro ao buscar emendas existentes: ${errText}`);
-          }
-          const { codigos: codigosExistentes } = await codResponse.json();
-          const existingSet = new Set<string>(codigosExistentes || []);
-          console.log(`📊 ${existingSet.size} emendas já existem no banco`);
-
-          // ── PASSO 3: Filtrar apenas emendas NOVAS ──
-          const novosItems = mappedItems.filter(item => {
-            const cod = item.codigo_num ? String(item.codigo_num).trim() : '';
-            if (!cod) return false; // sem codigo_num não importa
-            return !existingSet.has(cod);
-          });
-
-          const duplicatas = mappedItems.length - novosItems.length;
-          console.log(`✅ ${novosItems.length} emendas NOVAS para importar (${duplicatas} já existem)`);
-
-          if (novosItems.length === 0) {
-            setImportReportResult({
-              inserted: 0,
-              updated: 0,
-              notInFormalizacao: 0,
-              errors: [],
-              skipped: duplicatas
-            });
-            return;
-          }
-
-          // ── PASSO 4: Enviar somente as novas em chunks ──
+          // ── PASSO 2: Enviar todos os registros para o servidor (PROCV é feito no servidor) ──
           const chunkSize = 500;
           let totalInserted = 0;
           let totalUpdated = 0;
           let totalNotInFormalizacao = 0;
+          let totalSkipped = 0;
           const allErrors: string[] = [];
 
-          for (let i = 0; i < novosItems.length; i += chunkSize) {
-            const chunk = novosItems.slice(i, i + chunkSize);
-            console.log(`   Enviando chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(novosItems.length / chunkSize)} (${chunk.length} registros)...`);
+          for (let i = 0; i < mappedItems.length; i += chunkSize) {
+            const chunk = mappedItems.slice(i, i + chunkSize);
+            console.log(`   Enviando chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(mappedItems.length / chunkSize)} (${chunk.length} registros)...`);
 
             const response = await fetch('/api/emendas/import-report', {
               method: 'POST',
@@ -1695,6 +1664,7 @@ export default function App() {
             totalInserted += result.emendas_inserted || 0;
             totalUpdated += result.formalizacao_updated || 0;
             totalNotInFormalizacao += result.not_in_formalizacao || 0;
+            totalSkipped += result.skipped || 0;
             if (result.errors) allErrors.push(...result.errors);
 
             await new Promise(resolve => setTimeout(resolve, 200));
@@ -1705,10 +1675,10 @@ export default function App() {
             updated: totalUpdated,
             notInFormalizacao: totalNotInFormalizacao,
             errors: allErrors,
-            skipped: duplicatas
+            skipped: totalSkipped
           });
 
-          console.log(`✅ Relatório importado: ${totalInserted} novas emendas, ${duplicatas} ignoradas, ${totalUpdated} formalizações atualizadas`);
+          console.log(`✅ Relatório importado: ${totalInserted} novas emendas, ${totalSkipped} ignoradas, ${totalUpdated} formalizações atualizadas`);
 
           // Recarregar dados
           setEmendas([]);
