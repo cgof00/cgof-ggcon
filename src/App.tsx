@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -45,7 +45,7 @@ import Papa from 'papaparse';
 import { useAuth } from './AuthContext';
 import { AdminPanel } from './AdminPanel';
 import { UserManagementPanel } from './UserManagementPanel';
-import { EmendasDataTable } from './components/EmendasDataTable';
+// EmendasDataTable removido - sistema usa somente Formalização
 import logo1Img from './img/logo1.png';
 
 // 🎯 Componente MultiSelectFilter com busca
@@ -411,55 +411,6 @@ function MultiSelectDateFilter({
   );
 }
 
-interface Emenda {
-  id?: number;
-  detalhes?: string;
-  natureza?: string;
-  ano_refer?: string;
-  codigo_num?: string;
-  num_emenda?: string;
-  parecer_ld?: string;
-  situacao_e?: string;
-  situacao_d?: string;
-  data_ult_e?: string;
-  data_ult_d?: string;
-  num_indicacao?: string;
-  parlamentar?: string;
-  partido?: string;
-  tipo_beneficiario?: string;
-  beneficiario?: string;
-  cnpj?: string;
-  municipio?: string;
-  objeto?: string;
-  orgao_entidade?: string;
-  regional?: string;
-  num_convenio?: string;
-  num_processo?: string;
-  data_assinatura?: string;
-  data_publicacao?: string;
-  agencia?: string;
-  conta?: string;
-  valor?: number;
-  valor_desembolsado?: number;
-  portfolio?: string;
-  qtd_dias?: number;
-  vigencia?: string;
-  data_prorrogacao?: string;
-  dados_bancarios?: string;
-  status?: string;
-  data_pagamento?: string;
-  num_codigo?: string;
-  notas_empenho?: string;
-  valor_total_empenhado?: number;
-  notas_liquidacao?: string;
-  valor_total_liquidado?: number;
-  programa?: string;
-  valor_total_pago?: number;
-  ordem_bancaria?: string;
-  data_paga?: string;
-  valor_total_ordem_bancaria?: number;
-}
-
 interface Formalizacao {
   id?: number;
   seq?: string;
@@ -506,24 +457,20 @@ interface Formalizacao {
 
 export default function App() {
   const { user, token, logout, isAdmin, isIntermediario, isUsuario } = useAuth();
-  const [activeTab, setActiveTab] = useState<'emendas' | 'formalizacao' | 'admin'>('formalizacao');
+  const [activeTab, setActiveTab] = useState<'formalizacao' | 'admin'>('formalizacao');
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const [adminAlertas, setAdminAlertas] = useState<{id: number, tipo: string, descricao: string, data: string}[]>([]);
   const [showAlertasDropdown, setShowAlertasDropdown] = useState(false);
   const [refreshProgress, setRefreshProgress] = useState<{ active: boolean; loaded: number; total: number; startTime: number } | null>(null);
-  const [emendas, setEmendas] = useState<Emenda[]>([]);
+  // emendas removido do frontend - dados apenas no Supabase
   const [formalizacoes, setFormalizacoes] = useState<Formalizacao[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isFormalizacaoFormOpen, setIsFormalizacaoFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isSupabaseGuideOpen, setIsSupabaseGuideOpen] = useState(false);
-  const [editingEmenda, setEditingEmenda] = useState<Emenda | null>(null);
   const [editingFormalizacao, setEditingFormalizacao] = useState<Formalizacao | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedEmenda, setSelectedEmenda] = useState<Emenda | null>(null);
   const [selectedFormalizacao, setSelectedFormalizacao] = useState<Formalizacao | null>(null);
-  const [importing, setImporting] = useState(false);
   const [supabaseStatus, setSupabaseStatus] = useState<any>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
@@ -571,57 +518,6 @@ export default function App() {
     encaminhado_em: true,
     concluida_em: true
   });
-  // Colunas visíveis para tabela de Emendas
-  const [emendasVisibleColumns, setEmendasVisibleColumns] = useState<Record<string, boolean>>({
-    ano_refer: true,
-    codigo_num: true,
-    num_emenda: true,
-    natureza: true,
-    parlamentar: true,
-    partido: true,
-    beneficiario: true,
-    cnpj: true,
-    tipo_beneficiario: true,
-    municipio: true,
-    regional: true,
-    objeto: true,
-    valor: true,
-    valor_desembolsado: true,
-    num_convenio: true,
-    num_processo: true,
-    situacao_e: true,
-    situacao_d: true,
-    data_ult_e: true,
-    data_ult_d: true,
-    num_indicacao: true,
-    status: true,
-    parecer_ld: true,
-    orgao_entidade: true,
-    portfolio: true,
-    vigencia: true,
-    data_assinatura: true,
-    data_publicacao: true,
-    data_pagamento: true,
-    agencia: true,
-    conta: true,
-    dados_bancarios: true,
-    qtd_dias: true,
-    data_prorrogacao: true,
-    num_codigo: true,
-    detalhes: true,
-    notas_empenho: true,
-    valor_total_empenhado: true,
-    notas_liquidacao: true,
-    valor_total_liquidado: true,
-    programa: true,
-    valor_total_pago: true,
-    ordem_bancaria: true,
-    data_paga: true,
-    valor_total_ordem_bancaria: true,
-  });
-  const [emendasSortColumn, setEmendasSortColumn] = useState<string>('ano_refer');
-  const [emendasSortOrder, setEmendasSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [isEmendasColumnMenuOpen, setIsEmendasColumnMenuOpen] = useState(false);
   const [formalizacaoSearchResult, setFormalizacaoSearchResult] = useState<any>({
     data: [],
     total: 0,
@@ -631,12 +527,6 @@ export default function App() {
   });
   const [cacheStatus, setCacheStatus] = useState<{ status: 'loading' | 'ready' | 'error', message?: string, records?: number, duration?: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const reportFileInputRef = useRef<HTMLInputElement>(null);
-  const [isImportReportOpen, setIsImportReportOpen] = useState(false);
-  const [importingReport, setImportingReport] = useState(false);
-  const [importReportResult, setImportReportResult] = useState<{ inserted: number; updated: number; notInFormalizacao: number; errors: string[]; skipped?: number } | null>(null);
-  const [syncingFormalizacao, setSyncingFormalizacao] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ updated: number; not_found: number; total_formalizacoes: number; message: string } | null>(null);
   
   // Drag scroll states
   const [isDraggingScroll, setIsDraggingScroll] = useState(false);
@@ -1126,76 +1016,8 @@ export default function App() {
 
   const fetchData = async () => {
     setLoading(true);
-    if (activeTab === 'emendas') {
-      await fetchEmendas();
-    } else {
-      await fetchFormalizacoes();
-    }
+    await fetchFormalizacoes();
     setLoading(false);
-  };
-
-  const fetchEmendas = async () => {
-    try {
-      console.log('📥 Buscando TODAS as emendas em paralelo...');
-      const batchSize = 1000;
-      const PARALLEL_WAVES = 6;
-      let dataFetched: any[] = [];
-
-      // Fase 1: primeira request para descobrir se há dados
-      const firstResp = await fetch(`/api/emendas?limit=${batchSize}&offset=0`, {
-        headers: getHeaders()
-      });
-      const firstBatch = firstResp.ok ? await firstResp.json() : [];
-      if (!Array.isArray(firstBatch) || firstBatch.length === 0) {
-        setEmendas([]);
-        return;
-      }
-
-      dataFetched = [...firstBatch];
-      console.log(`   ✓ ${dataFetched.length} emendas carregadas (batch 1)...`);
-
-      if (firstBatch.length === batchSize) {
-        // Fase 2: carregar restante em ondas paralelas
-        let nextOffset = batchSize;
-        let keepGoing = true;
-
-        while (keepGoing) {
-          const offsets = Array.from({ length: PARALLEL_WAVES }, (_, i) => nextOffset + i * batchSize);
-          const promises = offsets.map(off =>
-            fetch(`/api/emendas?limit=${batchSize}&offset=${off}`, { headers: getHeaders() })
-              .then(r => r.ok ? r.json() : [])
-              .then(d => ({ offset: off, data: Array.isArray(d) ? d : [] }))
-              .catch(() => ({ offset: off, data: [] as any[] }))
-          );
-          const results = await Promise.all(promises);
-          results.sort((a, b) => a.offset - b.offset);
-
-          for (const r of results) {
-            if (r.data.length === 0) { keepGoing = false; break; }
-            dataFetched = dataFetched.concat(r.data);
-            if (r.data.length < batchSize) { keepGoing = false; break; }
-          }
-
-          console.log(`   ✓ ${dataFetched.length} emendas carregadas...`);
-          nextOffset += PARALLEL_WAVES * batchSize;
-        }
-      }
-
-      // Dedup por codigo_num para evitar duplicatas
-      const seen = new Set<string>();
-      const unique: any[] = [];
-      for (const e of dataFetched) {
-        const key = e.codigo_num || e.id;
-        if (key && seen.has(String(key))) continue;
-        if (key) seen.add(String(key));
-        unique.push(e);
-      }
-      console.log(`✅ Total: ${unique.length} emendas carregadas (${dataFetched.length - unique.length} duplicatas removidas)`);
-      setEmendas(unique);
-    } catch (error) {
-      console.error('❌ Erro ao buscar emendas:', error);
-      setEmendas([]);
-    }
   };
 
   const fetchFormalizacoes = async () => {
@@ -1514,7 +1336,7 @@ export default function App() {
 
           const chunkSize = 500;
           let importedCount = 0;
-          const endpoint = activeTab === 'emendas' ? '/api/emendas/bulk' : '/api/formalizacao/bulk';
+          const endpoint = '/api/formalizacao/bulk';
 
           for (let i = 0; i < data.length; i += chunkSize) {
             const chunk = data.slice(i, i + chunkSize);
@@ -1552,22 +1374,17 @@ export default function App() {
           alert(successMessage + `\n\nAtualizando dados...`);
           
           // ✅ Recarregar dados e limpar cache do servidor
-          if (activeTab === 'formalizacao') {
-            setFormalizacaoSearchResult({
-              data: [],
-              total: 0,
-              page: 0,
-              hasMore: false,
-              loading: false
-            });
-            setTimeout(() => {
-              console.log('🔄 Recarregando dados após import...');
-              fetchFormalizacoesComFiltros(0);
-            }, 500);
-          } else {
-            setEmendas([]);
-            setTimeout(fetchEmendas, 500);
-          }
+          setFormalizacaoSearchResult({
+            data: [],
+            total: 0,
+            page: 0,
+            hasMore: false,
+            loading: false
+          });
+          setTimeout(() => {
+            console.log('🔄 Recarregando dados após import...');
+            fetchFormalizacoesComFiltros(0);
+          }, 500);
           
           setIsImportOpen(false);
         } catch (error: any) {
@@ -1579,308 +1396,6 @@ export default function App() {
         }
       }
     });
-  };
-
-  const handleReportUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setImportingReport(true);
-    setImportReportResult(null);
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: 'greedy',
-      encoding: 'UTF-8',
-      transformHeader: (header) => header.replace(/^\uFEFF/, '').trim(),
-      complete: async (results) => {
-        try {
-          const data = results.data as any[];
-          if (!data || data.length === 0) throw new Error('Arquivo vazio.');
-
-          console.log(`📥 Importar Relatório: ${data.length} registros no arquivo`);
-
-          // ── Mapeamento de colunas CSV → banco ──
-          const columnMapping: Record<string, string> = {
-            "Detalhes da Demanda": "detalhes", "Natureza": "natureza",
-            "Ano Referência": "ano_refer", "Ano Referencia": "ano_refer",
-            "Código/Nº Emenda": "codigo_num", "Codigo/Nº Emenda": "codigo_num",
-            "Nº Emenda Agregadora": "num_emenda", "Parecer LDO": "parecer_ld",
-            "Situação Emenda": "situacao_e", "Situacao Emenda": "situacao_e",
-            "Situação Demanda": "situacao_d", "Situacao Demanda": "situacao_d",
-            "Data da Última Tramitação Emenda": "data_ult_e", "Data da Ultima Tramitacao Emenda": "data_ult_e",
-            "Data da Última Tramitação Demanda": "data_ult_d", "Data da Ultima Tramitacao Demanda": "data_ult_d",
-            "Nº da Indicação": "num_indicacao", "Nº da Indicacao": "num_indicacao",
-            "Parlamentar": "parlamentar", "Partido": "partido",
-            "Tipo Beneficiário": "tipo_beneficiario", "Tipo Beneficiario": "tipo_beneficiario",
-            "Beneficiário": "beneficiario", "Beneficiario": "beneficiario",
-            "CNPJ": "cnpj", "Município": "municipio", "Municipio": "municipio",
-            "Objeto": "objeto",
-            "Órgão Entidade/Responsável": "orgao_entidade", "Orgao Entidade/Responsavel": "orgao_entidade",
-            "Regional": "regional",
-            "Nº de Convênio": "num_convenio", "Nº de Convenio": "num_convenio",
-            "Nº de Processo": "num_processo",
-            "Assinatura": "data_assinatura",
-            "Publicação": "data_publicacao", "Publicacao": "data_publicacao",
-            "Agência": "agencia", "Agencia": "agencia", "Conta": "conta",
-            "Valor": "valor", "Valor da Demanda": "valor_desembolsado",
-            "Portfólio": "portfolio", "Portfolio": "portfolio",
-            "Qtd. Dias na Etapa": "qtd_dias",
-            "Vigência": "vigencia", "Vigencia": "vigencia",
-            "Data da Primeira Notificação LOA Recebida pelo Beneficiário": "data_prorrogacao",
-            "Data da Primeira Notificacao LOA Recebida pelo Beneficiario": "data_prorrogacao",
-            "Dados Bancários": "dados_bancarios", "Dados Bancarios": "dados_bancarios",
-            "Status do Pagamento": "status", "Data do Pagamento": "data_pagamento",
-            "Nº do Código Único": "num_codigo", "Nº do Codigo Unico": "num_codigo",
-            "Notas e Empenho": "notas_empenho", "Valor Total Empenho": "valor_total_empenhado",
-            "Notas de Lançamento": "notas_liquidacao", "Notas de Lancamento": "notas_liquidacao",
-            "Valor Total Lançamento": "valor_total_liquidado", "Valor Total Lancamento": "valor_total_liquidado",
-            "Programações Desembolso": "programa", "Programacoes Desembolso": "programa",
-            "Valor Total Programação Desembolso": "valor_total_pago", "Valor Total Programacao Desembolso": "valor_total_pago",
-            "Ordem Bancária": "ordem_bancaria", "Ordem Bancaria": "ordem_bancaria",
-            "Data pagamento Ordem Bancária": "data_paga", "Data pagamento Ordem Bancaria": "data_paga",
-            "Valor Total Ordem Bancária": "valor_total_ordem_bancaria", "Valor Total Ordem Bancaria": "valor_total_ordem_bancaria"
-          };
-
-          const validColumns = new Set([
-            'detalhes', 'natureza', 'ano_refer', 'codigo_num', 'num_emenda', 'parecer_ld',
-            'situacao_e', 'situacao_d', 'data_ult_e', 'data_ult_d', 'num_indicacao',
-            'parlamentar', 'partido', 'tipo_beneficiario', 'beneficiario', 'cnpj',
-            'municipio', 'objeto', 'orgao_entidade', 'regional', 'num_convenio',
-            'num_processo', 'data_assinatura', 'data_publicacao', 'agencia', 'conta',
-            'valor', 'valor_desembolsado', 'portfolio', 'qtd_dias', 'vigencia',
-            'data_prorrogacao', 'dados_bancarios', 'status', 'data_pagamento',
-            'num_codigo', 'notas_empenho', 'valor_total_empenhado', 'notas_liquidacao',
-            'valor_total_liquidado', 'programa', 'valor_total_pago', 'ordem_bancaria',
-            'data_paga', 'valor_total_ordem_bancaria'
-          ]);
-
-          const numericFields = new Set(['valor', 'valor_desembolsado', 'valor_total_empenhado', 'valor_total_liquidado', 'valor_total_pago', 'valor_total_ordem_bancaria']);
-
-          // ── PASSO 1: Mapear CSV para formato do banco ──
-          const mappedItems: any[] = [];
-          for (const item of data) {
-            const mapped: any = {};
-            let hasData = false;
-            for (const csvKey of Object.keys(item)) {
-              const dbKey = columnMapping[csvKey] || csvKey;
-              if (!validColumns.has(dbKey)) continue;
-              const val = item[csvKey];
-              if (val === undefined || val === null || val === '') continue;
-              hasData = true;
-              if (numericFields.has(dbKey)) {
-                const cleanVal = String(val).replace(/\s/g, '').replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
-                const parsed = parseFloat(cleanVal);
-                mapped[dbKey] = isNaN(parsed) ? 0 : parsed;
-              } else if (dbKey === 'qtd_dias') {
-                const parsed = parseInt(String(val).replace(/\D/g, ''));
-                mapped[dbKey] = (isNaN(parsed) || parsed > 2147483647) ? 0 : parsed;
-              } else {
-                mapped[dbKey] = String(val);
-              }
-            }
-            if (hasData) mappedItems.push(mapped);
-          }
-
-          if (mappedItems.length === 0) throw new Error('Nenhum dado compatível encontrado no arquivo.');
-
-          // ── PostgREST exige que todos os objetos tenham as mesmas chaves ──
-          const allKeys = new Set<string>();
-          for (const item of mappedItems) {
-            for (const key of Object.keys(item)) allKeys.add(key);
-          }
-          for (const item of mappedItems) {
-            for (const key of allKeys) {
-              if (!(key in item)) {
-                item[key] = numericFields.has(key) ? 0 : null;
-              }
-            }
-          }
-
-          // ── DEDUP: Filtrar emendas que já existem no banco ──
-          const existingCodigoNums = new Set(
-            emendas.map((e: any) => e.codigo_num).filter(Boolean)
-          );
-          const newItems = mappedItems.filter(item => {
-            const codigoNum = item.codigo_num;
-            return codigoNum && !existingCodigoNums.has(codigoNum);
-          });
-          const skippedDuplicates = mappedItems.length - newItems.length;
-          console.log(`📋 ${mappedItems.length} registros mapeados. ${skippedDuplicates} já existem no banco. ${newItems.length} novos registros para importar.`);
-
-          if (newItems.length === 0) {
-            setImportReportResult({
-              inserted: 0,
-              updated: 0,
-              notInFormalizacao: 0,
-              errors: [],
-              skipped: skippedDuplicates
-            });
-            alert(`ℹ️ Nenhuma emenda nova encontrada. ${skippedDuplicates} registros já existem no banco.`);
-            setImportingReport(false);
-            if (reportFileInputRef.current) reportFileInputRef.current.value = '';
-            return;
-          }
-
-          // ── PASSO 2: Enviar em chunks pequenos (Cloudflare Workers tem limite de 50 subrequests) ──
-          const chunkSize = 100;
-          let totalInserted = 0;
-          let totalUpdated = 0;
-          let totalNotInFormalizacao = 0;
-          let totalSkipped = 0;
-          const allErrors: string[] = [];
-          const totalChunks = Math.ceil(newItems.length / chunkSize);
-
-          for (let i = 0; i < newItems.length; i += chunkSize) {
-            const chunk = newItems.slice(i, i + chunkSize);
-            const chunkNum = Math.floor(i / chunkSize) + 1;
-            console.log(`   📤 Enviando chunk ${chunkNum}/${totalChunks} (${chunk.length} registros)... [${Math.round((i / newItems.length) * 100)}%]`);
-
-            let retries = 3;
-            let success = false;
-            while (retries > 0 && !success) {
-              try {
-                const response = await fetch('/api/emendas/import-report', {
-                  method: 'POST',
-                  headers: getHeaders(),
-                  body: JSON.stringify(chunk),
-                });
-
-                if (response.status === 401) {
-                  // Token expirado - forçar re-login
-                  logout();
-                  throw new Error('Sessão expirada. Faça login novamente e tente importar de novo.');
-                }
-
-                if (!response.ok) {
-                  const errText = await response.text();
-                  console.error(`❌ Servidor retornou ${response.status}: ${errText.substring(0, 500)}`);
-                  if (retries > 1) {
-                    retries--;
-                    console.log(`   🔄 Tentando novamente (${retries} tentativas restantes)...`);
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    continue;
-                  }
-                  let errMsg = `Servidor retornou erro ${response.status}`;
-                  try { const errJson = JSON.parse(errText); errMsg = errJson.details || errJson.error || errMsg; } catch {}
-                  throw new Error(errMsg);
-                }
-
-                const result = await response.json();
-                totalInserted += result.emendas_inserted || 0;
-                totalUpdated += result.formalizacao_updated || 0;
-                totalNotInFormalizacao += result.not_in_formalizacao || 0;
-                totalSkipped += result.skipped || 0;
-                if (result.errors) allErrors.push(...result.errors);
-                success = true;
-              } catch (err: any) {
-                retries--;
-                if (retries <= 0) throw err;
-                console.log(`   🔄 Erro de rede, tentando novamente (${retries} tentativas restantes)...`);
-                await new Promise(resolve => setTimeout(resolve, 2000));
-              }
-            }
-
-            // Pequena pausa entre chunks para não sobrecarregar
-            if (i + chunkSize < newItems.length) {
-              await new Promise(resolve => setTimeout(resolve, 100));
-            }
-          }
-
-          setImportReportResult({
-            inserted: totalInserted,
-            updated: totalUpdated,
-            notInFormalizacao: totalNotInFormalizacao,
-            errors: allErrors,
-            skipped: totalSkipped + skippedDuplicates
-          });
-
-          console.log(`✅ Relatório importado: ${totalInserted} novas emendas, ${totalSkipped} ignoradas, ${totalUpdated} formalizações atualizadas`);
-
-          // Recarregar dados
-          setEmendas([]);
-          setTimeout(fetchEmendas, 500);
-
-        } catch (error: any) {
-          console.error('❌ Erro ao importar relatório:', error);
-          alert(`❌ Erro ao importar relatório: ${error.message}`);
-        } finally {
-          setImportingReport(false);
-          if (reportFileInputRef.current) reportFileInputRef.current.value = '';
-        }
-      }
-    });
-  };
-
-  const handleSyncFormalizacao = async () => {
-    if (syncingFormalizacao) return;
-    if (!confirm('Sincronizar dados das emendas para a tabela formalização?\nIsso vai atualizar as formalizações que têm emenda correspondente.')) return;
-    setSyncingFormalizacao(true);
-    setSyncResult(null);
-    try {
-      const response = await fetch('/api/emendas/sync-formalizacao', {
-        method: 'POST',
-        headers: getHeaders(),
-      });
-      if (!response.ok) {
-        const errText = await response.text();
-        let errMsg = `Erro ${response.status}`;
-        try { 
-          const j = JSON.parse(errText); 
-          errMsg = j.details || j.error || errMsg;
-          if (j.supabase_error) errMsg += '\n\nDetalhe Supabase: ' + j.supabase_error;
-        } catch {}
-        throw new Error(errMsg);
-      }
-      const result = await response.json();
-      setSyncResult(result);
-      alert(`✅ ${result.message}`);
-    } catch (error: any) {
-      alert(`❌ Erro ao sincronizar: ${error.message}`);
-    } finally {
-      setSyncingFormalizacao(false);
-    }
-  };
-
-  const handleDelete = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir esta emenda?')) return;
-    try {
-      await fetch(`/api/emendas/${id}`, { 
-        method: 'DELETE',
-        headers: getHeaders()
-      });
-      fetchEmendas();
-      if (selectedEmenda?.id === id) setSelectedEmenda(null);
-    } catch (error) {
-      console.error('Erro ao excluir emenda:', error);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const data: any = {};
-    formData.forEach((value, key) => {
-      if (key.includes('valor') || key === 'qtd_dias') {
-        data[key] = value ? Number(value) : 0;
-      } else {
-        data[key] = value;
-      }
-    });
-
-    try {
-      const url = editingEmenda ? `/api/emendas/${editingEmenda.id}` : '/api/emendas';
-      const method = editingEmenda ? 'PUT' : 'POST';
-      await fetch(url, {
-        method,
-        headers: getHeaders(),
-        body: JSON.stringify(data),
-      });
-      setIsFormOpen(false);
-      setEditingEmenda(null);
-      fetchEmendas();
-    } catch (error) {
-      console.error('Erro ao salvar emenda:', error);
-    }
   };
 
   const handleDeleteFormalizacao = async (id: number) => {
@@ -2086,14 +1601,8 @@ export default function App() {
     }
   };
 
-  const filteredEmendas = Array.isArray(emendas) ? emendas.filter(e => 
-    e.parlamentar?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.beneficiario?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.objeto?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) : [];
-
   // Para formalizações, usar os dados do servidor já filtrados
-  const filteredFormalizacoes = activeTab === 'formalizacao' ? formalizacaoSearchResult.data : [];
+  const filteredFormalizacoes = formalizacaoSearchResult.data;
 
   // Função para ordenar dados
   const sortData = (data: any[], column: string, order: string) => {
@@ -2283,14 +1792,6 @@ export default function App() {
               </div>
               <div className="h-8 w-px bg-white/20 hidden md:block" />
               <nav className="hidden md:flex items-center gap-1 bg-white/10 p-0.5 rounded-lg">
-                {user?.role !== 'usuario' && (
-                  <button 
-                    onClick={() => setActiveTab('emendas')}
-                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeTab === 'emendas' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
-                  >
-                    Emendas
-                  </button>
-                )}
                 <button 
                   onClick={() => setActiveTab('formalizacao')}
                   className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeTab === 'formalizacao' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
@@ -2426,13 +1927,6 @@ export default function App() {
                 )}
               </div>
 
-              <button 
-                onClick={() => {
-                  setEditingEmenda(null);
-                  setIsFormOpen(true);
-                }}
-                className="hidden">
-              </button>
             </div>
           </div>
         </div>
@@ -2459,114 +1953,6 @@ export default function App() {
           {/* List Section - Full Width */}
           <div className="w-full">
             <div className="flex items-center justify-end gap-2 mb-2">
-                {activeTab === 'emendas' && (
-                  <>
-                    {isAdmin && (
-                      <>
-                        <button
-                          onClick={handleSyncFormalizacao}
-                          disabled={syncingFormalizacao}
-                          className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-teal-600 text-white hover:bg-teal-700 border border-teal-700 disabled:opacity-50"
-                        >
-                          <RefreshCw className={`w-4 h-4 ${syncingFormalizacao ? 'animate-spin' : ''}`} />
-                          {syncingFormalizacao ? 'Sincronizando...' : 'Sincronizar Emendas → Formalização'}
-                        </button>
-                        <button
-                          onClick={() => setIsImportReportOpen(true)}
-                          className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-700"
-                        >
-                          <FileSearch className="w-4 h-4" />
-                          Importar Relatório de Emendas
-                        </button>
-                      </>
-                    )}
-                    <button
-                      onClick={() => setIsEmendasColumnMenuOpen(!isEmendasColumnMenuOpen)}
-                      className={`relative px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
-                        isEmendasColumnMenuOpen ? 'bg-teal-700 text-white border-2 border-teal-700' : 'bg-white text-gray-700 border border-gray-300 hover:border-teal-700 hover:text-teal-700'
-                      }`}
-                    >
-                      <Settings className="w-4 h-4" />
-                      Colunas
-                      <span className={`ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded ${
-                        isEmendasColumnMenuOpen ? 'bg-white text-teal-700' : 'bg-teal-700 text-white'
-                      }`}>
-                        {Object.values(emendasVisibleColumns).filter(Boolean).length}/{Object.keys(emendasVisibleColumns).length}
-                      </span>
-                      
-                      {isEmendasColumnMenuOpen && (
-                        <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl p-3 z-50 min-w-64 max-h-96 overflow-y-auto"
-                             onClick={(e) => e.stopPropagation()}>
-                          <p className="text-xs font-bold mb-2 uppercase sticky top-0 bg-white pb-2 text-teal-700">Mostrar/Ocultar Colunas</p>
-                          <div className="space-y-2">
-                            {[
-                              { key: 'ano_refer', label: 'Ano' },
-                              { key: 'codigo_num', label: 'Código/Nº Emenda' },
-                              { key: 'num_emenda', label: 'Nº Emenda Agregadora' },
-                              { key: 'natureza', label: 'Natureza' },
-                              { key: 'parlamentar', label: 'Parlamentar' },
-                              { key: 'partido', label: 'Partido' },
-                              { key: 'beneficiario', label: 'Beneficiário' },
-                              { key: 'cnpj', label: 'CNPJ' },
-                              { key: 'tipo_beneficiario', label: 'Tipo Beneficiário' },
-                              { key: 'municipio', label: 'Município' },
-                              { key: 'regional', label: 'Regional' },
-                              { key: 'objeto', label: 'Objeto' },
-                              { key: 'valor', label: 'Valor' },
-                              { key: 'valor_desembolsado', label: 'Valor Demanda' },
-                              { key: 'num_convenio', label: 'Nº Convênio' },
-                              { key: 'num_processo', label: 'Nº Processo' },
-                              { key: 'situacao_e', label: 'Situação Emenda' },
-                              { key: 'situacao_d', label: 'Situação Demanda' },
-                              { key: 'data_ult_e', label: 'Data Últ. Tramitação Emenda' },
-                              { key: 'data_ult_d', label: 'Data Últ. Tramitação Demanda' },
-                              { key: 'num_indicacao', label: 'Nº da Indicação' },
-                              { key: 'status', label: 'Status Pagamento' },
-                              { key: 'parecer_ld', label: 'Parecer LDO' },
-                              { key: 'orgao_entidade', label: 'Órgão/Entidade' },
-                              { key: 'portfolio', label: 'Portfólio' },
-                              { key: 'vigencia', label: 'Vigência' },
-                              { key: 'data_assinatura', label: 'Assinatura' },
-                              { key: 'data_publicacao', label: 'Publicação' },
-                              { key: 'data_pagamento', label: 'Data Pagamento' },
-                              { key: 'agencia', label: 'Agência' },
-                              { key: 'conta', label: 'Conta' },
-                              { key: 'dados_bancarios', label: 'Dados Bancários' },
-                              { key: 'qtd_dias', label: 'Qtd. Dias' },
-                              { key: 'data_prorrogacao', label: 'Notificação LOA' },
-                              { key: 'num_codigo', label: 'Nº Código Único' },
-                              { key: 'detalhes', label: 'Detalhes Demanda' },
-                              { key: 'notas_empenho', label: 'Notas Empenho' },
-                              { key: 'valor_total_empenhado', label: 'Total Empenho' },
-                              { key: 'notas_liquidacao', label: 'Notas Liquidação' },
-                              { key: 'valor_total_liquidado', label: 'Total Liquidado' },
-                              { key: 'programa', label: 'Programa Desembolso' },
-                              { key: 'valor_total_pago', label: 'Total Pago' },
-                              { key: 'ordem_bancaria', label: 'Ordem Bancária' },
-                              { key: 'data_paga', label: 'Data Ordem Bancária' },
-                              { key: 'valor_total_ordem_bancaria', label: 'Total Ordem Bancária' },
-                            ].map(col => (
-                              <label key={col.key} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1.5 rounded" onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  type="checkbox"
-                                  checked={emendasVisibleColumns[col.key] || false}
-                                  onChange={(e) => {
-                                    setEmendasVisibleColumns(prev => ({
-                                      ...prev,
-                                      [col.key]: e.target.checked
-                                    }));
-                                  }}
-                                  className="w-3 h-3 rounded border-gray-400 accent-teal-700 cursor-pointer"
-                                />
-                                <span className="text-xs text-gray-700">{col.label}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </button>
-                  </>
-                )}
                 {activeTab === 'formalizacao' && (
                   <>
                     {/* Botão Atribuir a Técnico - aparece quando há seleção */}
@@ -2957,40 +2343,15 @@ export default function App() {
               </motion.div>
             )}
 
-            {/* Stats Summary */}
-            {activeTab === 'emendas' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                <div className="bg-white border border-teal-200 rounded-2xl p-4 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-teal-700">Total em Emendas</p>
-                  <p className="text-xl font-bold text-slate-900">
-                    {formatCurrency(filteredEmendas.reduce((acc, curr) => acc + (Number(curr.valor) || 0), 0))}
-                  </p>
-                  <p className="text-[9px] text-gray-400 mt-0.5">{filteredEmendas.length.toLocaleString('pt-BR')} registros</p>
-                </div>
-                <div className="bg-white border border-teal-200 rounded-2xl p-4 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-teal-700">Total Desembolsado</p>
-                  <p className="text-xl font-bold text-emerald-600">
-                    {formatCurrency(filteredEmendas.reduce((acc, curr) => acc + (Number(curr.valor_desembolsado) || 0), 0))}
-                  </p>
-                </div>
-                <div className="bg-white border border-teal-200 rounded-2xl p-4 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-teal-700">Saldo a Liberar</p>
-                  <p className="text-xl font-bold text-teal-700">
-                    {formatCurrency(filteredEmendas.reduce((acc, curr) => acc + ((Number(curr.valor) || 0) - (Number(curr.valor_desembolsado) || 0)), 0))}
-                  </p>
-                </div>
-              </div>
-            ) : null}
-
             {activeTab === 'admin' ? (
               <AdminPanel />
             ) : loading && formalizacoes.length === 0 && formalizacaoSearchResult.data.length === 0 ? (
               <div className="flex flex-col justify-center items-center py-16">
                 <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-b-red-600 mb-4"></div>
-                <p className="text-black font-bold">Carregando {activeTab === 'emendas' ? 'emendas' : 'formalizações'}...</p>
+                <p className="text-black font-bold">Carregando formalizações...</p>
                 <p className="text-gray-600 text-sm mt-1">Por favor, aguarde.</p>
               </div>
-            ) : (activeTab === 'emendas' ? filteredEmendas : filteredFormalizacoes).length === 0 && !formalizacaoSearchResult.loading ? (
+            ) : filteredFormalizacoes.length === 0 && !formalizacaoSearchResult.loading ? (
               <div className="bg-white border border-dashed border-gray-300 rounded-2xl p-12 text-center">
                 <div className="bg-purple-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Search className="w-8 h-8 text-[#1351B4]" />
@@ -3007,20 +2368,6 @@ export default function App() {
               </div>
             ) : (
               <div className="space-y-2">
-                {activeTab === 'emendas' ? (
-                  <EmendasDataTable
-                    data={filteredEmendas}
-                    loading={loading}
-                    visibleColumns={emendasVisibleColumns}
-                    sortColumn={emendasSortColumn}
-                    sortOrder={emendasSortOrder}
-                    onSortChange={(col, order) => { setEmendasSortColumn(col); setEmendasSortOrder(order); }}
-                    onRowClick={(emenda) => setSelectedEmenda(emenda)}
-                    selectedEmenda={selectedEmenda}
-                    formatCurrency={formatCurrency}
-                    formatDate={formatDateForDisplay}
-                  />
-                ) : (
                   <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                     {/* Compact Pagination Bar */}
                     {activeTab === 'formalizacao' && totalPaginas > 1 && (
@@ -3479,21 +2826,20 @@ export default function App() {
                       </span>
                     </div>
                   </div>
-                )}
               </div>
             )}
           </div>
 
           {/* Detail Modal Overlay */}
           <AnimatePresence>
-            {(activeTab === 'emendas' && selectedEmenda) || (activeTab === 'formalizacao' && selectedFormalizacao) ? (
+            {activeTab === 'formalizacao' && selectedFormalizacao ? (
               <>
                 {/* Backdrop */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  onClick={() => activeTab === 'emendas' ? setSelectedEmenda(null) : setSelectedFormalizacao(null)}
+                  onClick={() => setSelectedFormalizacao(null)}
                   className="fixed inset-0 bg-black/40 z-40"
                 />
                 
@@ -3505,83 +2851,6 @@ export default function App() {
                   transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                   className="fixed right-0 top-0 bottom-0 z-50 w-full lg:w-1/2 bg-white shadow-2xl overflow-y-auto border-l border-slate-200"
                 >
-                  {activeTab === 'emendas' && selectedEmenda ? (
-                    <div className="flex flex-col h-full">
-                      <div className="bg-gradient-to-r from-[#1351B4] to-[#0C326F] px-6 py-4 flex justify-between items-start flex-shrink-0">
-                        <div className="flex-1">
-                          <h2 className="text-lg font-bold text-white leading-tight mb-1">
-                            {selectedEmenda.parlamentar}
-                          </h2>
-                          <p className="text-xs text-white/70">{selectedEmenda.partido} • {selectedEmenda.municipio}</p>
-                        </div>
-                        <div className="flex gap-1 flex-shrink-0 ml-2">
-                          <button 
-                            onClick={() => {
-                              setEditingEmenda(selectedEmenda);
-                              setIsFormOpen(true);
-                            }}
-                            className="p-2 rounded-lg transition-colors text-white/80 hover:bg-white/20 hover:text-white"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(selectedEmenda.id!)}
-                            className="p-2 text-white/60 rounded-lg transition-colors hover:bg-white/20 hover:text-white"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={() => setSelectedEmenda(null)}
-                            className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="overflow-y-auto flex-1 p-6 space-y-6">
-                    <section>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Informações Básicas</h4>
-                      <div className="space-y-3">
-                        <DetailItem label="Objeto" value={selectedEmenda.objeto} />
-                        <DetailItem label="Beneficiário" value={selectedEmenda.beneficiario} />
-                        <DetailItem label="CNPJ" value={selectedEmenda.cnpj} />
-                        <DetailItem label="Ano Referência" value={selectedEmenda.ano_refer} />
-                        <DetailItem label="Nº Emenda" value={selectedEmenda.num_emenda} />
-                      </div>
-                    </section>
-
-                    <section>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Valores e Status</h4>
-                      <div className="bg-blue-50 rounded-2xl p-4 space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-bold text-[#1351B4]">Valor Total</span>
-                          <span className="text-lg font-bold text-blue-900">{formatCurrency(selectedEmenda.valor)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs text-slate-500">Desembolsado</span>
-                          <span className="text-sm font-semibold text-slate-700">{formatCurrency(selectedEmenda.valor_desembolsado)}</span>
-                        </div>
-                        <div className="pt-2 border-t border-blue-100 flex justify-between items-center">
-                          <span className="text-xs text-slate-500">Status Atual</span>
-                          <span className="text-xs font-bold text-[#1351B4]">{selectedEmenda.status}</span>
-                        </div>
-                      </div>
-                    </section>
-
-                    <section>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Formalização</h4>
-                      <div className="space-y-3">
-                        <DetailItem label="Nº Convênio" value={selectedEmenda.num_convenio} />
-                        <DetailItem label="Nº Processo" value={selectedEmenda.num_processo} />
-                        <DetailItem label="Vigência" value={selectedEmenda.vigencia} />
-                        <DetailItem label="Assinatura" value={selectedEmenda.data_assinatura} />
-                        <DetailItem label="Publicação" value={selectedEmenda.data_publicacao} />
-                      </div>
-                    </section>
-                      </div>
-                    </div>
-                  ) : activeTab === 'formalizacao' && selectedFormalizacao ? (
                     <div className="flex flex-col h-full bg-white">
                       {/* Header */}
                       <div className="bg-gradient-to-br from-[#1351B4] via-[#0F3D8C] to-[#0C326F] px-6 py-5 flex-shrink-0">
@@ -3758,7 +3027,6 @@ export default function App() {
                     </section>
                       </div>
                     </div>
-                  ) : null}
                 </motion.div>
               </>
             ) : null}
@@ -3923,236 +3191,6 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
       </AnimatePresence>
 
       {/* Import Report Modal */}
-      <AnimatePresence>
-        {isImportReportOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { if (!importingReport) { setIsImportReportOpen(false); setImportReportResult(null); } }} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl p-8">
-              <div className="flex justify-between items-start mb-6">
-                <div className="bg-emerald-50 p-3 rounded-2xl">
-                  <FileSearch className="w-6 h-6 text-emerald-600" />
-                </div>
-                <button onClick={() => { if (!importingReport) { setIsImportReportOpen(false); setImportReportResult(null); } }} className="p-2 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
-              </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">Importar Relatório de Emendas</h2>
-              <p className="text-slate-500 text-sm mb-4">
-                Importe um arquivo CSV com os dados das emendas. O sistema irá:
-              </p>
-              <ul className="text-slate-500 text-xs mb-6 space-y-1 list-disc list-inside">
-                <li>Importar os registros para a tabela de <strong>Emendas</strong></li>
-                <li>Verificar quais emendas existem na tabela de <strong>Formalização</strong></li>
-                <li>Atualizar a Formalização com os dados correspondentes</li>
-              </ul>
-              
-              {!importReportResult ? (
-                <div 
-                  onClick={() => !importingReport && reportFileInputRef.current?.click()}
-                  className="border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 transition-all group"
-                >
-                  <input type="file" ref={reportFileInputRef} onChange={handleReportUpload} accept=".csv" className="hidden" />
-                  {importingReport ? (
-                    <div className="flex flex-col items-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mb-4"></div>
-                      <p className="text-sm font-medium text-slate-600">Processando relatório...</p>
-                      <p className="text-xs text-slate-400 mt-1">Importando emendas e atualizando formalização</p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="bg-slate-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                        <Upload className="text-slate-400 w-6 h-6" />
-                      </div>
-                      <p className="text-sm font-bold text-slate-900">Clique para selecionar</p>
-                      <p className="text-xs text-slate-500 mt-1">Apenas arquivos .csv</p>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
-                    <h3 className="text-sm font-bold text-emerald-800 mb-3 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" /> Resultado da Importação
-                    </h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-white rounded-xl p-3 text-center">
-                        <p className="text-lg font-bold text-[#1351B4]">{importReportResult.inserted}</p>
-                        <p className="text-[10px] text-slate-500 font-medium">Novas Emendas Importadas</p>
-                      </div>
-                      <div className="bg-white rounded-xl p-3 text-center">
-                        <p className="text-lg font-bold text-slate-400">{importReportResult.skipped || 0}</p>
-                        <p className="text-[10px] text-slate-500 font-medium">Já Existiam (ignoradas)</p>
-                      </div>
-                      <div className="bg-white rounded-xl p-3 text-center">
-                        <p className="text-lg font-bold text-emerald-600">{importReportResult.updated}</p>
-                        <p className="text-[10px] text-slate-500 font-medium">Formalizações Atualizadas</p>
-                      </div>
-                      <div className="bg-white rounded-xl p-3 text-center">
-                        <p className="text-lg font-bold text-amber-600">{importReportResult.notInFormalizacao}</p>
-                        <p className="text-[10px] text-slate-500 font-medium">Sem Formalização</p>
-                      </div>
-                    </div>
-                  </div>
-                  {importReportResult.notInFormalizacao > 0 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                      <p className="text-xs text-amber-800">
-                        <strong>{importReportResult.notInFormalizacao}</strong> emendas do relatório não foram encontradas na tabela de Formalização e não puderam ser sincronizadas.
-                      </p>
-                    </div>
-                  )}
-                  {importReportResult.errors.length > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 max-h-32 overflow-y-auto">
-                      <p className="text-xs font-bold text-red-800 mb-1">Erros:</p>
-                      {importReportResult.errors.slice(0, 10).map((err, i) => (
-                        <p key={i} className="text-xs text-red-700">{err}</p>
-                      ))}
-                    </div>
-                  )}
-                  <button
-                    onClick={() => { setIsImportReportOpen(false); setImportReportResult(null); }}
-                    className="w-full bg-[#1351B4] text-white py-3 rounded-xl font-semibold hover:bg-[#0C326F] transition-all"
-                  >
-                    Fechar
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isFormOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsFormOpen(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col"
-            >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-[#1351B4] to-[#0C326F]">
-                <div>
-                  <h2 className="text-xl font-bold text-white">
-                    {editingEmenda ? 'Editar Emenda' : 'Nova Emenda Parlamentar'}
-                  </h2>
-                  <p className="text-xs text-white/70 mt-1">Preencha os campos abaixo para registrar a emenda no sistema.</p>
-                </div>
-                <button 
-                  onClick={() => setIsFormOpen(false)}
-                  className="p-2 hover:bg-white/20 rounded-full transition-colors"
-                >
-                  <X className="w-5 h-5 text-white/80" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Basic Info */}
-                  <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-[#1351B4] mb-4 flex items-center gap-2">
-                      <User className="w-4 h-4" />
-                      Informações do Parlamentar e Beneficiário
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Input label="Parlamentar" name="parlamentar" defaultValue={editingEmenda?.parlamentar} required />
-                      <Input label="Partido" name="partido" defaultValue={editingEmenda?.partido} />
-                      <Input label="Ano Referência" name="ano_refer" defaultValue={editingEmenda?.ano_refer} />
-                      <Input label="Beneficiário" name="beneficiario" defaultValue={editingEmenda?.beneficiario} />
-                      <Input label="CNPJ" name="cnpj" defaultValue={editingEmenda?.cnpj} />
-                      <Input label="Município" name="municipio" defaultValue={editingEmenda?.municipio} />
-                    </div>
-                  </div>
-
-                  {/* Amendment Details */}
-                  <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-[#1351B4] mb-4 flex items-center gap-2">
-                      <FileText className="w-4 h-4" />
-                      Detalhes da Emenda
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Input label="Nº Emenda" name="num_emenda" defaultValue={editingEmenda?.num_emenda} />
-                      <Input label="Código/Nº" name="codigo_num" defaultValue={editingEmenda?.codigo_num} />
-                      <Input label="Objeto" name="objeto" defaultValue={editingEmenda?.objeto} className="md:col-span-2" />
-                      <Input label="Natureza" name="natureza" defaultValue={editingEmenda?.natureza} />
-                      <Input label="Regional" name="regional" defaultValue={editingEmenda?.regional} />
-                      <Input label="Órgão Entidade" name="orgao_entidade" defaultValue={editingEmenda?.orgao_entidade} />
-                    </div>
-                  </div>
-
-                  {/* Values */}
-                  <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-[#1351B4] mb-4 flex items-center gap-2">
-                      <DollarSign className="w-4 h-4" />
-                      Valores e Financeiro
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Input label="Valor Total" name="valor" type="number" step="0.01" defaultValue={editingEmenda?.valor} />
-                      <Input label="Valor Desembolsado" name="valor_desembolsado" type="number" step="0.01" defaultValue={editingEmenda?.valor_desembolsado} />
-                      <Select label="Status" name="status" defaultValue={editingEmenda?.status}>
-                        <option value="Pendente">Pendente</option>
-                        <option value="Em Processo">Em Processo</option>
-                        <option value="Formalizado">Formalizado</option>
-                        <option value="Pago">Pago</option>
-                        <option value="Cancelado">Cancelado</option>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* Formalization */}
-                  <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-[#1351B4] mb-4 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" />
-                      Formalização e Convênio
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Input label="Nº Convênio" name="num_convenio" defaultValue={editingEmenda?.num_convenio} />
-                      <Input label="Nº Processo" name="num_processo" defaultValue={editingEmenda?.num_processo} />
-                      <Input label="Vigência" name="vigencia" type="date" defaultValue={editingEmenda?.vigencia} />
-                      <Input label="Data Assinatura" name="data_assinatura" type="date" defaultValue={editingEmenda?.data_assinatura} />
-                      <Input label="Data Publicação" name="data_publicacao" type="date" defaultValue={editingEmenda?.data_publicacao} />
-                      <Input label="Qtd. Dias" name="qtd_dias" type="number" defaultValue={editingEmenda?.qtd_dias} />
-                    </div>
-                  </div>
-
-                  {/* Banking */}
-                  <div className="md:col-span-3">
-                    <h3 className="text-sm font-bold text-[#1351B4] mb-4 flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4" />
-                      Dados Bancários
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Input label="Agência" name="agencia" defaultValue={editingEmenda?.agencia} />
-                      <Input label="Conta" name="conta" defaultValue={editingEmenda?.conta} />
-                      <Input label="Dados Bancários" name="dados_bancarios" defaultValue={editingEmenda?.dados_bancarios} className="md:col-span-3" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-12 flex justify-end gap-3">
-                  <button 
-                    type="button"
-                    onClick={() => setIsFormOpen(false)}
-                    className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button 
-                    type="submit"
-                    className="px-8 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#1351B4] hover:bg-[#0C326F] shadow-lg shadow-blue-200 transition-all active:scale-95"
-                  >
-                    {editingEmenda ? 'Atualizar Registro' : 'Salvar Emenda'}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Formalization Form Modal */}
       <AnimatePresence>

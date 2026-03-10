@@ -1,0 +1,275 @@
+-- ============================================================
+-- PASSO 2: SINCRONIZAR EMENDAS → FORMALIZAÇÃO
+-- Execute DEPOIS de carregar os novos CSVs nas duas tabelas
+-- ============================================================
+-- Este script:
+-- 1. Cria índices para performance
+-- 2. Atualiza formalizações existentes com dados das emendas
+-- 3. Insere emendas que não existem na formalização
+-- 4. Cria uma função RPC para sync futuro (botão no sistema)
+-- ============================================================
+
+-- ============================================================
+-- ÍNDICES PARA PERFORMANCE
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS idx_emendas_num_convenio ON emendas(num_convenio);
+CREATE INDEX IF NOT EXISTS idx_emendas_codigo_num ON emendas(codigo_num);
+CREATE INDEX IF NOT EXISTS idx_formalizacao_numero_convenio ON formalizacao(numero_convenio);
+CREATE INDEX IF NOT EXISTS idx_formalizacao_emenda ON formalizacao(emenda);
+
+-- ============================================================
+-- MAPEAMENTO DE COLUNAS:
+-- emendas.detalhes           → formalizacao.demanda
+-- emendas.natureza           → formalizacao.classificacao_emenda_demanda
+-- emendas.ano_refer          → formalizacao.ano
+-- emendas.codigo_num         → formalizacao.emenda
+-- emendas.num_emenda         → formalizacao.emendas_agregadoras
+-- emendas.situacao_d         → formalizacao.situacao_demandas_sempapel
+-- emendas.parlamentar        → formalizacao.parlamentar
+-- emendas.partido            → formalizacao.partido
+-- emendas.beneficiario       → formalizacao.conveniado
+-- emendas.municipio          → formalizacao.municipio
+-- emendas.objeto             → formalizacao.objeto
+-- emendas.regional           → formalizacao.regional
+-- emendas.num_convenio       → formalizacao.numero_convenio
+-- emendas.valor              → formalizacao.valor
+-- emendas.portfolio          → formalizacao.portfolio
+-- ============================================================
+
+-- ============================================================
+-- PASSO 2A: ATUALIZAR formalizações que TÊM MATCH por numero_convenio
+-- Só preenche campos que estão vazios/nulos na formalização
+-- ============================================================
+
+UPDATE formalizacao f SET
+  demanda = COALESCE(NULLIF(TRIM(f.demanda), ''), e.detalhes),
+  classificacao_emenda_demanda = COALESCE(NULLIF(TRIM(f.classificacao_emenda_demanda), ''), e.natureza),
+  ano = COALESCE(NULLIF(TRIM(f.ano), ''), e.ano_refer),
+  emenda = COALESCE(NULLIF(TRIM(f.emenda), ''), e.codigo_num),
+  emendas_agregadoras = COALESCE(NULLIF(TRIM(f.emendas_agregadoras), ''), e.num_emenda),
+  situacao_demandas_sempapel = COALESCE(NULLIF(TRIM(f.situacao_demandas_sempapel), ''), e.situacao_d),
+  parlamentar = COALESCE(NULLIF(TRIM(f.parlamentar), ''), e.parlamentar),
+  partido = COALESCE(NULLIF(TRIM(f.partido), ''), e.partido),
+  conveniado = COALESCE(NULLIF(TRIM(f.conveniado), ''), e.beneficiario),
+  municipio = COALESCE(NULLIF(TRIM(f.municipio), ''), e.municipio),
+  objeto = COALESCE(NULLIF(TRIM(f.objeto), ''), e.objeto),
+  regional = COALESCE(NULLIF(TRIM(f.regional), ''), e.regional),
+  portfolio = COALESCE(NULLIF(TRIM(f.portfolio), ''), e.portfolio),
+  valor = COALESCE(f.valor, e.valor)
+FROM emendas e
+WHERE TRIM(f.numero_convenio) = TRIM(e.num_convenio)
+  AND f.numero_convenio IS NOT NULL
+  AND TRIM(f.numero_convenio) != '';
+
+-- Conferir quantos foram atualizados por numero_convenio
+DO $$
+DECLARE cnt INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO cnt
+  FROM formalizacao f
+  INNER JOIN emendas e ON TRIM(f.numero_convenio) = TRIM(e.num_convenio)
+  WHERE f.numero_convenio IS NOT NULL AND TRIM(f.numero_convenio) != '';
+  RAISE NOTICE '✅ PASSO 2A: % formalizações com match por numero_convenio', cnt;
+END $$;
+
+-- ============================================================
+-- PASSO 2B: ATUALIZAR formalizações por match de EMENDA/CODIGO_NUM
+-- (para registros que não foram encontrados pelo numero_convenio)
+-- Compara apenas os dígitos numéricos
+-- ============================================================
+
+UPDATE formalizacao f SET
+  demanda = COALESCE(NULLIF(TRIM(f.demanda), ''), e.detalhes),
+  classificacao_emenda_demanda = COALESCE(NULLIF(TRIM(f.classificacao_emenda_demanda), ''), e.natureza),
+  ano = COALESCE(NULLIF(TRIM(f.ano), ''), e.ano_refer),
+  emendas_agregadoras = COALESCE(NULLIF(TRIM(f.emendas_agregadoras), ''), e.num_emenda),
+  situacao_demandas_sempapel = COALESCE(NULLIF(TRIM(f.situacao_demandas_sempapel), ''), e.situacao_d),
+  parlamentar = COALESCE(NULLIF(TRIM(f.parlamentar), ''), e.parlamentar),
+  partido = COALESCE(NULLIF(TRIM(f.partido), ''), e.partido),
+  conveniado = COALESCE(NULLIF(TRIM(f.conveniado), ''), e.beneficiario),
+  municipio = COALESCE(NULLIF(TRIM(f.municipio), ''), e.municipio),
+  objeto = COALESCE(NULLIF(TRIM(f.objeto), ''), e.objeto),
+  regional = COALESCE(NULLIF(TRIM(f.regional), ''), e.regional),
+  portfolio = COALESCE(NULLIF(TRIM(f.portfolio), ''), e.portfolio),
+  numero_convenio = COALESCE(NULLIF(TRIM(f.numero_convenio), ''), e.num_convenio),
+  valor = COALESCE(f.valor, e.valor)
+FROM emendas e
+WHERE REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g') = REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g')
+  AND f.emenda IS NOT NULL
+  AND TRIM(f.emenda) != ''
+  AND LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8
+  -- Não atualizar as que já foram atualizadas pelo paso 2A
+  AND (f.numero_convenio IS NULL OR TRIM(f.numero_convenio) = '' 
+       OR NOT EXISTS (
+         SELECT 1 FROM emendas e2 
+         WHERE TRIM(f.numero_convenio) = TRIM(e2.num_convenio)
+       ));
+
+-- Conferir quantos foram atualizados por emenda
+DO $$
+DECLARE cnt INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO cnt
+  FROM formalizacao f
+  INNER JOIN emendas e ON REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g') = REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g')
+  WHERE f.emenda IS NOT NULL AND TRIM(f.emenda) != ''
+    AND LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8;
+  RAISE NOTICE '✅ PASSO 2B: % formalizações com match por emenda/codigo_num', cnt;
+END $$;
+
+-- ============================================================
+-- PASSO 2C: INSERIR emendas que NÃO existem na formalização
+-- ============================================================
+
+INSERT INTO formalizacao (
+  ano, parlamentar, partido, emenda, demanda,
+  classificacao_emenda_demanda, numero_convenio,
+  regional, municipio, conveniado, objeto,
+  portfolio, valor
+)
+SELECT
+  e.ano_refer,
+  e.parlamentar,
+  e.partido,
+  e.codigo_num,
+  e.detalhes,
+  e.natureza,
+  e.num_convenio,
+  e.regional,
+  e.municipio,
+  e.beneficiario,
+  e.objeto,
+  e.portfolio,
+  e.valor
+FROM emendas e
+WHERE NOT EXISTS (
+  SELECT 1 FROM formalizacao f
+  WHERE TRIM(f.numero_convenio) = TRIM(e.num_convenio)
+    AND e.num_convenio IS NOT NULL AND TRIM(e.num_convenio) != ''
+)
+AND NOT EXISTS (
+  SELECT 1 FROM formalizacao f
+  WHERE LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8
+    AND REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g') = REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g')
+    AND e.codigo_num IS NOT NULL AND TRIM(e.codigo_num) != ''
+);
+
+-- ============================================================
+-- RESUMO FINAL
+-- ============================================================
+
+SELECT 
+  'formalizacao' as tabela, 
+  COUNT(*) as total_registros 
+FROM formalizacao
+UNION ALL
+SELECT 
+  'emendas' as tabela, 
+  COUNT(*) as total_registros 
+FROM emendas;
+
+-- ============================================================
+-- FUNÇÃO RPC PARA SYNC FUTURO (chamada pelo botão no sistema)
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION sync_emendas_formalizacao()
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_updated INTEGER := 0;
+  v_updated2 INTEGER := 0;
+  v_inserted INTEGER := 0;
+BEGIN
+  -- Atualizar por numero_convenio
+  WITH matched AS (
+    UPDATE formalizacao f SET
+      demanda = COALESCE(NULLIF(TRIM(f.demanda), ''), e.detalhes),
+      classificacao_emenda_demanda = COALESCE(NULLIF(TRIM(f.classificacao_emenda_demanda), ''), e.natureza),
+      ano = COALESCE(NULLIF(TRIM(f.ano), ''), e.ano_refer),
+      emenda = COALESCE(NULLIF(TRIM(f.emenda), ''), e.codigo_num),
+      emendas_agregadoras = COALESCE(NULLIF(TRIM(f.emendas_agregadoras), ''), e.num_emenda),
+      situacao_demandas_sempapel = COALESCE(NULLIF(TRIM(f.situacao_demandas_sempapel), ''), e.situacao_d),
+      parlamentar = COALESCE(NULLIF(TRIM(f.parlamentar), ''), e.parlamentar),
+      partido = COALESCE(NULLIF(TRIM(f.partido), ''), e.partido),
+      conveniado = COALESCE(NULLIF(TRIM(f.conveniado), ''), e.beneficiario),
+      municipio = COALESCE(NULLIF(TRIM(f.municipio), ''), e.municipio),
+      objeto = COALESCE(NULLIF(TRIM(f.objeto), ''), e.objeto),
+      regional = COALESCE(NULLIF(TRIM(f.regional), ''), e.regional),
+      portfolio = COALESCE(NULLIF(TRIM(f.portfolio), ''), e.portfolio),
+      valor = COALESCE(f.valor, e.valor)
+    FROM emendas e
+    WHERE TRIM(f.numero_convenio) = TRIM(e.num_convenio)
+      AND f.numero_convenio IS NOT NULL AND TRIM(f.numero_convenio) != ''
+    RETURNING f.id
+  )
+  SELECT COUNT(*) INTO v_updated FROM matched;
+
+  -- Atualizar por emenda/codigo_num
+  WITH matched2 AS (
+    UPDATE formalizacao f SET
+      demanda = COALESCE(NULLIF(TRIM(f.demanda), ''), e.detalhes),
+      classificacao_emenda_demanda = COALESCE(NULLIF(TRIM(f.classificacao_emenda_demanda), ''), e.natureza),
+      ano = COALESCE(NULLIF(TRIM(f.ano), ''), e.ano_refer),
+      emendas_agregadoras = COALESCE(NULLIF(TRIM(f.emendas_agregadoras), ''), e.num_emenda),
+      situacao_demandas_sempapel = COALESCE(NULLIF(TRIM(f.situacao_demandas_sempapel), ''), e.situacao_d),
+      parlamentar = COALESCE(NULLIF(TRIM(f.parlamentar), ''), e.parlamentar),
+      partido = COALESCE(NULLIF(TRIM(f.partido), ''), e.partido),
+      conveniado = COALESCE(NULLIF(TRIM(f.conveniado), ''), e.beneficiario),
+      municipio = COALESCE(NULLIF(TRIM(f.municipio), ''), e.municipio),
+      objeto = COALESCE(NULLIF(TRIM(f.objeto), ''), e.objeto),
+      regional = COALESCE(NULLIF(TRIM(f.regional), ''), e.regional),
+      portfolio = COALESCE(NULLIF(TRIM(f.portfolio), ''), e.portfolio),
+      numero_convenio = COALESCE(NULLIF(TRIM(f.numero_convenio), ''), e.num_convenio),
+      valor = COALESCE(f.valor, e.valor)
+    FROM emendas e
+    WHERE REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g') = REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g')
+      AND f.emenda IS NOT NULL AND TRIM(f.emenda) != ''
+      AND LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8
+    RETURNING f.id
+  )
+  SELECT COUNT(*) INTO v_updated2 FROM matched2;
+
+  -- Inserir novas
+  WITH new_records AS (
+    INSERT INTO formalizacao (ano, parlamentar, partido, emenda, demanda,
+      classificacao_emenda_demanda, numero_convenio, regional, municipio,
+      conveniado, objeto, portfolio, valor)
+    SELECT e.ano_refer, e.parlamentar, e.partido, e.codigo_num, e.detalhes,
+      e.natureza, e.num_convenio, e.regional, e.municipio, e.beneficiario,
+      e.objeto, e.portfolio, e.valor
+    FROM emendas e
+    WHERE NOT EXISTS (
+      SELECT 1 FROM formalizacao f WHERE TRIM(f.numero_convenio) = TRIM(e.num_convenio)
+        AND e.num_convenio IS NOT NULL AND TRIM(e.num_convenio) != ''
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM formalizacao f
+      WHERE LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8
+        AND REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g') = REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g')
+    )
+    RETURNING id
+  )
+  SELECT COUNT(*) INTO v_inserted FROM new_records;
+
+  RETURN json_build_object(
+    'updated', v_updated + v_updated2,
+    'updated_by_convenio', v_updated,
+    'updated_by_emenda', v_updated2,
+    'inserted', v_inserted,
+    'message', (v_updated + v_updated2) || ' atualizadas, ' || v_inserted || ' inseridas'
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION sync_emendas_formalizacao() TO service_role;
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================
+-- PRONTO! A formalização agora tem todos os dados das emendas.
+-- O sistema mostra apenas a aba Formalização.
+-- Para re-sincronizar no futuro, use o botão no sistema ou:
+--   SELECT sync_emendas_formalizacao();
+-- ============================================================
