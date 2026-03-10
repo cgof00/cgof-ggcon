@@ -4,8 +4,8 @@
  * Estilo distinto (teal/emerald) para diferenciar de Formalização (azul)
  */
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Filter } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Filter, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 interface Emenda {
   id?: number;
@@ -221,6 +221,19 @@ export function EmendasDataTable({
     return sortOrder === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
   });
 
+  // Pagination
+  const PAGE_SIZE = 500;
+  const [currentPage, setCurrentPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(sortedData.length / PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, totalPages - 1);
+  const pageData = useMemo(() => {
+    const start = safeCurrentPage * PAGE_SIZE;
+    return sortedData.slice(start, start + PAGE_SIZE);
+  }, [sortedData, safeCurrentPage]);
+
+  // Reset page when filters/sort change
+  useEffect(() => { setCurrentPage(0); }, [headerFilters, sortColumn, sortOrder]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -239,19 +252,36 @@ export function EmendasDataTable({
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-      {/* Count bar */}
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-50 border-b border-teal-200">
-        <span className="text-[10px] text-teal-700 font-bold">
-          {sortedData.length.toLocaleString('pt-BR')} registro{sortedData.length !== 1 ? 's' : ''}
-          {Object.keys(headerFilters).some(k => headerFilters[k].length > 0) && ` (filtrado de ${data.length.toLocaleString('pt-BR')})`}
-        </span>
-        {Object.keys(headerFilters).some(k => headerFilters[k].length > 0) && (
-          <button
-            onClick={() => setHeaderFilters({})}
-            className="text-[10px] text-teal-700 font-bold underline hover:text-teal-900"
-          >
-            Limpar filtros
-          </button>
+      {/* Pagination bar */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-teal-50 border-b border-teal-200">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-teal-700 font-bold">
+            {sortedData.length.toLocaleString('pt-BR')} registro{sortedData.length !== 1 ? 's' : ''}
+            {Object.keys(headerFilters).some(k => headerFilters[k].length > 0) && ` (filtrado de ${data.length.toLocaleString('pt-BR')})`}
+          </span>
+          {Object.keys(headerFilters).some(k => headerFilters[k].length > 0) && (
+            <button
+              onClick={() => setHeaderFilters({})}
+              className="text-[10px] text-teal-700 font-bold underline hover:text-teal-900"
+            >
+              Limpar filtros
+            </button>
+          )}
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1">
+            <button onClick={() => setCurrentPage(0)} disabled={safeCurrentPage === 0}
+              className="p-0.5 rounded hover:bg-teal-200 disabled:opacity-30"><ChevronsLeft className="w-4 h-4 text-teal-700" /></button>
+            <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={safeCurrentPage === 0}
+              className="p-0.5 rounded hover:bg-teal-200 disabled:opacity-30"><ChevronLeft className="w-4 h-4 text-teal-700" /></button>
+            <span className="text-[10px] text-teal-700 font-bold px-1">
+              Pág. {safeCurrentPage + 1}/{totalPages} · {safeCurrentPage * PAGE_SIZE + 1}-{Math.min((safeCurrentPage + 1) * PAGE_SIZE, sortedData.length)} de {sortedData.length.toLocaleString('pt-BR')}
+            </span>
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={safeCurrentPage >= totalPages - 1}
+              className="p-0.5 rounded hover:bg-teal-200 disabled:opacity-30"><ChevronRight className="w-4 h-4 text-teal-700" /></button>
+            <button onClick={() => setCurrentPage(totalPages - 1)} disabled={safeCurrentPage >= totalPages - 1}
+              className="p-0.5 rounded hover:bg-teal-200 disabled:opacity-30"><ChevronsRight className="w-4 h-4 text-teal-700" /></button>
+          </div>
         )}
       </div>
 
@@ -421,7 +451,7 @@ export function EmendasDataTable({
                 </td>
               </tr>
             ) : (
-              sortedData.map((emenda, index) => {
+              pageData.map((emenda, index) => {
                 const rowKey = `${emenda.id || index}`;
                 return (
                   <tr

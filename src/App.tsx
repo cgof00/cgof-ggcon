@@ -1677,7 +1677,30 @@ export default function App() {
             }
           }
 
-          console.log(`📋 ${mappedItems.length} registros mapeados do CSV. Enviando em chunks pequenos...`);
+          // ── DEDUP: Filtrar emendas que já existem no banco ──
+          const existingCodigoNums = new Set(
+            emendas.map((e: any) => e.codigo_num).filter(Boolean)
+          );
+          const newItems = mappedItems.filter(item => {
+            const codigoNum = item.codigo_num;
+            return codigoNum && !existingCodigoNums.has(codigoNum);
+          });
+          const skippedDuplicates = mappedItems.length - newItems.length;
+          console.log(`📋 ${mappedItems.length} registros mapeados. ${skippedDuplicates} já existem no banco. ${newItems.length} novos registros para importar.`);
+
+          if (newItems.length === 0) {
+            setImportReportResult({
+              inserted: 0,
+              updated: 0,
+              notInFormalizacao: 0,
+              errors: [],
+              skipped: skippedDuplicates
+            });
+            alert(`ℹ️ Nenhuma emenda nova encontrada. ${skippedDuplicates} registros já existem no banco.`);
+            setImportingReport(false);
+            if (reportFileInputRef.current) reportFileInputRef.current.value = '';
+            return;
+          }
 
           // ── PASSO 2: Enviar em chunks pequenos (Cloudflare Workers tem limite de 50 subrequests) ──
           const chunkSize = 100;
@@ -1686,12 +1709,12 @@ export default function App() {
           let totalNotInFormalizacao = 0;
           let totalSkipped = 0;
           const allErrors: string[] = [];
-          const totalChunks = Math.ceil(mappedItems.length / chunkSize);
+          const totalChunks = Math.ceil(newItems.length / chunkSize);
 
-          for (let i = 0; i < mappedItems.length; i += chunkSize) {
-            const chunk = mappedItems.slice(i, i + chunkSize);
+          for (let i = 0; i < newItems.length; i += chunkSize) {
+            const chunk = newItems.slice(i, i + chunkSize);
             const chunkNum = Math.floor(i / chunkSize) + 1;
-            console.log(`   📤 Enviando chunk ${chunkNum}/${totalChunks} (${chunk.length} registros)... [${Math.round((i / mappedItems.length) * 100)}%]`);
+            console.log(`   📤 Enviando chunk ${chunkNum}/${totalChunks} (${chunk.length} registros)... [${Math.round((i / newItems.length) * 100)}%]`);
 
             let retries = 3;
             let success = false;
@@ -1739,7 +1762,7 @@ export default function App() {
             }
 
             // Pequena pausa entre chunks para não sobrecarregar
-            if (i + chunkSize < mappedItems.length) {
+            if (i + chunkSize < newItems.length) {
               await new Promise(resolve => setTimeout(resolve, 100));
             }
           }
@@ -1749,7 +1772,7 @@ export default function App() {
             updated: totalUpdated,
             notInFormalizacao: totalNotInFormalizacao,
             errors: allErrors,
-            skipped: totalSkipped
+            skipped: totalSkipped + skippedDuplicates
           });
 
           console.log(`✅ Relatório importado: ${totalInserted} novas emendas, ${totalSkipped} ignoradas, ${totalUpdated} formalizações atualizadas`);
