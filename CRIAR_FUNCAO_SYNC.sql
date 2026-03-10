@@ -86,7 +86,15 @@ WHERE id NOT IN (
 AND codigo_num IS NOT NULL AND codigo_num != '';
 
 -- Criar constraint unique (PostgREST usará isso com resolution=ignore-duplicates)
-ALTER TABLE emendas ADD CONSTRAINT emendas_codigo_num_unique UNIQUE (codigo_num);
+-- Usa DO block para ignorar se já existe
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'emendas_codigo_num_unique'
+  ) THEN
+    ALTER TABLE emendas ADD CONSTRAINT emendas_codigo_num_unique UNIQUE (codigo_num);
+  END IF;
+END $$;
 
 -- ============================================================
 -- PARTE 3: CRIAR FUNÇÃO RPC PARA SINCRONIZAÇÃO
