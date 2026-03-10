@@ -1328,87 +1328,6 @@ export default function App() {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setImporting(true);
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: 'greedy',
-      encoding: "ISO-8859-1",
-      transformHeader: (header) => header.trim(),
-      complete: async (results) => {
-        try {
-          const data = results.data as any[];
-          if (!data || data.length === 0) throw new Error('Arquivo vazio.');
-
-          console.log(`📥 Iniciando importação de ${data.length} registros...`);
-
-          const chunkSize = 500;
-          let importedCount = 0;
-          const endpoint = '/api/formalizacao/bulk';
-
-          for (let i = 0; i < data.length; i += chunkSize) {
-            const chunk = data.slice(i, i + chunkSize);
-            console.log(`   Enviando chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(data.length / chunkSize)}...`);
-            
-            const response = await fetch(endpoint, {
-              method: 'POST',
-              headers: getHeaders(),
-              body: JSON.stringify(chunk),
-            });
-            
-            if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.details || errorData.error || 'Falha no import');
-            }
-            
-            const result = await response.json();
-            const chunkCount = result.count || chunk.length;
-            const duplicatesCount = result.duplicates || 0;
-            importedCount += chunkCount;
-            
-            console.log(`   ✓ Chunk inserido: ${chunkCount} registros novos, ${duplicatesCount} duplicatas ignoradas`);
-            
-            // Delay pequeno entre chunks
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
-
-          console.log(`✅ Import completado: ${importedCount}/${data.length} registros importados`);
-          
-          let successMessage = `✅ ${importedCount} registros importados com sucesso!`;
-          if (importedCount === 0) {
-            successMessage = `⚠️ Nenhum registro novo importado\n(Todos podem ser duplicatas)`;
-          }
-          
-          alert(successMessage + `\n\nAtualizando dados...`);
-          
-          // ✅ Recarregar dados e limpar cache do servidor
-          setFormalizacaoSearchResult({
-            data: [],
-            total: 0,
-            page: 0,
-            hasMore: false,
-            loading: false
-          });
-          setTimeout(() => {
-            console.log('🔄 Recarregando dados após import...');
-            fetchFormalizacoesComFiltros(0);
-          }, 500);
-          
-          setIsImportOpen(false);
-        } catch (error: any) {
-          console.error('❌ Erro ao importar:', error);
-          alert(`❌ Erro ao importar: ${error.message}`);
-        } finally {
-          setImporting(false);
-          if (fileInputRef.current) fileInputRef.current.value = '';
-        }
-      }
-    });
-  };
-
   const handleDeleteFormalizacao = async (id: number) => {
     const formaliz = formalizacoes.find(f => f.id === id);
     if (!formaliz) return;
@@ -2003,11 +1922,11 @@ export default function App() {
                       Forçar Atualização BD
                     </button>
                     <button
-                      onClick={() => setIsImportOpen(true)}
+                      onClick={() => { setActiveTab('admin'); }}
                       className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 last:rounded-b-xl font-bold transition-colors"
                     >
                       <Upload className="w-4 h-4" />
-                      Importar CSV
+                      Importar CSV (Admin)
                     </button>
                   </div>
                 )}
@@ -3231,46 +3150,6 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
               >
                 Copiar Script SQL
               </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Import Modal */}
-      <AnimatePresence>
-        {isImportOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsImportOpen(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl p-8">
-              <div className="flex justify-between items-start mb-6">
-                <div className="bg-emerald-50 p-3 rounded-2xl">
-                  <Upload className="w-6 h-6 text-emerald-600" />
-                </div>
-                <button onClick={() => setIsImportOpen(false)} className="p-2 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
-              </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">Importar Dados</h2>
-              <p className="text-slate-500 text-sm mb-8">Selecione um arquivo CSV para carregar as emendas em massa.</p>
-              
-              <div 
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-all group"
-              >
-                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
-                {importing ? (
-                  <div className="flex flex-col items-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
-                    <p className="text-sm font-medium text-slate-600">Processando arquivo...</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="bg-slate-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                      <Upload className="text-slate-400 w-6 h-6" />
-                    </div>
-                    <p className="text-sm font-bold text-slate-900">Clique para selecionar</p>
-                    <p className="text-xs text-slate-500 mt-1">Apenas arquivos .csv</p>
-                  </>
-                )}
-              </div>
             </motion.div>
           </div>
         )}
