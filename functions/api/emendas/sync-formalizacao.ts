@@ -3,11 +3,15 @@
 
 function verifyToken(token: string): any {
   try {
-    const payload = atob(token);
+    const cleanToken = token.trim();
+    if (!cleanToken) return null;
+    const payload = atob(cleanToken);
     const decoded = JSON.parse(payload);
-    if (decoded.exp < Math.floor(Date.now() / 1000)) return null;
+    const now = Math.floor(Date.now() / 1000);
+    if (decoded.exp && decoded.exp < now - 300) return null;
     return decoded;
-  } catch {
+  } catch (e) {
+    console.error('❌ Token decode error:', e);
     return null;
   }
 }

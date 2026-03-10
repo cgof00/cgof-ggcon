@@ -3,11 +3,21 @@
 
 function verifyToken(token: string): any {
   try {
-    const payload = atob(token);
+    // Limpar espaços e possíveis caracteres extras
+    const cleanToken = token.trim();
+    if (!cleanToken) return null;
+
+    // Decodificar base64
+    const payload = atob(cleanToken);
     const decoded = JSON.parse(payload);
-    if (decoded.exp < Math.floor(Date.now() / 1000)) return null;
+
+    // Verificar expiração com 5 minutos de tolerância
+    const now = Math.floor(Date.now() / 1000);
+    if (decoded.exp && decoded.exp < now - 300) return null;
+
     return decoded;
-  } catch {
+  } catch (e) {
+    console.error('❌ Token decode error:', e);
     return null;
   }
 }
@@ -217,17 +227,31 @@ export const onRequest: PagesFunction = async (context) => {
   // Auth verification
   const authHeader = request.headers.get('Authorization');
   if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'Token não fornecido' }), {
+    return new Response(JSON.stringify({ error: 'Token não fornecido', details: 'Header Authorization ausente' }), {
       status: 401, headers: corsHeaders()
     });
   }
-  const token = authHeader.replace('Bearer ', '');
+  const token = authHeader.replace('Bearer ', '').trim();
+  console.log(`🔐 Token recebido (${token.length} chars): ${token.substring(0, 20)}...`);
   const decoded = verifyToken(token);
   if (!decoded) {
-    return new Response(JSON.stringify({ error: 'Token inválido ou expirado' }), {
+    // Tentar decodificar manualmente para dar erro mais descritivo
+    let debugInfo = 'Token não pode ser decodificado';
+    try {
+      const raw = atob(token.trim());
+      const parsed = JSON.parse(raw);
+      const now = Math.floor(Date.now() / 1000);
+      if (parsed.exp && parsed.exp < now) {
+        debugInfo = `Token expirado há ${now - parsed.exp} segundos (exp=${parsed.exp}, now=${now})`;
+      }
+    } catch (e: any) {
+      debugInfo = `Erro ao decodificar: ${e.message}`;
+    }
+    return new Response(JSON.stringify({ error: 'Token inválido ou expirado', details: debugInfo }), {
       status: 401, headers: corsHeaders()
     });
   }
+  console.log(`✅ Token válido: ${decoded.email} role=${decoded.role}`);
   if (decoded.role !== 'admin') {
     return new Response(JSON.stringify({ error: 'Apenas administradores podem importar relatórios' }), {
       status: 403, headers: corsHeaders()

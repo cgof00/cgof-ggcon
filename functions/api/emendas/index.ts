@@ -16,7 +16,7 @@ export const onRequest: PagesFunction = async (context) => {
       status: 204,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization'
       }
     });
@@ -26,58 +26,9 @@ export const onRequest: PagesFunction = async (context) => {
     try {
       const limit = Math.min(parseInt(url.searchParams.get('limit') || '10000'), 50000);
       const offset = parseInt(url.searchParams.get('offset') || '0');
-      const all = url.searchParams.get('all') === 'true';
 
-      console.log(`📥 GET /api/emendas - limit=${limit}, offset=${offset}, all=${all}`);
+      console.log(`📥 GET /api/emendas - limit=${limit}, offset=${offset}`);
 
-      if (all) {
-        // Buscar TODOS os registros em batches paralelos
-        const BATCH_SIZE = 1000;
-        const allData: any[] = [];
-        let batchOffset = 0;
-        let hasMore = true;
-
-        while (hasMore) {
-          const batchPromises = [];
-          for (let i = 0; i < 5 && hasMore; i++) {
-            const currentOffset = batchOffset + (i * BATCH_SIZE);
-            batchPromises.push(
-              fetch(
-                `${SUPABASE_URL}/rest/v1/emendas?select=*&order=id.desc&limit=${BATCH_SIZE}&offset=${currentOffset}`,
-                {
-                  headers: {
-                    'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
-                    'apikey': SUPABASE_SERVICE_ROLE_KEY,
-                    'Content-Type': 'application/json'
-                  }
-                }
-              ).then(async (resp) => {
-                if (!resp.ok) return [];
-                const data = await resp.json();
-                return Array.isArray(data) ? data : [];
-              })
-            );
-          }
-
-          const batches = await Promise.all(batchPromises);
-          for (const batch of batches) {
-            if (batch.length > 0) {
-              allData.push(...batch);
-            }
-            if (batch.length < BATCH_SIZE) {
-              hasMore = false;
-            }
-          }
-          batchOffset += 5 * BATCH_SIZE;
-        }
-
-        console.log(`✅ Total retornado: ${allData.length} emendas`);
-        return new Response(JSON.stringify(allData), {
-          status: 200, headers: { 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Busca paginada padrão
       const resp = await fetch(
         `${SUPABASE_URL}/rest/v1/emendas?select=*&order=id.desc&offset=${offset}&limit=${limit}`,
         {
