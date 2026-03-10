@@ -1,23 +1,18 @@
 // Cloudflare Workers: POST /api/emendas/import-report
-// Importar relatório de emendas - recebe CSV mapeado, faz PROCV no servidor, insere somente novas
+// Importar relatório de emendas - recebe CSV mapeado, insere direto
+// ⚠️ SIMPLIFICADO: Máximo 1-2 subrequests por invocação (limite Cloudflare = 50)
+// Dedup e sync são feitos no frontend ou via SQL separadamente
 
 function verifyToken(token: string): any {
   try {
-    // Limpar espaços e possíveis caracteres extras
     const cleanToken = token.trim();
     if (!cleanToken) return null;
-
-    // Decodificar base64
     const payload = atob(cleanToken);
     const decoded = JSON.parse(payload);
-
-    // Verificar expiração com 5 minutos de tolerância
     const now = Math.floor(Date.now() / 1000);
     if (decoded.exp && decoded.exp < now - 300) return null;
-
     return decoded;
   } catch (e) {
-    console.error('❌ Token decode error:', e);
     return null;
   }
 }
@@ -29,176 +24,6 @@ function corsHeaders() {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Content-Type': 'application/json'
   };
-}
-
-async function fetchExistingCodigos(supabaseUrl: string, serviceRoleKey: string): Promise<Set<string>> {
-  const allCodigos = new Set<string>();
-  let offset = 0;
-  const batchSize = 2000;
-
-  while (true) {
-    const resp = await fetch(
-      `${supabaseUrl}/rest/v1/emendas?select=codigo_num&codigo_num=not.is.null&order=id.asc&limit=${batchSize}&offset=${offset}`,
-      {
-        headers: {
-          'Authorization': 'Bearer ' + serviceRoleKey,
-          'apikey': serviceRoleKey,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    if (!resp.ok) {
-      const err = await resp.text();
-      console.error(`❌ Erro ao buscar codigos (offset ${offset}):`, err.substring(0, 200));
-      throw new Error('Falha ao consultar emendas existentes no banco');
-    }
-
-    const data = await resp.json();
-    if (!Array.isArray(data) || data.length === 0) break;
-
-    for (const row of data) {
-      if (row.codigo_num && String(row.codigo_num).trim() !== '') {
-        allCodigos.add(String(row.codigo_num).trim());
-      }
-    }
-
-    if (data.length < batchSize) break;
-    offset += batchSize;
-  }
-
-  return allCodigos;
-}
-
-async function insertEmendas(supabaseUrl: string, serviceRoleKey: string, items: any[]): Promise<{ inserted: number; errors: string[] }> {
-  let inserted = 0;
-  const errors: string[] = [];
-  const chunkSize = 200;
-
-  for (let i = 0; i < items.length; i += chunkSize) {
-    const chunk = items.slice(i, i + chunkSize);
-
-    const resp = await fetch(
-      `${supabaseUrl}/rest/v1/emendas`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + serviceRoleKey,
-          'apikey': serviceRoleKey,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify(chunk)
-      }
-    );
-
-    if (!resp.ok) {
-      const err = await resp.text();
-      console.error(`❌ Erro ao inserir chunk ${Math.floor(i / chunkSize) + 1}:`, err.substring(0, 300));
-      errors.push(`Lote ${Math.floor(i / chunkSize) + 1}: ${err.substring(0, 200)}`);
-    } else {
-      const data = await resp.json();
-      inserted += Array.isArray(data) ? data.length : 0;
-    }
-  }
-
-  return { inserted, errors };
-}
-
-async function syncFormalizacao(supabaseUrl: string, serviceRoleKey: string, novosItems: any[]): Promise<{ updated: number; notFound: number; errors: string[] }> {
-  let updated = 0;
-  let notFound = 0;
-  const errors: string[] = [];
-
-  const convenios = novosItems
-    .filter((it: any) => it.num_convenio && String(it.num_convenio).trim() !== '')
-    .map((it: any) => String(it.num_convenio).trim());
-
-  if (convenios.length === 0) return { updated, notFound: novosItems.length, errors };
-
-  const uniqueConvenios = [...new Set(convenios)];
-  const formalizacoesEncontradas: any[] = [];
-
-  for (let i = 0; i < uniqueConvenios.length; i += 100) {
-    const batch = uniqueConvenios.slice(i, i + 100);
-    const queryParam = batch.map(c => `"${c}"`).join(',');
-
-    const resp = await fetch(
-      `${supabaseUrl}/rest/v1/formalizacao?select=id,numero_convenio&numero_convenio=in.(${queryParam})`,
-      {
-        headers: {
-          'Authorization': 'Bearer ' + serviceRoleKey,
-          'apikey': serviceRoleKey,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    if (!resp.ok) {
-      const err = await resp.text();
-      errors.push(`Buscar formalizações: ${err.substring(0, 200)}`);
-    } else {
-      const data = await resp.json();
-      if (Array.isArray(data)) formalizacoesEncontradas.push(...data);
-    }
-  }
-
-  const formalizacaoMap = new Map<string, number[]>();
-  for (const f of formalizacoesEncontradas) {
-    const key = f.numero_convenio ? String(f.numero_convenio).trim() : '';
-    if (!key) continue;
-    if (!formalizacaoMap.has(key)) formalizacaoMap.set(key, []);
-    formalizacaoMap.get(key)!.push(f.id);
-  }
-
-  for (const emendaItem of novosItems) {
-    const conv = emendaItem.num_convenio ? String(emendaItem.num_convenio).trim() : '';
-    if (!conv) { notFound++; continue; }
-    const fIds = formalizacaoMap.get(conv);
-    if (!fIds || fIds.length === 0) { notFound++; continue; }
-
-    const updateData: any = {};
-    if (emendaItem.detalhes) updateData.demanda = emendaItem.detalhes;
-    if (emendaItem.natureza) updateData.classificacao_emenda_demanda = emendaItem.natureza;
-    if (emendaItem.ano_refer) updateData.ano = emendaItem.ano_refer;
-    if (emendaItem.num_emenda) updateData.emendas_agregadoras = emendaItem.num_emenda;
-    if (emendaItem.situacao_d) updateData.situacao_demandas_sempapel = emendaItem.situacao_d;
-    if (emendaItem.parlamentar) updateData.parlamentar = emendaItem.parlamentar;
-    if (emendaItem.partido) updateData.partido = emendaItem.partido;
-    if (emendaItem.beneficiario) updateData.conveniado = emendaItem.beneficiario;
-    if (emendaItem.municipio) updateData.municipio = emendaItem.municipio;
-    if (emendaItem.objeto) updateData.objeto = emendaItem.objeto;
-    if (emendaItem.regional) updateData.regional = emendaItem.regional;
-    if (emendaItem.num_convenio) updateData.numero_convenio = emendaItem.num_convenio;
-    if (emendaItem.valor !== undefined && emendaItem.valor !== null) updateData.valor = emendaItem.valor;
-    if (emendaItem.portfolio) updateData.portfolio = emendaItem.portfolio;
-    if (Object.keys(updateData).length === 0) continue;
-
-    for (const fId of fIds) {
-      const resp = await fetch(
-        `${supabaseUrl}/rest/v1/formalizacao?id=eq.${fId}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Authorization': 'Bearer ' + serviceRoleKey,
-            'apikey': serviceRoleKey,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          },
-          body: JSON.stringify(updateData)
-        }
-      );
-
-      if (!resp.ok) {
-        const err = await resp.text();
-        errors.push(`Formalização ${fId}: ${err.substring(0, 100)}`);
-      } else {
-        updated++;
-      }
-    }
-  }
-
-  return { updated, notFound, errors };
 }
 
 export const onRequest: PagesFunction = async (context) => {
@@ -213,7 +38,6 @@ export const onRequest: PagesFunction = async (context) => {
     });
   }
 
-  // CORS preflight
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders() });
   }
@@ -224,36 +48,31 @@ export const onRequest: PagesFunction = async (context) => {
     });
   }
 
-  // Auth verification
+  // Auth
   const authHeader = request.headers.get('Authorization');
   if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'Token não fornecido', details: 'Header Authorization ausente' }), {
+    return new Response(JSON.stringify({ error: 'Token não fornecido' }), {
       status: 401, headers: corsHeaders()
     });
   }
   const token = authHeader.replace('Bearer ', '').trim();
-  console.log(`🔐 Token recebido (${token.length} chars): ${token.substring(0, 20)}...`);
   const decoded = verifyToken(token);
   if (!decoded) {
-    // Tentar decodificar manualmente para dar erro mais descritivo
-    let debugInfo = 'Token não pode ser decodificado';
+    let debugInfo = 'Token inválido';
     try {
       const raw = atob(token.trim());
       const parsed = JSON.parse(raw);
       const now = Math.floor(Date.now() / 1000);
       if (parsed.exp && parsed.exp < now) {
-        debugInfo = `Token expirado há ${now - parsed.exp} segundos (exp=${parsed.exp}, now=${now})`;
+        debugInfo = `Token expirado há ${now - parsed.exp}s`;
       }
-    } catch (e: any) {
-      debugInfo = `Erro ao decodificar: ${e.message}`;
-    }
+    } catch {}
     return new Response(JSON.stringify({ error: 'Token inválido ou expirado', details: debugInfo }), {
       status: 401, headers: corsHeaders()
     });
   }
-  console.log(`✅ Token válido: ${decoded.email} role=${decoded.role}`);
   if (decoded.role !== 'admin') {
-    return new Response(JSON.stringify({ error: 'Apenas administradores podem importar relatórios' }), {
+    return new Response(JSON.stringify({ error: 'Apenas administradores podem importar' }), {
       status: 403, headers: corsHeaders()
     });
   }
@@ -266,47 +85,43 @@ export const onRequest: PagesFunction = async (context) => {
       });
     }
 
-    console.log(`📥 Import Report: Recebido ${items.length} registros mapeados`);
+    console.log(`📥 Import: ${items.length} registros recebidos`);
 
-    // PASSO 1: PROCV - buscar todos os codigo_num existentes
-    const allExistingCodigos = await fetchExistingCodigos(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    console.log(`📋 ${allExistingCodigos.size} emendas já existem no banco`);
+    // UM ÚNICO INSERT - 1 subrequest apenas
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/emendas`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
+          'apikey': SUPABASE_SERVICE_ROLE_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal,resolution=ignore-duplicates'
+        },
+        body: JSON.stringify(items)
+      }
+    );
 
-    // PASSO 2: Filtrar somente emendas NOVAS
-    const novosItems = items.filter((item: any) => {
-      const cod = item.codigo_num ? String(item.codigo_num).trim() : '';
-      if (!cod) return false;
-      return !allExistingCodigos.has(cod);
-    });
-    const skipped = items.length - novosItems.length;
-    console.log(`✅ ${novosItems.length} emendas NOVAS para importar (${skipped} já existiam)`);
+    if (!resp.ok) {
+      const err = await resp.text();
+      console.error(`❌ Insert falhou: ${err.substring(0, 300)}`);
+      return new Response(JSON.stringify({
+        error: 'Erro ao inserir emendas',
+        details: err.substring(0, 500)
+      }), { status: 500, headers: corsHeaders() });
+    }
 
-    // PASSO 3: Inserir novas emendas
-    const insertResult = await insertEmendas(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, novosItems);
+    console.log(`✅ ${items.length} registros inseridos com sucesso`);
 
-    // PASSO 4: Sincronizar com formalização
-    const syncResult = await syncFormalizacao(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, novosItems);
-
-    const result = {
-      emendas_inserted: insertResult.inserted,
-      skipped,
-      formalizacao_updated: syncResult.updated,
-      not_in_formalizacao: syncResult.notFound,
-      errors: [...insertResult.errors, ...syncResult.errors].length > 0
-        ? [...insertResult.errors, ...syncResult.errors]
-        : undefined,
-      message: `${insertResult.inserted} emendas importadas, ${skipped} já existiam, ${syncResult.updated} formalizações atualizadas`
-    };
-
-    console.log(`📊 Resultado: ${result.message}`);
-
-    return new Response(JSON.stringify(result), {
-      status: 200, headers: corsHeaders()
-    });
+    return new Response(JSON.stringify({
+      emendas_inserted: items.length,
+      skipped: 0,
+      message: `${items.length} emendas inseridas com sucesso`
+    }), { status: 200, headers: corsHeaders() });
 
   } catch (error: any) {
-    console.error('❌ Erro no import report:', error);
-    return new Response(JSON.stringify({ error: 'Erro ao importar relatório', details: error.message }), {
+    console.error('❌ Erro:', error);
+    return new Response(JSON.stringify({ error: 'Erro ao importar', details: error.message }), {
       status: 500, headers: corsHeaders()
     });
   }

@@ -1221,7 +1221,7 @@ export default function App() {
         setRefreshProgress({ active: true, loaded: 0, total: totalEstimate, startTime });
         
         // Fase 1: primeira request para descobrir se há dados
-        const firstResp = await fetch(`/api/emendas?limit=${batchSize}&offset=0`, { headers: getHeaders() });
+        const firstResp = await fetch(`/api/formalizacao?limit=${batchSize}&offset=0`, { headers: getHeaders() });
         const firstBatch = firstResp.ok ? await firstResp.json() : [];
         if (!Array.isArray(firstBatch) || firstBatch.length === 0) {
           allData = [];
@@ -1238,7 +1238,7 @@ export default function App() {
             while (keepGoing) {
               const offsets = Array.from({ length: PARALLEL_WAVES }, (_, i) => nextOffset + i * batchSize);
               const promises = offsets.map(off =>
-                fetch(`/api/emendas?limit=${batchSize}&offset=${off}`, { headers: getHeaders() })
+                fetch(`/api/formalizacao?limit=${batchSize}&offset=${off}`, { headers: getHeaders() })
                   .then(r => r.ok ? r.json() : [])
                   .then(d => ({ offset: off, data: Array.isArray(d) ? d : [] }))
                   .catch(() => ({ offset: off, data: [] as any[] }))
@@ -1664,10 +1664,10 @@ export default function App() {
 
           if (mappedItems.length === 0) throw new Error('Nenhum dado compatível encontrado no arquivo.');
 
-          console.log(`📋 ${mappedItems.length} registros mapeados do CSV. Enviando para o servidor (PROCV será feito no servidor)...`);
+          console.log(`📋 ${mappedItems.length} registros mapeados do CSV. Enviando em chunks pequenos...`);
 
-          // ── PASSO 2: Enviar todos os registros para o servidor (PROCV é feito no servidor) ──
-          const chunkSize = 2000;
+          // ── PASSO 2: Enviar em chunks pequenos (Cloudflare Workers tem limite de 50 subrequests) ──
+          const chunkSize = 100;
           let totalInserted = 0;
           let totalUpdated = 0;
           let totalNotInFormalizacao = 0;
