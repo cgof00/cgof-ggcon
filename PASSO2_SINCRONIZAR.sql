@@ -89,6 +89,84 @@ END $$;
 DROP TABLE IF EXISTS emendas_import;
 
 -- ============================================================
+-- PASSO 2.0B: COPIAR formalizacao_import → formalizacao (mapeamento)
+-- O CSV foi importado na tabela formalizacao_import com cabeçalhos legíveis.
+-- Agora copiamos para a tabela formalizacao com nomes técnicos.
+-- ============================================================
+
+INSERT INTO formalizacao (
+  seq, ano, parlamentar, partido, emenda, emendas_agregadoras,
+  demanda, demandas_formalizacao, numero_convenio,
+  classificacao_emenda_demanda, tipo_formalizacao,
+  regional, municipio, conveniado, objeto, portfolio,
+  valor, posicao_anterior, situacao_demandas_sempapel,
+  area_estagio, recurso, tecnico, data_liberacao,
+  area_estagio_situacao_demanda, situacao_analise_demanda,
+  data_analise_demanda, motivo_retorno_diligencia,
+  data_retorno_diligencia, conferencista,
+  data_recebimento_demanda, data_retorno,
+  observacao_motivo_retorno,
+  data_liberacao_assinatura_conferencista,
+  data_liberacao_assinatura, falta_assinatura,
+  assinatura, publicacao, vigencia,
+  encaminhado_em, concluida_em
+)
+SELECT
+  "Seq",
+  "Ano",
+  "Parlamentar",
+  "Partido",
+  "Emenda",
+  "Emendas Agregadoras",
+  "Demanda",
+  "DEMANDAS FORMALIZAÇÃO",
+  "N° de Convênio",
+  "Classificação Emenda/Demanda",
+  "Tipo de Formalização",
+  "Regional",
+  "Município",
+  "Conveniado",
+  "Objeto",
+  "Portfólio ",
+  CASE WHEN "Valor" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor", '.', ''), ',', '.')::NUMERIC ELSE NULL END,
+  "Posição Anterior",
+  "Situação Demandas - SemPapel",
+  "Área - estágio",
+  "Recurso",
+  "Tecnico",
+  "Data da Liberação",
+  "Área - Estágio Situação da Demanda",
+  "Situação - Análise Demanda",
+  "Data - Análise Demanda",
+  "Motivo do Retorno da Diligência",
+  "Data do Retorno da Diligência",
+  "Conferencista",
+  "Data recebimento demanda",
+  "Data do Retorno",
+  "Observação - Motivo do Retorno",
+  "Data liberação da Assinatura - Conferencista",
+  "Data liberação de Assinatura",
+  "Falta assinatura",
+  "Assinatura",
+  "Publicação",
+  "Vigência",
+  "Encaminhado em",
+  "Concluída em"
+FROM formalizacao_import;
+
+-- Conferir quantos registros foram copiados
+DO $$
+DECLARE cnt_import INTEGER; cnt_form INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO cnt_import FROM formalizacao_import;
+  SELECT COUNT(*) INTO cnt_form FROM formalizacao;
+  RAISE NOTICE '✅ PASSO 2.0B: % registros no CSV importado, % copiados para formalizacao', cnt_import, cnt_form;
+END $$;
+
+-- Limpar tabela temporária
+DROP TABLE IF EXISTS formalizacao_import;
+
+-- ============================================================
 -- ÍNDICES PARA PERFORMANCE
 -- ============================================================
 
