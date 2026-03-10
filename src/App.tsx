@@ -467,6 +467,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isFormalizacaoFormOpen, setIsFormalizacaoFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [isSupabaseGuideOpen, setIsSupabaseGuideOpen] = useState(false);
   const [editingFormalizacao, setEditingFormalizacao] = useState<Formalizacao | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -920,6 +921,13 @@ export default function App() {
     }
   }, [columnTextFilters]);
 
+  // Re-ordenar quando coluna/direção de sort mudam (usa cache, instantâneo)
+  useEffect(() => {
+    if (allDataCacheRef.current.length > 0) {
+      fetchFormalizacoesComFiltros(paginaAtual);
+    }
+  }, [sortColumn, sortOrder]);
+
   // 🔍 Monitorar mudanças no visibleColumns
   useEffect(() => {
     const visibleCount = Object.values(visibleColumns).filter(Boolean).length;
@@ -1289,11 +1297,14 @@ export default function App() {
         return true;
       });
 
-      // Paginação dos resultados filtrados
-      const totalFiltered = filteredData.length;
+      // Ordenação dos resultados filtrados ANTES de paginar
+      const sortedData = sortData(filteredData, sortColumn, sortOrder);
+
+      // Paginação dos resultados ordenados
+      const totalFiltered = sortedData.length;
       const startIdx = page * itensPorPagina;
       const endIdx = startIdx + itensPorPagina;
-      const pagedData = filteredData.slice(startIdx, endIdx);
+      const pagedData = sortedData.slice(startIdx, endIdx);
 
       if (hasActiveFilters) {
         console.log(`  ✅ ${allData.length} → ${filteredData.length} registros após filtros`);
@@ -1752,9 +1763,8 @@ export default function App() {
     return sorted;
   };
 
-  // Paginação com ordenação - formalizacaoSearchResult.data já está paginado (500 registros)
-  // NÃO fazer double-slice! Apenas ordenar os dados da página atual
-  const formalizacoesPaginadas = activeTab === 'formalizacao' ? sortData(formalizacaoSearchResult.data, sortColumn, sortOrder) : [];
+  // Dados já vem ordenados de fetchFormalizacoesComFiltros (sort antes de paginar)
+  const formalizacoesPaginadas = activeTab === 'formalizacao' ? formalizacaoSearchResult.data : [];
   const totalPaginas = Math.ceil(formalizacaoSearchResult.total / itensPorPagina);
   
   // Debug: Log whenever we're about to render
