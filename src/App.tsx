@@ -1824,7 +1824,11 @@ export default function App() {
       if (!response.ok) {
         const errText = await response.text();
         let errMsg = `Erro ${response.status}`;
-        try { const j = JSON.parse(errText); errMsg = j.error || errMsg; } catch {}
+        try { 
+          const j = JSON.parse(errText); 
+          errMsg = j.details || j.error || errMsg;
+          if (j.supabase_error) errMsg += '\n\nDetalhe Supabase: ' + j.supabase_error;
+        } catch {}
         throw new Error(errMsg);
       }
       const result = await response.json();

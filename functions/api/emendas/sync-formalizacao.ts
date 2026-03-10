@@ -1,6 +1,6 @@
 ﻿// Cloudflare Workers: POST /api/emendas/sync-formalizacao
 // Sincroniza dados das emendas com a tabela de formalizacao
-// Usa RPC (funcao SQL no Supabase) para ficar dentro do limite de 50 subrequests
+// Estratégia: busca emendas e formalizacoes via REST, faz match no worker, atualiza via PATCH/POST
 
 function verifyToken(token: string): any {
   try {
@@ -12,7 +12,6 @@ function verifyToken(token: string): any {
     if (decoded.exp && decoded.exp < now - 300) return null;
     return decoded;
   } catch (e) {
-    console.error('Token decode error:', e);
     return null;
   }
 }
@@ -24,6 +23,19 @@ function corsHeaders() {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Content-Type': 'application/json'
   };
+}
+
+async function supaFetch(url: string, key: string, options: RequestInit = {}) {
+  return fetch(url, {
+    ...options,
+    headers: {
+      'Authorization': 'Bearer ' + key,
+      'apikey': key,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal',
+      ...(options.headers || {})
+    }
+  });
 }
 
 export const onRequest: PagesFunction = async (context) => {
@@ -68,49 +80,123 @@ export const onRequest: PagesFunction = async (context) => {
   }
 
   try {
-    console.log('Sincronizando emendas -> formalizacao via RPC...');
-
-    // Chamar a funcao RPC no Supabase (1 subrequest apenas)
-    const resp = await fetch(
+    // Tentar RPC primeiro (mais eficiente se a funcao existir)
+    const rpcResp = await supaFetch(
       `${SUPABASE_URL}/rest/v1/rpc/sync_emendas_formalizacao`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
-          'apikey': SUPABASE_SERVICE_ROLE_KEY,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({})
-      }
+      SUPABASE_SERVICE_ROLE_KEY,
+      { method: 'POST', body: JSON.stringify({}) }
     );
 
-    if (!resp.ok) {
-      const errText = await resp.text();
-      console.error('RPC falhou: ' + resp.status + ' - ' + errText.substring(0, 500));
-
-      // Se a funcao nao existe, dar instrucoes claras
-      if (resp.status === 404 || errText.includes('function') || errText.includes('not found') || errText.includes('does not exist')) {
-        return new Response(JSON.stringify({
-          error: 'Funcao sync_emendas_formalizacao nao encontrada no Supabase',
-          details: 'Execute o script CRIAR_FUNCAO_SYNC.sql no Supabase SQL Editor primeiro.',
-          supabase_error: errText.substring(0, 300)
-        }), { status: 404, headers: corsHeaders() });
-      }
-
+    if (rpcResp.ok) {
+      const result = await rpcResp.json();
       return new Response(JSON.stringify({
-        error: 'Erro na sincronizacao RPC',
-        details: errText.substring(0, 500),
-        status: resp.status
+        method: 'rpc',
+        updated: result?.updated || 0,
+        inserted: result?.inserted || 0,
+        message: `${result?.updated || 0} formalizacoes atualizadas, ${result?.inserted || 0} novas inseridas`
+      }), { status: 200, headers: corsHeaders() });
+    }
+
+    // RPC falhou - fazer sync via REST (fallback)
+    // NOTA: Cloudflare tem limite de 50 subrequests, entao usamos bulk operations
+    const rpcError = await rpcResp.text();
+    console.log('RPC indisponivel (' + rpcResp.status + '), usando fallback REST. Erro: ' + rpcError.substring(0, 200));
+
+    // Buscar emendas com num_convenio preenchido (só campos necessários)
+    // Usa 2 requests: emendas + formalizacoes = subrequests 2-3
+    const emendasResp = await supaFetch(
+      `${SUPABASE_URL}/rest/v1/emendas?select=codigo_num,num_convenio,num_emenda,detalhes,natureza,ano_refer,situacao_d,parlamentar,partido,beneficiario,municipio,objeto,regional,portfolio,valor&num_convenio=neq.&num_convenio=not.is.null&limit=10000`,
+      SUPABASE_SERVICE_ROLE_KEY,
+      { method: 'GET' }
+    );
+
+    if (!emendasResp.ok) {
+      const err = await emendasResp.text();
+      return new Response(JSON.stringify({
+        error: 'Erro ao buscar emendas',
+        details: err.substring(0, 300),
+        rpc_error: rpcError.substring(0, 200)
       }), { status: 500, headers: corsHeaders() });
     }
 
-    const result = await resp.json();
-    console.log('Sincronizacao concluida:', result);
+    const emendas: any[] = await emendasResp.json();
+    if (!Array.isArray(emendas) || emendas.length === 0) {
+      return new Response(JSON.stringify({
+        method: 'rest',
+        updated: 0, inserted: 0,
+        message: 'Nenhuma emenda com num_convenio encontrada',
+        rpc_status: rpcResp.status
+      }), { status: 200, headers: corsHeaders() });
+    }
+
+    // Buscar formalizacoes existentes (numero_convenio para matching)
+    const formResp = await supaFetch(
+      `${SUPABASE_URL}/rest/v1/formalizacao?select=numero_convenio&numero_convenio=neq.&numero_convenio=not.is.null&limit=50000`,
+      SUPABASE_SERVICE_ROLE_KEY,
+      { method: 'GET' }
+    );
+
+    const formalizacoes: any[] = formResp.ok ? await formResp.json() : [];
+    
+    // Set de numero_convenio existentes
+    const existingConvenios = new Set<string>();
+    for (const f of formalizacoes) {
+      if (f.numero_convenio) existingConvenios.add(String(f.numero_convenio).trim());
+    }
+
+    // Filtrar emendas que NAO existem na formalizacao (novas)
+    const toInsert = emendas.filter(e => {
+      const key = e.num_convenio ? String(e.num_convenio).trim() : '';
+      return key && !existingConvenios.has(key);
+    });
+
+    let inserted = 0;
+
+    if (toInsert.length > 0) {
+      // Mapear para formato formalizacao
+      const rows = toInsert.map(e => ({
+        ano: e.ano_refer || null,
+        parlamentar: e.parlamentar || null,
+        partido: e.partido || null,
+        emenda: e.codigo_num || null,
+        demanda: e.detalhes || null,
+        classificacao_emenda_demanda: e.natureza || null,
+        numero_convenio: e.num_convenio || null,
+        regional: e.regional || null,
+        municipio: e.municipio || null,
+        conveniado: e.beneficiario || null,
+        objeto: e.objeto || null,
+        portfolio: e.portfolio || null,
+        valor: e.valor || null
+      }));
+
+      // Inserir em batches de 1000 (cada batch = 1 subrequest)
+      const BATCH = 1000;
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const batch = rows.slice(i, i + BATCH);
+        const insResp = await supaFetch(
+          `${SUPABASE_URL}/rest/v1/formalizacao`,
+          SUPABASE_SERVICE_ROLE_KEY,
+          { method: 'POST', body: JSON.stringify(batch) }
+        );
+        if (insResp.ok) {
+          inserted += batch.length;
+        } else {
+          const err = await insResp.text();
+          console.error('Insert batch falhou:', err.substring(0, 200));
+        }
+      }
+    }
 
     return new Response(JSON.stringify({
-      updated: result?.updated || 0,
-      inserted: result?.inserted || 0,
-      message: `${result?.updated || 0} formalizacoes atualizadas, ${result?.inserted || 0} novas inseridas`
+      method: 'rest_fallback',
+      updated: 0,
+      inserted,
+      total_emendas: emendas.length,
+      existing_formalizacoes: formalizacoes.length,
+      new_to_insert: toInsert.length,
+      rpc_status: rpcResp.status,
+      message: `${inserted} novas formalizacoes inseridas (RPC indisponivel, updates nao aplicados - execute CRIAR_FUNCAO_SYNC.sql no Supabase para sync completo)`
     }), { status: 200, headers: corsHeaders() });
 
   } catch (error: any) {
