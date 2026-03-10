@@ -89,7 +89,7 @@ export const onRequest: PagesFunction = async (context) => {
 
     // UM ÚNICO INSERT - 1 subrequest apenas
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/emendas`,
+      `${SUPABASE_URL}/rest/v1/emendas?on_conflict=codigo_num`,
       {
         method: 'POST',
         headers: {
