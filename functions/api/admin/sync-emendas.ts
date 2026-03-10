@@ -18,7 +18,7 @@ export const onRequest: PagesFunction = async (context) => {
   }
 
   try {
-    // Chamar a função RPC sync_emendas_formalizacao no Supabase
+    // Chamar a função RPC sync_emendas_formalizacao no Supabase (timeout aumentado para 120s)
     const resp = await fetch(
       `${SUPABASE_URL}/rest/v1/rpc/sync_emendas_formalizacao`,
       {
@@ -28,7 +28,8 @@ export const onRequest: PagesFunction = async (context) => {
           'apikey': SUPABASE_KEY,
           'Content-Type': 'application/json'
         },
-        body: '{}'
+        body: '{}',
+        timeout: 120000 // 120 segundos
       }
     );
 
