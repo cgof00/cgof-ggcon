@@ -1129,32 +1129,53 @@ export default function App() {
 
   const fetchEmendas = async () => {
     try {
-      console.log('📥 Buscando TODAS as emendas...');
-      const allEmendas: any[] = [];
-      let offset = 0;
-      const batchSize = 5000;
-      let hasMore = true;
+      console.log('📥 Buscando TODAS as emendas em paralelo...');
+      const batchSize = 1000;
+      const PARALLEL_WAVES = 6;
+      let dataFetched: any[] = [];
 
-      while (hasMore) {
-        const response = await fetch(`/api/emendas?limit=${batchSize}&offset=${offset}`, {
-          headers: getHeaders()
-        });
-        const data = await response.json();
-        if (Array.isArray(data) && data.length > 0) {
-          allEmendas.push(...data);
-          console.log(`   ✓ ${allEmendas.length} emendas carregadas (batch offset=${offset})...`);
-          if (data.length < batchSize) {
-            hasMore = false;
-          } else {
-            offset += batchSize;
+      // Fase 1: primeira request para descobrir se há dados
+      const firstResp = await fetch(`/api/emendas?limit=${batchSize}&offset=0`, {
+        headers: getHeaders()
+      });
+      const firstBatch = firstResp.ok ? await firstResp.json() : [];
+      if (!Array.isArray(firstBatch) || firstBatch.length === 0) {
+        setEmendas([]);
+        return;
+      }
+
+      dataFetched = [...firstBatch];
+      console.log(`   ✓ ${dataFetched.length} emendas carregadas (batch 1)...`);
+
+      if (firstBatch.length === batchSize) {
+        // Fase 2: carregar restante em ondas paralelas
+        let nextOffset = batchSize;
+        let keepGoing = true;
+
+        while (keepGoing) {
+          const offsets = Array.from({ length: PARALLEL_WAVES }, (_, i) => nextOffset + i * batchSize);
+          const promises = offsets.map(off =>
+            fetch(`/api/emendas?limit=${batchSize}&offset=${off}`, { headers: getHeaders() })
+              .then(r => r.ok ? r.json() : [])
+              .then(d => ({ offset: off, data: Array.isArray(d) ? d : [] }))
+              .catch(() => ({ offset: off, data: [] as any[] }))
+          );
+          const results = await Promise.all(promises);
+          results.sort((a, b) => a.offset - b.offset);
+
+          for (const r of results) {
+            if (r.data.length === 0) { keepGoing = false; break; }
+            dataFetched = dataFetched.concat(r.data);
+            if (r.data.length < batchSize) { keepGoing = false; break; }
           }
-        } else {
-          hasMore = false;
+
+          console.log(`   ✓ ${dataFetched.length} emendas carregadas...`);
+          nextOffset += PARALLEL_WAVES * batchSize;
         }
       }
 
-      console.log(`✅ Total: ${allEmendas.length} emendas carregadas`);
-      setEmendas(allEmendas);
+      console.log(`✅ Total: ${dataFetched.length} emendas carregadas`);
+      setEmendas(dataFetched);
     } catch (error) {
       console.error('❌ Erro ao buscar emendas:', error);
       setEmendas([]);
