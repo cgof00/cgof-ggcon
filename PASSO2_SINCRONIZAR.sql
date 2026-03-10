@@ -14,157 +14,155 @@
 -- PASSO 2.0: COPIAR emendas_import → emendas (mapeamento de colunas)
 -- O CSV foi importado na tabela emendas_import com cabeçalhos legíveis.
 -- Agora copiamos para a tabela emendas com nomes técnicos.
+-- ⚠️ Pula automaticamente se emendas_import não existir (re-execução)
 -- ============================================================
 
-INSERT INTO emendas (
-  detalhes, natureza, ano_refer, codigo_num, num_emenda,
-  parecer_ld, situacao_e, situacao_d, data_ult_e, data_ult_d,
-  num_indicacao, parlamentar, partido, tipo_beneficiario,
-  beneficiario, cnpj, municipio, objeto, orgao_entidade, regional,
-  num_convenio, num_processo, data_assinatura, data_publicacao,
-  agencia, conta, valor, valor_desembolsado, portfolio, qtd_dias,
-  vigencia, data_prorrogacao, dados_bancarios, status,
-  data_pagamento, num_codigo, notas_empenho, valor_total_empenhado,
-  notas_liquidacao, valor_total_liquidado, programa,
-  valor_total_pago, ordem_bancaria, data_paga, valor_total_ordem_bancaria
-)
-SELECT DISTINCT ON ("Código/Nº Emenda")
-  "Detalhes da Demanda",
-  "Natureza",
-  "Ano Referência",
-  "Código/Nº Emenda",
-  "Nº Emenda Agregadora",
-  "Parecer LDO",
-  "Situação Emenda",
-  "Situação Demanda",
-  "Data da Última Tramitação Emenda",
-  "Data da Última Tramitação Demanda",
-  "Nº da Indicação",
-  "Parlamentar",
-  "Partido",
-  "Tipo Beneficiário",
-  "Beneficiário",
-  "CNPJ",
-  "Município",
-  "Objeto",
-  "Órgão Entidade/Responsável",
-  "Regional",
-  "Nº de Convênio",
-  "Nº de Processo",
-  "Assinatura",
-  "Publicação",
-  "Agência",
-  "Conta",
-  CASE WHEN "Valor" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor", '.', ''), ',', '.')::NUMERIC ELSE 0 END,
-  CASE WHEN "Valor da Demanda" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor da Demanda", '.', ''), ',', '.')::NUMERIC ELSE 0 END,
-  "Portfólio",
-  CASE WHEN "Qtd. Dias na Etapa" ~ '^[0-9]+$' THEN "Qtd. Dias na Etapa"::INTEGER ELSE 0 END,
-  "Vigência",
-  "Data da Primeira Notificação LOA Recebida pelo Beneficiário",
-  "Dados Bancários",
-  "Status do Pagamento",
-  "Data do Pagamento",
-  "Nº do Código Único",
-  "Notas e Empenho",
-  CASE WHEN "Valor Total Empenho" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor Total Empenho", '.', ''), ',', '.')::NUMERIC ELSE 0 END,
-  "Notas de Lançamento",
-  CASE WHEN "Valor Total Lançamento" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor Total Lançamento", '.', ''), ',', '.')::NUMERIC ELSE 0 END,
-  "Programações Desembolso",
-  CASE WHEN "Valor Total Programação Desembolso" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor Total Programação Desembolso", '.', ''), ',', '.')::NUMERIC ELSE 0 END,
-  "Ordem Bancária",
-  "Data pagamento Ordem Bancária",
-  CASE WHEN "Valor Total Ordem Bancária" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor Total Ordem Bancária", '.', ''), ',', '.')::NUMERIC ELSE 0 END
-FROM emendas_import;
-
--- Conferir quantos registros foram copiados
 DO $$
-DECLARE cnt_import INTEGER; cnt_emendas INTEGER;
 BEGIN
-  SELECT COUNT(*) INTO cnt_import FROM emendas_import;
-  SELECT COUNT(*) INTO cnt_emendas FROM emendas;
-  RAISE NOTICE '✅ PASSO 2.0: % registros no CSV importado, % copiados para emendas', cnt_import, cnt_emendas;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'emendas_import') THEN
+    EXECUTE '
+    INSERT INTO emendas (
+      detalhes, natureza, ano_refer, codigo_num, num_emenda,
+      parecer_ld, situacao_e, situacao_d, data_ult_e, data_ult_d,
+      num_indicacao, parlamentar, partido, tipo_beneficiario,
+      beneficiario, cnpj, municipio, objeto, orgao_entidade, regional,
+      num_convenio, num_processo, data_assinatura, data_publicacao,
+      agencia, conta, valor, valor_desembolsado, portfolio, qtd_dias,
+      vigencia, data_prorrogacao, dados_bancarios, status,
+      data_pagamento, num_codigo, notas_empenho, valor_total_empenhado,
+      notas_liquidacao, valor_total_liquidado, programa,
+      valor_total_pago, ordem_bancaria, data_paga, valor_total_ordem_bancaria
+    )
+    SELECT DISTINCT ON ("Código/Nº Emenda")
+      "Detalhes da Demanda",
+      "Natureza",
+      "Ano Referência",
+      "Código/Nº Emenda",
+      "Nº Emenda Agregadora",
+      "Parecer LDO",
+      "Situação Emenda",
+      "Situação Demanda",
+      "Data da Última Tramitação Emenda",
+      "Data da Última Tramitação Demanda",
+      "Nº da Indicação",
+      "Parlamentar",
+      "Partido",
+      "Tipo Beneficiário",
+      "Beneficiário",
+      "CNPJ",
+      "Município",
+      "Objeto",
+      "Órgão Entidade/Responsável",
+      "Regional",
+      "Nº de Convênio",
+      "Nº de Processo",
+      "Assinatura",
+      "Publicação",
+      "Agência",
+      "Conta",
+      CASE WHEN "Valor" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor", ''.'', ''''), '','', ''.'')::NUMERIC ELSE 0 END,
+      CASE WHEN "Valor da Demanda" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor da Demanda", ''.'', ''''), '','', ''.'')::NUMERIC ELSE 0 END,
+      "Portfólio",
+      CASE WHEN "Qtd. Dias na Etapa" ~ ''^[0-9]+$'' THEN "Qtd. Dias na Etapa"::INTEGER ELSE 0 END,
+      "Vigência",
+      "Data da Primeira Notificação LOA Recebida pelo Beneficiário",
+      "Dados Bancários",
+      "Status do Pagamento",
+      "Data do Pagamento",
+      "Nº do Código Único",
+      "Notas e Empenho",
+      CASE WHEN "Valor Total Empenho" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor Total Empenho", ''.'', ''''), '','', ''.'')::NUMERIC ELSE 0 END,
+      "Notas de Lançamento",
+      CASE WHEN "Valor Total Lançamento" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor Total Lançamento", ''.'', ''''), '','', ''.'')::NUMERIC ELSE 0 END,
+      "Programações Desembolso",
+      CASE WHEN "Valor Total Programação Desembolso" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor Total Programação Desembolso", ''.'', ''''), '','', ''.'')::NUMERIC ELSE 0 END,
+      "Ordem Bancária",
+      "Data pagamento Ordem Bancária",
+      CASE WHEN "Valor Total Ordem Bancária" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor Total Ordem Bancária", ''.'', ''''), '','', ''.'')::NUMERIC ELSE 0 END
+    FROM emendas_import';
+    RAISE NOTICE '✅ PASSO 2.0: emendas_import copiado para emendas';
+    DROP TABLE IF EXISTS emendas_import;
+  ELSE
+    RAISE NOTICE '⏭️ PASSO 2.0: tabela emendas_import não existe, pulando (já foi processada anteriormente)';
+  END IF;
 END $$;
-
--- Limpar tabela temporária (não é mais necessária)
-DROP TABLE IF EXISTS emendas_import;
 
 -- ============================================================
 -- PASSO 2.0B: COPIAR formalizacao_import → formalizacao (mapeamento)
 -- O CSV foi importado na tabela formalizacao_import com cabeçalhos legíveis.
 -- Agora copiamos para a tabela formalizacao com nomes técnicos.
+-- ⚠️ Pula automaticamente se formalizacao_import não existir (re-execução)
 -- ============================================================
 
-INSERT INTO formalizacao (
-  seq, ano, parlamentar, partido, emenda, emendas_agregadoras,
-  demanda, demandas_formalizacao, numero_convenio,
-  classificacao_emenda_demanda, tipo_formalizacao,
-  regional, municipio, conveniado, objeto, portfolio,
-  valor, posicao_anterior, situacao_demandas_sempapel,
-  area_estagio, recurso, tecnico, data_liberacao,
-  area_estagio_situacao_demanda, situacao_analise_demanda,
-  data_analise_demanda, motivo_retorno_diligencia,
-  data_retorno_diligencia, conferencista,
-  data_recebimento_demanda, data_retorno,
-  observacao_motivo_retorno,
-  data_liberacao_assinatura_conferencista,
-  data_liberacao_assinatura, falta_assinatura,
-  assinatura, publicacao, vigencia,
-  encaminhado_em, concluida_em
-)
-SELECT
-  "Seq",
-  "Ano",
-  "Parlamentar",
-  "Partido",
-  "Emenda",
-  "Emendas Agregadoras",
-  "Demanda",
-  "DEMANDAS FORMALIZAÇÃO",
-  "N° de Convênio",
-  "Classificação Emenda/Demanda",
-  "Tipo de Formalização",
-  "Regional",
-  "Município",
-  "Conveniado",
-  "Objeto",
-  "Portfólio",
-  CASE WHEN "Valor" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor", '.', ''), ',', '.')::NUMERIC ELSE NULL END,
-  "Posição Anterior",
-  "Situação Demandas - SemPapel",
-  "Área - estágio",
-  "Recurso",
-  "Tecnico",
-  "Data da Liberação",
-  "Área - Estágio Situação da Demanda",
-  "Situação - Análise Demanda",
-  "Data - Análise Demanda",
-  "Motivo do Retorno da Diligência",
-  "Data do Retorno da Diligência",
-  "Conferencista",
-  "Data recebimento demanda",
-  "Data do Retorno",
-  "Observação - Motivo do Retorno",
-  "Data liberação da Assinatura - Conferencista",
-  "Data liberação de Assinatura",
-  "Falta assinatura",
-  "Assinatura",
-  "Publicação",
-  "Vigência",
-  "Encaminhado em",
-  "Concluída em"
-FROM formalizacao_import;
-
--- Conferir quantos registros foram copiados
 DO $$
-DECLARE cnt_import INTEGER; cnt_form INTEGER;
 BEGIN
-  SELECT COUNT(*) INTO cnt_import FROM formalizacao_import;
-  SELECT COUNT(*) INTO cnt_form FROM formalizacao;
-  RAISE NOTICE '✅ PASSO 2.0B: % registros no CSV importado, % copiados para formalizacao', cnt_import, cnt_form;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'formalizacao_import') THEN
+    EXECUTE '
+    INSERT INTO formalizacao (
+      seq, ano, parlamentar, partido, emenda, emendas_agregadoras,
+      demanda, demandas_formalizacao, numero_convenio,
+      classificacao_emenda_demanda, tipo_formalizacao,
+      regional, municipio, conveniado, objeto, portfolio,
+      valor, posicao_anterior, situacao_demandas_sempapel,
+      area_estagio, recurso, tecnico, data_liberacao,
+      area_estagio_situacao_demanda, situacao_analise_demanda,
+      data_analise_demanda, motivo_retorno_diligencia,
+      data_retorno_diligencia, conferencista,
+      data_recebimento_demanda, data_retorno,
+      observacao_motivo_retorno,
+      data_liberacao_assinatura_conferencista,
+      data_liberacao_assinatura, falta_assinatura,
+      assinatura, publicacao, vigencia,
+      encaminhado_em, concluida_em
+    )
+    SELECT
+      "Seq",
+      "Ano",
+      "Parlamentar",
+      "Partido",
+      "Emenda",
+      "Emendas Agregadoras",
+      "Demanda",
+      "DEMANDAS FORMALIZAÇÃO",
+      "N° de Convênio",
+      "Classificação Emenda/Demanda",
+      "Tipo de Formalização",
+      "Regional",
+      "Município",
+      "Conveniado",
+      "Objeto",
+      "Portfólio",
+      CASE WHEN "Valor" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor", ''.'', ''''), '','', ''.'')::NUMERIC ELSE NULL END,
+      "Posição Anterior",
+      "Situação Demandas - SemPapel",
+      "Área - estágio",
+      "Recurso",
+      "Tecnico",
+      "Data da Liberação",
+      "Área - Estágio Situação da Demanda",
+      "Situação - Análise Demanda",
+      "Data - Análise Demanda",
+      "Motivo do Retorno da Diligência",
+      "Data do Retorno da Diligência",
+      "Conferencista",
+      "Data recebimento demanda",
+      "Data do Retorno",
+      "Observação - Motivo do Retorno",
+      "Data liberação da Assinatura - Conferencista",
+      "Data liberação de Assinatura",
+      "Falta assinatura",
+      "Assinatura",
+      "Publicação",
+      "Vigência",
+      "Encaminhado em",
+      "Concluída em"
+    FROM formalizacao_import';
+    RAISE NOTICE '✅ PASSO 2.0B: formalizacao_import copiado para formalizacao';
+    DROP TABLE IF EXISTS formalizacao_import;
+  ELSE
+    RAISE NOTICE '⏭️ PASSO 2.0B: tabela formalizacao_import não existe, pulando (já foi processada anteriormente)';
+  END IF;
 END $$;
-
--- Limpar tabela temporária
-DROP TABLE IF EXISTS formalizacao_import;
 
 -- ============================================================
 -- ÍNDICES PARA PERFORMANCE
@@ -174,6 +172,25 @@ CREATE INDEX IF NOT EXISTS idx_emendas_num_convenio ON emendas(num_convenio);
 CREATE INDEX IF NOT EXISTS idx_emendas_codigo_num ON emendas(codigo_num);
 CREATE INDEX IF NOT EXISTS idx_formalizacao_numero_convenio ON formalizacao(numero_convenio);
 CREATE INDEX IF NOT EXISTS idx_formalizacao_emenda ON formalizacao(emenda);
+
+-- Índices em expressões usadas nos JOINs (TRIM, REGEXP_REPLACE)
+-- Sem estes, o PostgreSQL faz full table scan e causa statement timeout
+CREATE INDEX IF NOT EXISTS idx_formalizacao_trim_numero_convenio
+  ON formalizacao (TRIM(numero_convenio))
+  WHERE numero_convenio IS NOT NULL AND numero_convenio != '';
+
+CREATE INDEX IF NOT EXISTS idx_emendas_trim_num_convenio
+  ON emendas (TRIM(num_convenio))
+  WHERE num_convenio IS NOT NULL AND num_convenio != '';
+
+CREATE INDEX IF NOT EXISTS idx_formalizacao_emenda_digits
+  ON formalizacao (TRIM(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g')))
+  WHERE emenda IS NOT NULL AND emenda != ''
+    AND LENGTH(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g')) >= 8;
+
+CREATE INDEX IF NOT EXISTS idx_emendas_codigo_num_digits
+  ON emendas (TRIM(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g')))
+  WHERE codigo_num IS NOT NULL;
 
 -- ============================================================
 -- MAPEAMENTO DE COLUNAS:
@@ -334,6 +351,7 @@ CREATE OR REPLACE FUNCTION sync_emendas_formalizacao()
 RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET statement_timeout = '300s'
 AS $$
 DECLARE
   v_updated INTEGER := 0;

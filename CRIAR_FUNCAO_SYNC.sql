@@ -17,6 +17,27 @@ BEGIN
 END $$;
 
 -- ============================================================
+-- ÍNDICES PARA PERFORMANCE DA SINCRONIZAÇÃO
+-- Índices em expressões usadas nos JOINs (TRIM, REGEXP_REPLACE)
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_formalizacao_trim_numero_convenio
+  ON formalizacao (TRIM(numero_convenio))
+  WHERE numero_convenio IS NOT NULL AND numero_convenio != '';
+
+CREATE INDEX IF NOT EXISTS idx_emendas_trim_num_convenio
+  ON emendas (TRIM(num_convenio))
+  WHERE num_convenio IS NOT NULL AND num_convenio != '';
+
+CREATE INDEX IF NOT EXISTS idx_formalizacao_emenda_digits
+  ON formalizacao (TRIM(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g')))
+  WHERE emenda IS NOT NULL AND emenda != ''
+    AND LENGTH(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g')) >= 8;
+
+CREATE INDEX IF NOT EXISTS idx_emendas_codigo_num_digits
+  ON emendas (TRIM(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g')))
+  WHERE codigo_num IS NOT NULL;
+
+-- ============================================================
 -- FUNÇÃO RPC DE SINCRONIZAÇÃO
 -- Chamada pelo endpoint /api/emendas/sync-formalizacao
 -- ============================================================
@@ -25,6 +46,7 @@ CREATE OR REPLACE FUNCTION sync_emendas_formalizacao()
 RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET statement_timeout = '300s'
 AS $$
 DECLARE
   v_updated INTEGER := 0;

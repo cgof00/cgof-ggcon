@@ -18,7 +18,9 @@ export const onRequest: PagesFunction = async (context) => {
   }
 
   try {
-    // Chamar a função RPC sync_emendas_formalizacao no Supabase (timeout aumentado para 120s)
+    // Chamar a função RPC sync_emendas_formalizacao no Supabase (timeout 300s)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000);
     const resp = await fetch(
       `${SUPABASE_URL}/rest/v1/rpc/sync_emendas_formalizacao`,
       {
@@ -29,9 +31,10 @@ export const onRequest: PagesFunction = async (context) => {
           'Content-Type': 'application/json'
         },
         body: '{}',
-        timeout: 120000 // 120 segundos
+        signal: controller.signal
       }
     );
+    clearTimeout(timeoutId);
 
     if (!resp.ok) {
       const err = await resp.text();
