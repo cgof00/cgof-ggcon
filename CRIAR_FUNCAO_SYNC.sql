@@ -1,92 +1,12 @@
 -- ============================================================
--- SCRIPT SQL PARA SUPABASE: Criar função de sincronização +
--- Normalizar coluna emenda entre as duas tabelas
+-- SCRIPT SQL PARA SUPABASE: Criar função de sincronização
 -- Execute no Supabase SQL Editor (https://supabase.com/dashboard)
 -- ============================================================
-
--- ============================================================
--- PARTE 1: NORMALIZAR FORMATO DA COLUNA EMENDA
--- A coluna 'emenda' na tabela formalizacao e 'codigo_num' na tabela emendas
--- podem ter formatos diferentes (espaços, zeros à esquerda, etc.)
--- Este script padroniza ambas para facilitar a sincronização.
+-- INSTRUÇÕES: Copie e cole este script INTEIRO no SQL Editor e execute.
+-- Ele é seguro para re-executar (idempotente).
 -- ============================================================
 
--- 1.1 Ver exemplos atuais dos formatos (executar primeiro para diagnosticar)
-SELECT 'formalizacao.emenda' as tabela, emenda as valor, LENGTH(emenda) as tamanho
-FROM formalizacao
-WHERE emenda IS NOT NULL AND emenda != ''
-LIMIT 10;
-
-SELECT 'emendas.codigo_num' as tabela, codigo_num as valor, LENGTH(codigo_num) as tamanho
-FROM emendas
-WHERE codigo_num IS NOT NULL AND codigo_num != ''
-LIMIT 10;
-
--- 1.2 Normalizar: remover espaços extras, padronizar formato
--- Aplicar TRIM e remover espaços duplicados internos
-UPDATE formalizacao
-SET emenda = TRIM(REGEXP_REPLACE(emenda, '\s+', ' ', 'g'))
-WHERE emenda IS NOT NULL AND emenda != '';
-
-UPDATE emendas
-SET codigo_num = TRIM(REGEXP_REPLACE(codigo_num, '\s+', ' ', 'g'))
-WHERE codigo_num IS NOT NULL AND codigo_num != '';
-
--- 1.2b Normalizar formato numérico da emenda para o padrão 0000.000.00000
--- Remove tudo que não é dígito e reformata como AAAA.NNN.NNNNN
-UPDATE formalizacao
-SET emenda = SUBSTRING(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g') FROM 1 FOR 4) || '.' ||
-             SUBSTRING(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g') FROM 5 FOR 3) || '.' ||
-             SUBSTRING(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g') FROM 8)
-WHERE emenda IS NOT NULL AND emenda != ''
-  AND LENGTH(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g')) >= 10;
-
-UPDATE emendas
-SET codigo_num = SUBSTRING(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g') FROM 1 FOR 4) || '.' ||
-                 SUBSTRING(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g') FROM 5 FOR 3) || '.' ||
-                 SUBSTRING(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g') FROM 8)
-WHERE codigo_num IS NOT NULL AND codigo_num != ''
-  AND LENGTH(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g')) >= 10;
-
--- 1.3 Normalizar numero_convenio / num_convenio também (usado na sincronização)
-UPDATE formalizacao
-SET numero_convenio = TRIM(REGEXP_REPLACE(numero_convenio, '\s+', ' ', 'g'))
-WHERE numero_convenio IS NOT NULL AND numero_convenio != '';
-
-UPDATE emendas
-SET num_convenio = TRIM(REGEXP_REPLACE(num_convenio, '\s+', ' ', 'g'))
-WHERE num_convenio IS NOT NULL AND num_convenio != '';
-
--- 1.4 Verificar matches após normalização
-SELECT
-  'Match por numero_convenio' as tipo,
-  COUNT(*) as total
-FROM formalizacao f
-INNER JOIN emendas e ON TRIM(f.numero_convenio) = TRIM(e.num_convenio)
-WHERE f.numero_convenio IS NOT NULL AND f.numero_convenio != ''
-UNION ALL
-SELECT
-  'Match por emenda/codigo_num' as tipo,
-  COUNT(*) as total
-FROM formalizacao f
-INNER JOIN emendas e ON TRIM(f.emenda) = TRIM(e.codigo_num)
-WHERE f.emenda IS NOT NULL AND f.emenda != '';
-
--- ============================================================
--- PARTE 2: CRIAR CONSTRAINT UNIQUE NO codigo_num (para evitar duplicatas na importação)
--- ============================================================
-
--- Remover duplicatas antes de criar a constraint (manter a mais recente)
-DELETE FROM emendas
-WHERE id NOT IN (
-  SELECT MAX(id) FROM emendas
-  WHERE codigo_num IS NOT NULL AND codigo_num != ''
-  GROUP BY codigo_num
-)
-AND codigo_num IS NOT NULL AND codigo_num != '';
-
--- Criar constraint unique (PostgREST usará isso com resolution=ignore-duplicates)
--- Usa DO block para ignorar se já existe
+-- Constraint unique (seguro se já existe)
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -97,8 +17,8 @@ BEGIN
 END $$;
 
 -- ============================================================
--- PARTE 3: CRIAR FUNÇÃO RPC PARA SINCRONIZAÇÃO
--- Esta função é chamada pelo endpoint /api/emendas/sync-formalizacao
+-- FUNÇÃO RPC DE SINCRONIZAÇÃO
+-- Chamada pelo endpoint /api/emendas/sync-formalizacao
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION sync_emendas_formalizacao()
@@ -217,13 +137,5 @@ $$;
 GRANT EXECUTE ON FUNCTION sync_emendas_formalizacao() TO service_role;
 
 -- ============================================================
--- PARTE 4: VERIFICAÇÃO FINAL
+-- PRONTO! Após executar, teste a sincronização no sistema.
 -- ============================================================
-
--- Testar a função
-SELECT sync_emendas_formalizacao();
-
--- Verificar totais
-SELECT 'emendas' as tabela, COUNT(*) as total FROM emendas
-UNION ALL
-SELECT 'formalizacao' as tabela, COUNT(*) as total FROM formalizacao;

@@ -89,16 +89,18 @@ export const onRequest: PagesFunction = async (context) => {
       console.error('RPC falhou: ' + resp.status + ' - ' + errText.substring(0, 500));
 
       // Se a funcao nao existe, dar instrucoes claras
-      if (resp.status === 404 || errText.includes('function') || errText.includes('not found')) {
+      if (resp.status === 404 || errText.includes('function') || errText.includes('not found') || errText.includes('does not exist')) {
         return new Response(JSON.stringify({
           error: 'Funcao sync_emendas_formalizacao nao encontrada no Supabase',
-          details: 'Execute o script CRIAR_FUNCAO_SYNC.sql no Supabase SQL Editor para criar a funcao de sincronizacao.'
-        }), { status: 500, headers: corsHeaders() });
+          details: 'Execute o script CRIAR_FUNCAO_SYNC.sql no Supabase SQL Editor primeiro.',
+          supabase_error: errText.substring(0, 300)
+        }), { status: 404, headers: corsHeaders() });
       }
 
       return new Response(JSON.stringify({
-        error: 'Erro na sincronizacao',
-        details: errText.substring(0, 500)
+        error: 'Erro na sincronizacao RPC',
+        details: errText.substring(0, 500),
+        status: resp.status
       }), { status: 500, headers: corsHeaders() });
     }
 
