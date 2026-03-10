@@ -1,13 +1,92 @@
 -- ============================================================
 -- PASSO 2: SINCRONIZAR EMENDAS → FORMALIZAÇÃO
--- Execute DEPOIS de carregar os novos CSVs nas duas tabelas
+-- Execute DEPOIS de carregar os novos CSVs
 -- ============================================================
 -- Este script:
+-- 0. Copia dados de emendas_import → emendas (mapeando cabeçalhos)
 -- 1. Cria índices para performance
 -- 2. Atualiza formalizações existentes com dados das emendas
 -- 3. Insere emendas que não existem na formalização
 -- 4. Cria uma função RPC para sync futuro (botão no sistema)
 -- ============================================================
+
+-- ============================================================
+-- PASSO 2.0: COPIAR emendas_import → emendas (mapeamento de colunas)
+-- O CSV foi importado na tabela emendas_import com cabeçalhos legíveis.
+-- Agora copiamos para a tabela emendas com nomes técnicos.
+-- ============================================================
+
+INSERT INTO emendas (
+  detalhes, natureza, ano_refer, codigo_num, num_emenda,
+  parecer_ld, situacao_e, situacao_d, data_ult_e, data_ult_d,
+  num_indicacao, parlamentar, partido, tipo_beneficiario,
+  beneficiario, cnpj, municipio, objeto, orgao_entidade, regional,
+  num_convenio, num_processo, data_assinatura, data_publicacao,
+  agencia, conta, valor, valor_desembolsado, portfolio, qtd_dias,
+  vigencia, data_prorrogacao, dados_bancarios, status,
+  data_pagamento, num_codigo, notas_empenho, valor_total_empenhado,
+  notas_liquidacao, valor_total_liquidado, programa,
+  valor_total_pago, ordem_bancaria, data_paga, valor_total_ordem_bancaria
+)
+SELECT
+  "Detalhes da Demanda",
+  "Natureza",
+  "Ano Referência",
+  "Código/Nº Emenda",
+  "Nº Emenda Agregadora",
+  "Parecer LDO",
+  "Situação Emenda",
+  "Situação Demanda",
+  "Data da Última Tramitação Emenda",
+  "Data da Última Tramitação Demanda",
+  "Nº da Indicação",
+  "Parlamentar",
+  "Partido",
+  "Tipo Beneficiário",
+  "Beneficiário",
+  "CNPJ",
+  "Município",
+  "Objeto",
+  "Órgão Entidade/Responsável",
+  "Regional",
+  "Nº de Convênio",
+  "Nº de Processo",
+  "Assinatura",
+  "Publicação",
+  "Agência",
+  "Conta",
+  CASE WHEN "Valor" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor", '.', ''), ',', '.')::NUMERIC ELSE 0 END,
+  CASE WHEN "Valor da Demanda" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor da Demanda", '.', ''), ',', '.')::NUMERIC ELSE 0 END,
+  "Portfólio",
+  CASE WHEN "Qtd. Dias na Etapa" ~ '^[0-9]+$' THEN "Qtd. Dias na Etapa"::INTEGER ELSE 0 END,
+  "Vigência",
+  "Data da Primeira Notificação LOA Recebida pelo Beneficiário",
+  "Dados Bancários",
+  "Status do Pagamento",
+  "Data do Pagamento",
+  "Nº do Código Único",
+  "Notas e Empenho",
+  CASE WHEN "Valor Total Empenho" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor Total Empenho", '.', ''), ',', '.')::NUMERIC ELSE 0 END,
+  "Notas de Lançamento",
+  CASE WHEN "Valor Total Lançamento" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor Total Lançamento", '.', ''), ',', '.')::NUMERIC ELSE 0 END,
+  "Programações Desembolso",
+  CASE WHEN "Valor Total Programação Desembolso" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor Total Programação Desembolso", '.', ''), ',', '.')::NUMERIC ELSE 0 END,
+  "Ordem Bancária",
+  "Data pagamento Ordem Bancária",
+  CASE WHEN "Valor Total Ordem Bancária" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor Total Ordem Bancária", '.', ''), ',', '.')::NUMERIC ELSE 0 END
+FROM emendas_import;
+
+-- Conferir quantos registros foram copiados
+DO $$
+DECLARE cnt_import INTEGER; cnt_emendas INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO cnt_import FROM emendas_import;
+  SELECT COUNT(*) INTO cnt_emendas FROM emendas;
+  RAISE NOTICE '✅ PASSO 2.0: % registros no CSV importado, % copiados para emendas', cnt_import, cnt_emendas;
+END $$;
+
+-- Limpar tabela temporária (não é mais necessária)
+DROP TABLE IF EXISTS emendas_import;
 
 -- ============================================================
 -- ÍNDICES PARA PERFORMANCE
