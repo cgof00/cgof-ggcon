@@ -1664,6 +1664,19 @@ export default function App() {
 
           if (mappedItems.length === 0) throw new Error('Nenhum dado compatível encontrado no arquivo.');
 
+          // ── PostgREST exige que todos os objetos tenham as mesmas chaves ──
+          const allKeys = new Set<string>();
+          for (const item of mappedItems) {
+            for (const key of Object.keys(item)) allKeys.add(key);
+          }
+          for (const item of mappedItems) {
+            for (const key of allKeys) {
+              if (!(key in item)) {
+                item[key] = numericFields.has(key) ? 0 : null;
+              }
+            }
+          }
+
           console.log(`📋 ${mappedItems.length} registros mapeados do CSV. Enviando em chunks pequenos...`);
 
           // ── PASSO 2: Enviar em chunks pequenos (Cloudflare Workers tem limite de 50 subrequests) ──
