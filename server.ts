@@ -772,11 +772,10 @@ const app = express();
       }
 
       console.log(`📥 Buscando ${limit} registros com offset ${offset}...`);
-      // Obs: Supabase tem limite de 1000 por request, então retorna com base em .range()
       const { data, error, count } = await supabase
-        .from("formalizacao")
+        .from("emendas")
         .select("*", { count: 'exact'})
-        .order("ano", { ascending: false })
+        .order("id", { ascending: false })
         .range(offset, offset + limit - 1);
       
       if (error) {
@@ -1900,22 +1899,23 @@ const app = express();
       console.log(`✅ ${emendasInserted} emendas inseridas`);
 
       // ── PASSO 4: Sincronizar novas emendas com formalização ──
-      const codigosInseridos = novosItems
-        .filter((it: any) => it.codigo_num && String(it.codigo_num).trim() !== '')
-        .map((it: any) => String(it.codigo_num).trim());
+      // ── PASSO 4: Sincronizar novas emendas com formalização via num_convenio ──
+      const conveniosInseridos = novosItems
+        .filter((it: any) => it.num_convenio && String(it.num_convenio).trim() !== '')
+        .map((it: any) => String(it.num_convenio).trim());
 
       let formalizacaoUpdated = 0;
       let notInFormalizacao = 0;
 
-      if (codigosInseridos.length > 0) {
-        const uniqueCodigos = [...new Set(codigosInseridos)];
+      if (conveniosInseridos.length > 0) {
+        const uniqueConvenios = [...new Set(conveniosInseridos)];
         const formalizacoesEncontradas: any[] = [];
-        for (let i = 0; i < uniqueCodigos.length; i += 100) {
-          const batch = uniqueCodigos.slice(i, i + 100);
+        for (let i = 0; i < uniqueConvenios.length; i += 100) {
+          const batch = uniqueConvenios.slice(i, i + 100);
           const { data: formalizacoes, error: fError } = await supabase
             .from("formalizacao")
-            .select("id, emenda")
-            .in("emenda", batch);
+            .select("id, numero_convenio")
+            .in("numero_convenio", batch);
           if (fError) {
             errors.push(`Buscar formalizações: ${fError.message}`);
           } else if (formalizacoes) {
@@ -1925,15 +1925,16 @@ const app = express();
 
         const formalizacaoMap = new Map<string, number[]>();
         for (const f of formalizacoesEncontradas) {
-          const key = String(f.emenda).trim();
+          const key = f.numero_convenio ? String(f.numero_convenio).trim() : '';
+          if (!key) continue;
           if (!formalizacaoMap.has(key)) formalizacaoMap.set(key, []);
           formalizacaoMap.get(key)!.push(f.id);
         }
 
         for (const emendaItem of novosItems) {
-          const cod = emendaItem.codigo_num ? String(emendaItem.codigo_num).trim() : '';
-          if (!cod) continue;
-          const fIds = formalizacaoMap.get(cod);
+          const conv = emendaItem.num_convenio ? String(emendaItem.num_convenio).trim() : '';
+          if (!conv) { notInFormalizacao++; continue; }
+          const fIds = formalizacaoMap.get(conv);
           if (!fIds || fIds.length === 0) { notInFormalizacao++; continue; }
 
           const updateData: any = {};
@@ -1997,59 +1998,59 @@ const app = express();
 
       console.log('🔄 Sincronizando emendas → formalização...');
 
-      // Buscar todos os codigos da formalizacao que têm campo emenda preenchido
+      // Buscar todas as formalizações que têm numero_convenio preenchido
       const allFormalizacoes: any[] = [];
       let fOffset = 0;
       while (true) {
         const { data: fData, error: fErr } = await supabase
           .from("formalizacao")
-          .select("id, emenda")
-          .not("emenda", "is", null)
-          .range(fOffset, fOffset + 2000 - 1);
+          .select("id, numero_convenio, emenda")
+          .not("numero_convenio", "is", null)
+          .range(fOffset, fOffset + 999);
         if (fErr) { console.error('Erro formalizacao:', fErr); break; }
         if (!fData || fData.length === 0) break;
         allFormalizacoes.push(...fData);
-        if (fData.length < 2000) break;
-        fOffset += 2000;
+        if (fData.length < 1000) break;
+        fOffset += 1000;
       }
 
-      // Criar mapa emenda → [formalizacao_ids]
+      // Criar mapa numero_convenio → [formalizacao_ids]
       const formalizacaoMap = new Map<string, number[]>();
       for (const f of allFormalizacoes) {
-        const key = String(f.emenda).trim();
+        const key = f.numero_convenio ? String(f.numero_convenio).trim() : '';
         if (!key) continue;
         if (!formalizacaoMap.has(key)) formalizacaoMap.set(key, []);
         formalizacaoMap.get(key)!.push(f.id);
       }
 
-      const emendasCodigos = [...formalizacaoMap.keys()];
-      console.log(`📋 ${emendasCodigos.length} códigos de emenda únicos na formalização`);
+      const convenioKeys = [...formalizacaoMap.keys()];
+      console.log(`📋 ${convenioKeys.length} números de convênio únicos na formalização`);
 
-      // Buscar emendas correspondentes no banco
+      // Buscar emendas correspondentes pelo num_convenio
       let updated = 0;
       let notFound = 0;
       const errors: string[] = [];
 
-      for (let i = 0; i < emendasCodigos.length; i += 100) {
-        const batch = emendasCodigos.slice(i, i + 100);
+      for (let i = 0; i < convenioKeys.length; i += 100) {
+        const batch = convenioKeys.slice(i, i + 100);
         const { data: emendas, error: eErr } = await supabase
           .from("emendas")
           .select("*")
-          .in("codigo_num", batch);
+          .in("num_convenio", batch);
 
         if (eErr) { errors.push(eErr.message); continue; }
         if (!emendas) continue;
 
         const emendaMap = new Map<string, any>();
         for (const e of emendas) {
-          if (e.codigo_num) emendaMap.set(String(e.codigo_num).trim(), e);
+          if (e.num_convenio) emendaMap.set(String(e.num_convenio).trim(), e);
         }
 
-        for (const cod of batch) {
-          const emenda = emendaMap.get(cod);
+        for (const conv of batch) {
+          const emenda = emendaMap.get(conv);
           if (!emenda) { notFound++; continue; }
 
-          const fIds = formalizacaoMap.get(cod);
+          const fIds = formalizacaoMap.get(conv);
           if (!fIds) continue;
 
           const updateData: any = {};

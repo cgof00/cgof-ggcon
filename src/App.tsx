@@ -575,49 +575,49 @@ export default function App() {
   const [emendasVisibleColumns, setEmendasVisibleColumns] = useState<Record<string, boolean>>({
     ano_refer: true,
     codigo_num: true,
-    num_emenda: false,
+    num_emenda: true,
     natureza: true,
     parlamentar: true,
     partido: true,
     beneficiario: true,
-    cnpj: false,
-    tipo_beneficiario: false,
+    cnpj: true,
+    tipo_beneficiario: true,
     municipio: true,
     regional: true,
-    objeto: false,
+    objeto: true,
     valor: true,
-    valor_desembolsado: false,
-    num_convenio: false,
-    num_processo: false,
+    valor_desembolsado: true,
+    num_convenio: true,
+    num_processo: true,
     situacao_e: true,
     situacao_d: true,
-    data_ult_e: false,
-    data_ult_d: false,
-    num_indicacao: false,
+    data_ult_e: true,
+    data_ult_d: true,
+    num_indicacao: true,
     status: true,
-    parecer_ld: false,
-    orgao_entidade: false,
-    portfolio: false,
-    vigencia: false,
-    data_assinatura: false,
-    data_publicacao: false,
-    data_pagamento: false,
-    agencia: false,
-    conta: false,
-    dados_bancarios: false,
-    qtd_dias: false,
-    data_prorrogacao: false,
-    num_codigo: false,
-    detalhes: false,
-    notas_empenho: false,
-    valor_total_empenhado: false,
-    notas_liquidacao: false,
-    valor_total_liquidado: false,
-    programa: false,
-    valor_total_pago: false,
-    ordem_bancaria: false,
-    data_paga: false,
-    valor_total_ordem_bancaria: false,
+    parecer_ld: true,
+    orgao_entidade: true,
+    portfolio: true,
+    vigencia: true,
+    data_assinatura: true,
+    data_publicacao: true,
+    data_pagamento: true,
+    agencia: true,
+    conta: true,
+    dados_bancarios: true,
+    qtd_dias: true,
+    data_prorrogacao: true,
+    num_codigo: true,
+    detalhes: true,
+    notas_empenho: true,
+    valor_total_empenhado: true,
+    notas_liquidacao: true,
+    valor_total_liquidado: true,
+    programa: true,
+    valor_total_pago: true,
+    ordem_bancaria: true,
+    data_paga: true,
+    valor_total_ordem_bancaria: true,
   });
   const [emendasSortColumn, setEmendasSortColumn] = useState<string>('ano_refer');
   const [emendasSortOrder, setEmendasSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -1114,18 +1114,32 @@ export default function App() {
 
   const fetchEmendas = async () => {
     try {
-      console.log('📥 Buscando emendas (primeiros 1000 registros)...');
-      const response = await fetch('/api/emendas?limit=1000&offset=0', {
-        headers: getHeaders()
-      });
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        console.log(`✓ ${data.length} emendas carregadas`);
-        setEmendas(data);
-      } else {
-        console.warn('⚠ Resposta não é array:', data);
-        setEmendas([]);
+      console.log('📥 Buscando TODAS as emendas...');
+      const allEmendas: any[] = [];
+      let offset = 0;
+      const batchSize = 5000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await fetch(`/api/emendas?limit=${batchSize}&offset=${offset}`, {
+          headers: getHeaders()
+        });
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          allEmendas.push(...data);
+          console.log(`   ✓ ${allEmendas.length} emendas carregadas (batch offset=${offset})...`);
+          if (data.length < batchSize) {
+            hasMore = false;
+          } else {
+            offset += batchSize;
+          }
+        } else {
+          hasMore = false;
+        }
       }
+
+      console.log(`✅ Total: ${allEmendas.length} emendas carregadas`);
+      setEmendas(allEmendas);
     } catch (error) {
       console.error('❌ Erro ao buscar emendas:', error);
       setEmendas([]);
@@ -1542,8 +1556,8 @@ export default function App() {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: 'greedy',
-      encoding: 'ISO-8859-1',
-      transformHeader: (header) => header.trim(),
+      encoding: 'UTF-8',
+      transformHeader: (header) => header.replace(/^\uFEFF/, '').trim(),
       complete: async (results) => {
         try {
           const data = results.data as any[];
@@ -1638,39 +1652,62 @@ export default function App() {
           console.log(`📋 ${mappedItems.length} registros mapeados do CSV. Enviando para o servidor (PROCV será feito no servidor)...`);
 
           // ── PASSO 2: Enviar todos os registros para o servidor (PROCV é feito no servidor) ──
-          const chunkSize = 500;
+          const chunkSize = 2000;
           let totalInserted = 0;
           let totalUpdated = 0;
           let totalNotInFormalizacao = 0;
           let totalSkipped = 0;
           const allErrors: string[] = [];
+          const totalChunks = Math.ceil(mappedItems.length / chunkSize);
 
           for (let i = 0; i < mappedItems.length; i += chunkSize) {
             const chunk = mappedItems.slice(i, i + chunkSize);
-            console.log(`   Enviando chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(mappedItems.length / chunkSize)} (${chunk.length} registros)...`);
+            const chunkNum = Math.floor(i / chunkSize) + 1;
+            console.log(`   📤 Enviando chunk ${chunkNum}/${totalChunks} (${chunk.length} registros)... [${Math.round((i / mappedItems.length) * 100)}%]`);
 
-            const response = await fetch('/api/emendas/import-report', {
-              method: 'POST',
-              headers: getHeaders(),
-              body: JSON.stringify(chunk),
-            });
+            let retries = 3;
+            let success = false;
+            while (retries > 0 && !success) {
+              try {
+                const response = await fetch('/api/emendas/import-report', {
+                  method: 'POST',
+                  headers: getHeaders(),
+                  body: JSON.stringify(chunk),
+                });
 
-            if (!response.ok) {
-              const errText = await response.text();
-              console.error(`❌ Servidor retornou ${response.status}: ${errText.substring(0, 500)}`);
-              let errMsg = `Servidor retornou erro ${response.status}`;
-              try { const errJson = JSON.parse(errText); errMsg = errJson.details || errJson.error || errMsg; } catch {}
-              throw new Error(errMsg);
+                if (!response.ok) {
+                  const errText = await response.text();
+                  console.error(`❌ Servidor retornou ${response.status}: ${errText.substring(0, 500)}`);
+                  if (retries > 1) {
+                    retries--;
+                    console.log(`   🔄 Tentando novamente (${retries} tentativas restantes)...`);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    continue;
+                  }
+                  let errMsg = `Servidor retornou erro ${response.status}`;
+                  try { const errJson = JSON.parse(errText); errMsg = errJson.details || errJson.error || errMsg; } catch {}
+                  throw new Error(errMsg);
+                }
+
+                const result = await response.json();
+                totalInserted += result.emendas_inserted || 0;
+                totalUpdated += result.formalizacao_updated || 0;
+                totalNotInFormalizacao += result.not_in_formalizacao || 0;
+                totalSkipped += result.skipped || 0;
+                if (result.errors) allErrors.push(...result.errors);
+                success = true;
+              } catch (err: any) {
+                retries--;
+                if (retries <= 0) throw err;
+                console.log(`   🔄 Erro de rede, tentando novamente (${retries} tentativas restantes)...`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
             }
 
-            const result = await response.json();
-            totalInserted += result.emendas_inserted || 0;
-            totalUpdated += result.formalizacao_updated || 0;
-            totalNotInFormalizacao += result.not_in_formalizacao || 0;
-            totalSkipped += result.skipped || 0;
-            if (result.errors) allErrors.push(...result.errors);
-
-            await new Promise(resolve => setTimeout(resolve, 200));
+            // Pequena pausa entre chunks para não sobrecarregar
+            if (i + chunkSize < mappedItems.length) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
           }
 
           setImportReportResult({
