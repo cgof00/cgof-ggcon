@@ -136,6 +136,9 @@ $$;
 -- Dar permissão para o service_role executar a função
 GRANT EXECUTE ON FUNCTION sync_emendas_formalizacao() TO service_role;
 
+-- IMPORTANTE: Recarregar o cache do PostgREST para reconhecer a nova função
+NOTIFY pgrst, 'reload schema';
+
 -- ============================================================
 -- PRONTO! Após executar, teste a sincronização no sistema.
 -- ============================================================
