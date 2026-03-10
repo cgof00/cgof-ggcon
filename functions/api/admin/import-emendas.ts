@@ -29,7 +29,7 @@ export const onRequest: PagesFunction = async (context) => {
 
     // Upsert na tabela emendas (conflito por codigo_num)
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/emendas`,
+      `${SUPABASE_URL}/rest/v1/emendas?on_conflict=codigo_num`,
       {
         method: 'POST',
         headers: {
