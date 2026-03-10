@@ -960,6 +960,21 @@ export default function App() {
     ...(token && { 'Authorization': `Bearer ${token}` })
   });
 
+  // Helper: fazer fetch com detecção de token expirado (401 → auto logout)
+  const fetchWithAuth = async (url: string, options: RequestInit = {}): Promise<Response> => {
+    const response = await fetch(url, {
+      ...options,
+      headers: { ...getHeaders(), ...(options.headers || {}) }
+    });
+    if (response.status === 401) {
+      console.error('⚠️ Token expirado (401). Forçando re-login...');
+      logout();
+      alert('Sua sessão expirou. Faça login novamente.');
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
+    return response;
+  };
+
   // 🔥 Pré-carregar cache na inicialização
   useEffect(() => {
     const warmupCache = async () => {
@@ -1674,6 +1689,12 @@ export default function App() {
                   headers: getHeaders(),
                   body: JSON.stringify(chunk),
                 });
+
+                if (response.status === 401) {
+                  // Token expirado - forçar re-login
+                  logout();
+                  throw new Error('Sessão expirada. Faça login novamente e tente importar de novo.');
+                }
 
                 if (!response.ok) {
                   const errText = await response.text();

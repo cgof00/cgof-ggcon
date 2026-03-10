@@ -24,12 +24,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
-  // Restaurar sessão do localStorage
+  // Verificar se token está expirado
+  const isTokenExpired = (t: string): boolean => {
+    try {
+      const payload = JSON.parse(atob(t));
+      const now = Math.floor(Date.now() / 1000);
+      return payload.exp ? payload.exp < now : false;
+    } catch {
+      return true;
+    }
+  };
+
+  // Restaurar sessão do localStorage (com verificação de expiração)
   useEffect(() => {
     const savedToken = localStorage.getItem('auth_token');
     const savedUser = localStorage.getItem('auth_user');
     if (savedToken && savedUser) {
       try {
+        if (isTokenExpired(savedToken)) {
+          console.warn('⚠️ Token expirado. Fazendo logout automático...');
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('auth_user');
+          return;
+        }
         setToken(savedToken);
         setUser(JSON.parse(savedUser));
       } catch (error) {
@@ -39,6 +56,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
   }, []);
+
+  // Verificar expiração periodicamente (a cada 60 segundos)
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(() => {
+      if (isTokenExpired(token)) {
+        console.warn('⚠️ Token expirou. Forçando logout...');
+        logout();
+        alert('Sua sessão expirou. Faça login novamente.');
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [token]);
 
   const login = async (email: string, senha: string) => {
     try {
