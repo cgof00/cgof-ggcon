@@ -1,7 +1,82 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertCircle, BarChart3, FileText, CheckCheck, ChevronDown, ChevronRight, Filter, Calendar, RefreshCw, Clock, TrendingUp } from 'lucide-react';
+import { AlertCircle, BarChart3, FileText, CheckCheck, ChevronDown, ChevronRight, Filter, Calendar, RefreshCw, Clock, TrendingUp, Upload, CheckCircle, XCircle } from 'lucide-react';
+import Papa from 'papaparse';
 import { useAuth } from './AuthContext';
+
+// Mapeamento CSV headers → colunas da tabela emendas
+const CSV_TO_EMENDAS_MAP: Record<string, string> = {
+  'Detalhes da Demanda': 'detalhes',
+  'Natureza': 'natureza',
+  'Ano Referência': 'ano_refer',
+  'Código/Nº Emenda': 'codigo_num',
+  'Nº Emenda Agregadora': 'num_emenda',
+  'Parecer LDO': 'parecer_ld',
+  'Situação Emenda': 'situacao_e',
+  'Situação Demanda': 'situacao_d',
+  'Data da Última Tramitação Emenda': 'data_ult_e',
+  'Data da Última Tramitação Demanda': 'data_ult_d',
+  'Nº da Indicação': 'num_indicacao',
+  'Parlamentar': 'parlamentar',
+  'Partido': 'partido',
+  'Tipo Beneficiário': 'tipo_beneficiario',
+  'Beneficiário': 'beneficiario',
+  'CNPJ': 'cnpj',
+  'Município': 'municipio',
+  'Objeto': 'objeto',
+  'Órgão Entidade/Responsável': 'orgao_entidade',
+  'Regional': 'regional',
+  'Nº de Convênio': 'num_convenio',
+  'Nº de Processo': 'num_processo',
+  'Assinatura': 'data_assinatura',
+  'Publicação': 'data_publicacao',
+  'Agência': 'agencia',
+  'Conta': 'conta',
+  'Valor': 'valor',
+  'Valor da Demanda': 'valor_desembolsado',
+  'Portfólio': 'portfolio',
+  'Qtd. Dias na Etapa': 'qtd_dias',
+  'Vigência': 'vigencia',
+  'Data da Primeira Notificação LOA Recebida pelo Beneficiário': 'data_prorrogacao',
+  'Dados Bancários': 'dados_bancarios',
+  'Status do Pagamento': 'status',
+  'Data do Pagamento': 'data_pagamento',
+  'Nº do Código Único': 'num_codigo',
+  'Notas e Empenho': 'notas_empenho',
+  'Valor Total Empenho': 'valor_total_empenhado',
+  'Notas de Lançamento': 'notas_liquidacao',
+  'Valor Total Lançamento': 'valor_total_liquidado',
+  'Programações Desembolso': 'programa',
+  'Valor Total Programação Desembolso': 'valor_total_pago',
+  'Ordem Bancária': 'ordem_bancaria',
+  'Data pagamento Ordem Bancária': 'data_paga',
+  'Valor Total Ordem Bancária': 'valor_total_ordem_bancaria',
+};
+
+const NUMERIC_COLUMNS = new Set(['valor', 'valor_desembolsado', 'valor_total_empenhado', 'valor_total_liquidado', 'valor_total_pago', 'valor_total_ordem_bancaria']);
+const INTEGER_COLUMNS = new Set(['qtd_dias']);
+
+function parseBRNumber(val: string): number {
+  if (!val || !/^[0-9.,]+$/.test(val.trim())) return 0;
+  return parseFloat(val.trim().replace(/\./g, '').replace(',', '.')) || 0;
+}
+
+function mapCsvRowToEmendas(row: Record<string, string>): Record<string, any> | null {
+  const mapped: Record<string, any> = {};
+  for (const [csvHeader, dbColumn] of Object.entries(CSV_TO_EMENDAS_MAP)) {
+    const val = row[csvHeader];
+    if (val === undefined) continue;
+    if (NUMERIC_COLUMNS.has(dbColumn)) {
+      mapped[dbColumn] = parseBRNumber(val);
+    } else if (INTEGER_COLUMNS.has(dbColumn)) {
+      mapped[dbColumn] = /^\d+$/.test(val.trim()) ? parseInt(val.trim(), 10) : 0;
+    } else {
+      mapped[dbColumn] = val;
+    }
+  }
+  if (!mapped.codigo_num || String(mapped.codigo_num).trim() === '') return null;
+  return mapped;
+}
 
 // Categorias de situação para o quadro detalhado
 const SITUACAO_CATEGORIAS = [
@@ -32,6 +107,7 @@ export function AdminPanel() {
 
   // All collapsed by default
   const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({
+    importarCSV: true,
     quadroTecnico: true,
     situacao: true,
     tempoTecnicos: true,
@@ -39,6 +115,14 @@ export function AdminPanel() {
     topMunicipios: true,
     evolucaoMensal: true,
   });
+
+  // Import CSV state
+  const [importStatus, setImportStatus] = useState<'idle' | 'parsing' | 'uploading' | 'syncing' | 'done' | 'error'>('idle');
+  const [importProgress, setImportProgress] = useState(0);
+  const [importTotal, setImportTotal] = useState(0);
+  const [importMessage, setImportMessage] = useState('');
+  const [importError, setImportError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [filtroTecnico, setFiltroTecnico] = useState('');
   const [filtroRegional, setFiltroRegional] = useState('');
@@ -48,6 +132,107 @@ export function AdminPanel() {
 
   const toggleCard = (cardId: string) => {
     setCollapsedCards(prev => ({ ...prev, [cardId]: !prev[cardId] }));
+  };
+
+  const BATCH_SIZE = 200;
+
+  const handleImportCSV = async (file: File) => {
+    setImportStatus('parsing');
+    setImportProgress(0);
+    setImportTotal(0);
+    setImportMessage('Lendo CSV...');
+    setImportError('');
+
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      setImportStatus('error');
+      setImportError('Token de autenticação não encontrado');
+      return;
+    }
+
+    Papa.parse(file, {
+      header: true,
+      delimiter: ';',
+      skipEmptyLines: true,
+      encoding: 'UTF-8',
+      complete: async (results) => {
+        const rows = results.data as Record<string, string>[];
+        const mapped = rows.map(mapCsvRowToEmendas).filter((r): r is Record<string, any> => r !== null);
+
+        // Deduplicate by codigo_num (keep last occurrence)
+        const deduped = new Map<string, Record<string, any>>();
+        for (const rec of mapped) {
+          deduped.set(String(rec.codigo_num), rec);
+        }
+        const records = Array.from(deduped.values());
+
+        if (records.length === 0) {
+          setImportStatus('error');
+          setImportError('Nenhum registro válido encontrado no CSV. Verifique se o delimitador é ";" e os cabeçalhos estão corretos.');
+          return;
+        }
+
+        const totalBatches = Math.ceil(records.length / BATCH_SIZE);
+        setImportTotal(records.length);
+        setImportStatus('uploading');
+        setImportMessage(`Enviando ${records.length} registros em ${totalBatches} lotes...`);
+
+        let uploadedCount = 0;
+        for (let i = 0; i < records.length; i += BATCH_SIZE) {
+          const batch = records.slice(i, i + BATCH_SIZE);
+          const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+          setImportMessage(`Enviando lote ${batchNum}/${totalBatches} (${Math.min(i + BATCH_SIZE, records.length)}/${records.length})...`);
+          
+          try {
+            const resp = await fetch('/api/admin/import-emendas', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ records: batch }),
+            });
+            if (!resp.ok) {
+              const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' }));
+              setImportStatus('error');
+              setImportError(`Erro no lote ${batchNum}: ${err.error || resp.statusText}`);
+              return;
+            }
+            uploadedCount += batch.length;
+            setImportProgress(Math.round((uploadedCount / records.length) * 90));
+          } catch (e: any) {
+            setImportStatus('error');
+            setImportError(`Erro de rede no lote ${batchNum}: ${e.message}`);
+            return;
+          }
+        }
+
+        // Sync emendas → formalizacao
+        setImportStatus('syncing');
+        setImportProgress(92);
+        setImportMessage('Sincronizando emendas com formalizações...');
+
+        try {
+          const syncResp = await fetch('/api/admin/sync-emendas', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          });
+          if (!syncResp.ok) {
+            const err = await syncResp.json().catch(() => ({ error: 'Erro desconhecido' }));
+            setImportStatus('error');
+            setImportError(`Erro na sincronização: ${err.error || syncResp.statusText}`);
+            return;
+          }
+          setImportProgress(100);
+          setImportStatus('done');
+          setImportMessage(`Importação concluída! ${records.length} emendas importadas e sincronizadas.`);
+        } catch (e: any) {
+          setImportStatus('error');
+          setImportError(`Erro de rede na sincronização: ${e.message}`);
+        }
+      },
+      error: (err) => {
+        setImportStatus('error');
+        setImportError(`Erro ao ler CSV: ${err.message}`);
+      }
+    });
   };
 
   const uniqueTecnicos = useMemo(() => {
@@ -311,6 +496,128 @@ export function AdminPanel() {
           </div>
         </div>
       </div>
+
+      {/* ===== IMPORTAR CSV DE EMENDAS ===== */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+        <button onClick={() => toggleCard('importarCSV')} className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-violet-500 to-violet-600 text-white hover:from-violet-600 hover:to-violet-700 transition-all">
+          <div className="flex items-center gap-2">
+            <Upload className="w-5 h-5" />
+            <h3 className="text-base font-bold">Importar CSV de Emendas</h3>
+          </div>
+          {collapsedCards['importarCSV'] ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </button>
+        <AnimatePresence initial={false}>
+          {!collapsedCards['importarCSV'] && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-slate-600">
+                  Selecione o CSV de emendas (delimitador <strong>;</strong>). O sistema importará os registros no banco e sincronizará automaticamente com a tabela de formalizações.
+                </p>
+                
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleImportCSV(f);
+                    e.target.value = '';
+                  }}
+                />
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={importStatus === 'uploading' || importStatus === 'syncing' || importStatus === 'parsing'}
+                    className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:bg-slate-400 text-white text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Selecionar CSV
+                  </button>
+                  {importStatus === 'done' && (
+                    <button
+                      onClick={() => { setImportStatus('idle'); setImportProgress(0); setImportMessage(''); setImportError(''); }}
+                      className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg px-4 py-2.5 transition-colors"
+                    >
+                      <RefreshCw className="w-4 h-4" /> Nova importação
+                    </button>
+                  )}
+                </div>
+
+                {/* Progress bar */}
+                {importStatus !== 'idle' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600 font-medium">{importMessage}</span>
+                      {importProgress > 0 && <span className="text-slate-500 font-bold">{importProgress}%</span>}
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${importProgress}%` }}
+                        transition={{ duration: 0.3 }}
+                        className={`h-full rounded-full transition-colors ${
+                          importStatus === 'error' ? 'bg-red-500' :
+                          importStatus === 'done' ? 'bg-green-500' :
+                          'bg-violet-500'
+                        }`}
+                      />
+                    </div>
+                    {importTotal > 0 && importStatus === 'uploading' && (
+                      <p className="text-xs text-slate-500">
+                        {Math.round(importProgress * importTotal / 90)} de {importTotal} registros enviados
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Success message */}
+                {importStatus === 'done' && (
+                  <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl p-4">
+                    <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-green-800 font-medium">{importMessage}</p>
+                  </div>
+                )}
+
+                {/* Error message */}
+                {importStatus === 'error' && (
+                  <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+                    <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-red-800 font-medium">{importError}</p>
+                      <button
+                        onClick={() => { setImportStatus('idle'); setImportProgress(0); setImportMessage(''); setImportError(''); }}
+                        className="mt-2 text-xs text-red-600 hover:text-red-800 underline"
+                      >
+                        Tentar novamente
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Status indicators */}
+                {importStatus !== 'idle' && importStatus !== 'error' && (
+                  <div className="flex items-center gap-6 text-xs text-slate-500">
+                    <span className={`flex items-center gap-1.5 ${importStatus === 'parsing' ? 'text-violet-600 font-semibold' : importProgress > 0 ? 'text-green-600' : ''}`}>
+                      {importProgress > 0 ? <CheckCircle className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                      Leitura CSV
+                    </span>
+                    <span className={`flex items-center gap-1.5 ${importStatus === 'uploading' ? 'text-violet-600 font-semibold' : importProgress >= 90 ? 'text-green-600' : ''}`}>
+                      {importProgress >= 90 ? <CheckCircle className="w-3.5 h-3.5" /> : importStatus === 'uploading' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block" />}
+                      Upload
+                    </span>
+                    <span className={`flex items-center gap-1.5 ${importStatus === 'syncing' ? 'text-violet-600 font-semibold' : importStatus === 'done' ? 'text-green-600' : ''}`}>
+                      {importStatus === 'done' ? <CheckCircle className="w-3.5 h-3.5" /> : importStatus === 'syncing' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block" />}
+                      Sincronização
+                    </span>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
 
       {/* Dashboard */}
       {dashboardLoading ? (

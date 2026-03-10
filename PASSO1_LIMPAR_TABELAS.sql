@@ -114,7 +114,7 @@ CREATE TABLE formalizacao_import (
   "Município" TEXT,
   "Conveniado" TEXT,
   "Objeto" TEXT,
-  "Portfólio " TEXT,
+  "Portfólio" TEXT,
   "Valor" TEXT,
   "Posição Anterior" TEXT,
   "Situação Demandas - SemPapel" TEXT,
@@ -138,9 +138,7 @@ CREATE TABLE formalizacao_import (
   "Publicação" TEXT,
   "Vigência" TEXT,
   "Encaminhado em" TEXT,
-  "Concluída em" TEXT,
-  "5ultimos" TEXT,
-  "" TEXT
+  "Concluída em" TEXT
 );
 
 -- Habilitar acesso para importação

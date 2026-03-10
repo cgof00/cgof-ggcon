@@ -1604,9 +1604,54 @@ export default function App() {
   // Para formalizações, usar os dados do servidor já filtrados
   const filteredFormalizacoes = formalizacaoSearchResult.data;
 
-  // Função para ordenar dados
+  // Função para ordenar dados (Excel-like: numérico, data, texto)
   const sortData = (data: any[], column: string, order: string) => {
     const sorted = [...data];
+
+    // Colunas numéricas (devem ordenar como número)
+    const numericColumns = new Set(['seq', 'ano', 'valor', 'demanda', 'demandas_formalizacao']);
+    // Colunas de data (devem ordenar como data)
+    const dateColumns = new Set([
+      'data_liberacao', 'data_analise_demanda', 'data_retorno_diligencia',
+      'data_recebimento_demanda', 'data_retorno', 'data_liberacao_assinatura_conferencista',
+      'data_liberacao_assinatura', 'assinatura', 'publicacao', 'vigencia',
+      'encaminhado_em', 'concluida_em'
+    ]);
+
+    // Parsear data em vários formatos → timestamp para comparação
+    const parseDate = (val: string): number | null => {
+      if (!val || val === '—' || val.trim() === '') return null;
+      const s = val.trim();
+      // DD/MM/YYYY
+      const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (brMatch) {
+        const [, d, m, y] = brMatch;
+        return new Date(+y, +m - 1, +d).getTime();
+      }
+      // YYYY-MM-DD (com ou sem hora)
+      const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (isoMatch) {
+        const [, y, m, d] = isoMatch;
+        return new Date(+y, +m - 1, +d).getTime();
+      }
+      return null;
+    };
+
+    // Extrair número de uma string (1.234,56 → 1234.56; "2024" → 2024)
+    const parseNum = (val: any): number | null => {
+      if (val == null) return null;
+      if (typeof val === 'number') return val;
+      const s = String(val).trim();
+      if (s === '' || s === '—') return null;
+      // Tentar extrair número: remover pontos de milhar, trocar vírgula por ponto
+      const cleaned = s.replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
+      const n = parseFloat(cleaned);
+      return isNaN(n) ? null : n;
+    };
+
+    const isNumeric = numericColumns.has(column);
+    const isDate = dateColumns.has(column);
+
     sorted.sort((a, b) => {
       // Mapear chaves de coluna para propriedades do objeto
       const keyMap: { [key: string]: string } = {
@@ -1656,19 +1701,50 @@ export default function App() {
       const aVal = a[key];
       const bVal = b[key];
       
-      // Tratar valores nulos
-      if (aVal == null && bVal == null) return 0;
-      if (aVal == null) return order === 'asc' ? 1 : -1;
-      if (bVal == null) return order === 'asc' ? -1 : 1;
+      // Tratar valores nulos/vazios — sempre por último
+      const aEmpty = aVal == null || String(aVal).trim() === '' || String(aVal).trim() === '—';
+      const bEmpty = bVal == null || String(bVal).trim() === '' || String(bVal).trim() === '—';
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1;  // vazios sempre no final
+      if (bEmpty) return -1;
       
-      // Comparar valores
       let comparison = 0;
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
+
+      if (isDate) {
+        const aDate = parseDate(String(aVal));
+        const bDate = parseDate(String(bVal));
+        if (aDate != null && bDate != null) {
+          comparison = aDate - bDate;
+        } else if (aDate != null) {
+          comparison = -1;
+        } else if (bDate != null) {
+          comparison = 1;
+        } else {
+          comparison = String(aVal).localeCompare(String(bVal), 'pt-BR');
+        }
+      } else if (isNumeric) {
+        const aNum = parseNum(aVal);
+        const bNum = parseNum(bVal);
+        if (aNum != null && bNum != null) {
+          comparison = aNum - bNum;
+        } else if (aNum != null) {
+          comparison = -1;
+        } else if (bNum != null) {
+          comparison = 1;
+        } else {
+          comparison = String(aVal).localeCompare(String(bVal), 'pt-BR');
+        }
+      } else if (typeof aVal === 'number' && typeof bVal === 'number') {
         comparison = aVal - bVal;
-      } else if (typeof aVal === 'string' && typeof bVal === 'string') {
-        comparison = aVal.localeCompare(bVal, 'pt-BR');
       } else {
-        comparison = String(aVal).localeCompare(String(bVal), 'pt-BR');
+        // Para qualquer coluna: se ambos parecem numéricos, comparar como número
+        const aNum = parseNum(aVal);
+        const bNum = parseNum(bVal);
+        if (aNum != null && bNum != null) {
+          comparison = aNum - bNum;
+        } else {
+          comparison = String(aVal).localeCompare(String(bVal), 'pt-BR');
+        }
       }
       
       return order === 'asc' ? comparison : -comparison;

@@ -28,7 +28,7 @@ INSERT INTO emendas (
   notas_liquidacao, valor_total_liquidado, programa,
   valor_total_pago, ordem_bancaria, data_paga, valor_total_ordem_bancaria
 )
-SELECT
+SELECT DISTINCT ON ("Código/Nº Emenda")
   "Detalhes da Demanda",
   "Natureza",
   "Ano Referência",
@@ -127,7 +127,7 @@ SELECT
   "Município",
   "Conveniado",
   "Objeto",
-  "Portfólio ",
+  "Portfólio",
   CASE WHEN "Valor" ~ '^[0-9.,]+$' THEN REPLACE(REPLACE("Valor", '.', ''), ',', '.')::NUMERIC ELSE NULL END,
   "Posição Anterior",
   "Situação Demandas - SemPapel",
