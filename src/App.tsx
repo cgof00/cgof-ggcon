@@ -757,6 +757,13 @@ export default function App() {
         const fieldVal = String(f[hField] || '').trim();
         if (!hv.some(sv => fieldVal.toLowerCase().includes(sv.toLowerCase()))) return false;
       }
+      // Verificar hideEmptyFields (exceto o da coluna atual)
+      for (const [field, hide] of Object.entries(hideEmptyFields)) {
+        if (!hide) continue;
+        if (field === dataField || field === currentFilterKey) continue;
+        const val = f[field];
+        if (!val || String(val).trim() === '' || String(val).trim() === '—') return false;
+      }
       // Verificar searchTerm
       if (searchTerm) {
         const s = searchTerm.toLowerCase();
@@ -881,7 +888,7 @@ export default function App() {
           setFilterOptions({});
         });
     }
-  }, [filters, activeTab, token]);
+  }, [filters, activeTab, token, hideEmptyFields, headerFilters]);
 
   // Log de filtros para debug
   useEffect(() => {
@@ -1174,8 +1181,17 @@ export default function App() {
         }
       }
 
-      console.log(`✅ Total: ${dataFetched.length} emendas carregadas`);
-      setEmendas(dataFetched);
+      // Dedup por codigo_num para evitar duplicatas
+      const seen = new Set<string>();
+      const unique: any[] = [];
+      for (const e of dataFetched) {
+        const key = e.codigo_num || e.id;
+        if (key && seen.has(String(key))) continue;
+        if (key) seen.add(String(key));
+        unique.push(e);
+      }
+      console.log(`✅ Total: ${unique.length} emendas carregadas (${dataFetched.length - unique.length} duplicatas removidas)`);
+      setEmendas(unique);
     } catch (error) {
       console.error('❌ Erro ao buscar emendas:', error);
       setEmendas([]);
@@ -1441,31 +1457,13 @@ export default function App() {
       // Aplicar filtros em modo cache
       let filteredData = allData.filter(matchesAllFilters);
       
-      // Aplicar "Ocultar Vazias"
+      // Aplicar "Ocultar Vazias" - genérico para todas as colunas
       filteredData = filteredData.filter(f => {
-        if (hideEmptyFields.ano && !f.ano) return false;
-        if (hideEmptyFields.demandas_formalizacao && !f.demandas_formalizacao) return false;
-        if (hideEmptyFields.area_estagio && !f.area_estagio) return false;
-        if (hideEmptyFields.recurso && !f.recurso) return false;
-        if (hideEmptyFields.tecnico && !f.tecnico) return false;
-        if (hideEmptyFields.parlamentar && !f.parlamentar) return false;
-        if (hideEmptyFields.partido && !f.partido) return false;
-        if (hideEmptyFields.regional && !f.regional) return false;
-        if (hideEmptyFields.municipio && !f.municipio) return false;
-        if (hideEmptyFields.conveniado && !f.conveniado) return false;
-        if (hideEmptyFields.objeto && !f.objeto) return false;
-        if (hideEmptyFields.area_estagio_situacao_demanda && !f.area_estagio_situacao_demanda) return false;
-        if (hideEmptyFields.situacao_analise_demanda && !f.situacao_analise_demanda) return false;
-        if (hideEmptyFields.conferencista && !f.conferencista) return false;
-        if (hideEmptyFields.falta_assinatura && !f.falta_assinatura) return false;
-        if (hideEmptyFields.publicacao && !f.publicacao) return false;
-        if (hideEmptyFields.vigencia && !f.vigencia) return false;
-        if (hideEmptyFields.data_liberacao && !f.data_liberacao) return false;
-        if (hideEmptyFields.data_analise_demanda && !f.data_analise_demanda) return false;
-        if (hideEmptyFields.data_recebimento_demanda && !f.data_recebimento_demanda) return false;
-        if (hideEmptyFields.data_retorno && !f.data_retorno) return false;
-        if (hideEmptyFields.encaminhado_em && !f.encaminhado_em) return false;
-        if (hideEmptyFields.concluida_em && !f.concluida_em) return false;
+        for (const [field, hide] of Object.entries(hideEmptyFields)) {
+          if (!hide) continue;
+          const val = f[field];
+          if (!val || String(val).trim() === '' || String(val).trim() === '—') return false;
+        }
         return true;
       });
 
@@ -2249,6 +2247,16 @@ export default function App() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   };
 
+  // Formatar número de emenda no padrão 0000.000.0000
+  const formatEmendaNumber = (value?: string): string => {
+    if (!value) return '—';
+    const digits = value.replace(/\D/g, '');
+    if (digits.length >= 10) {
+      return `${digits.slice(0, 4)}.${digits.slice(4, 7)}.${digits.slice(7)}`;
+    }
+    return value;
+  };
+
   return (
     <div className="min-h-screen bg-white text-black font-sans">
       {/* Header */}
@@ -2951,19 +2959,20 @@ export default function App() {
                 <div className="bg-white border border-teal-200 rounded-2xl p-4 shadow-sm">
                   <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-teal-700">Total em Emendas</p>
                   <p className="text-xl font-bold text-slate-900">
-                    {formatCurrency(emendas.reduce((acc, curr) => acc + (curr.valor || 0), 0))}
+                    {formatCurrency(filteredEmendas.reduce((acc, curr) => acc + (Number(curr.valor) || 0), 0))}
                   </p>
+                  <p className="text-[9px] text-gray-400 mt-0.5">{filteredEmendas.length.toLocaleString('pt-BR')} registros</p>
                 </div>
                 <div className="bg-white border border-teal-200 rounded-2xl p-4 shadow-sm">
                   <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-teal-700">Total Desembolsado</p>
                   <p className="text-xl font-bold text-emerald-600">
-                    {formatCurrency(emendas.reduce((acc, curr) => acc + (curr.valor_desembolsado || 0), 0))}
+                    {formatCurrency(filteredEmendas.reduce((acc, curr) => acc + (Number(curr.valor_desembolsado) || 0), 0))}
                   </p>
                 </div>
                 <div className="bg-white border border-teal-200 rounded-2xl p-4 shadow-sm">
                   <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-teal-700">Saldo a Liberar</p>
                   <p className="text-xl font-bold text-teal-700">
-                    {formatCurrency(emendas.reduce((acc, curr) => acc + ((curr.valor || 0) - (curr.valor_desembolsado || 0)), 0))}
+                    {formatCurrency(filteredEmendas.reduce((acc, curr) => acc + ((Number(curr.valor) || 0) - (Number(curr.valor_desembolsado) || 0)), 0))}
                   </p>
                 </div>
               </div>
@@ -3085,7 +3094,7 @@ export default function App() {
                           { key: 'ano', label: 'Ano', render: (f: any) => f.ano },
                           { key: 'parlamentar', label: 'Parlamentar', render: (f: any) => f.parlamentar },
                           { key: 'partido', label: 'Partido', render: (f: any) => f.partido },
-                          { key: 'emenda', label: 'Emenda', render: (f: any) => f.emenda },
+                          { key: 'emenda', label: 'Emenda', render: (f: any) => formatEmendaNumber(f.emenda) },
                           { key: 'emendas_agregadoras', label: 'Emendas Agregadoras', render: (f: any) => f.emendas_agregadoras },
                           { key: 'demanda', label: 'Demanda', render: (f: any) => f.demanda },
                           { key: 'demandas_formalizacao', label: 'Demandas Formalização', render: (f: any) => f.demandas_formalizacao },

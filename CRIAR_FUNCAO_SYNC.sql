@@ -32,6 +32,22 @@ UPDATE emendas
 SET codigo_num = TRIM(REGEXP_REPLACE(codigo_num, '\s+', ' ', 'g'))
 WHERE codigo_num IS NOT NULL AND codigo_num != '';
 
+-- 1.2b Normalizar formato numérico da emenda para o padrão 0000.000.00000
+-- Remove tudo que não é dígito e reformata como AAAA.NNN.NNNNN
+UPDATE formalizacao
+SET emenda = SUBSTRING(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g') FROM 1 FOR 4) || '.' ||
+             SUBSTRING(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g') FROM 5 FOR 3) || '.' ||
+             SUBSTRING(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g') FROM 8)
+WHERE emenda IS NOT NULL AND emenda != ''
+  AND LENGTH(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g')) >= 10;
+
+UPDATE emendas
+SET codigo_num = SUBSTRING(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g') FROM 1 FOR 4) || '.' ||
+                 SUBSTRING(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g') FROM 5 FOR 3) || '.' ||
+                 SUBSTRING(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g') FROM 8)
+WHERE codigo_num IS NOT NULL AND codigo_num != ''
+  AND LENGTH(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g')) >= 10;
+
 -- 1.3 Normalizar numero_convenio / num_convenio também (usado na sincronização)
 UPDATE formalizacao
 SET numero_convenio = TRIM(REGEXP_REPLACE(numero_convenio, '\s+', ' ', 'g'))
@@ -84,6 +100,7 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_updated INTEGER := 0;
+  v_updated2 INTEGER := 0;
   v_inserted INTEGER := 0;
 BEGIN
   -- PASSO 1: Atualizar formalizações existentes que têm match por numero_convenio
@@ -112,8 +129,35 @@ BEGIN
   )
   SELECT COUNT(*) INTO v_updated FROM matched;
 
+  -- PASSO 1b: Atualizar formalizações que têm match por emenda/codigo_num
+  -- (para registros que não foram encontrados pelo numero_convenio)
+  WITH matched2 AS (
+    UPDATE formalizacao f SET
+      demanda = COALESCE(NULLIF(f.demanda, ''), e.detalhes),
+      classificacao_emenda_demanda = COALESCE(NULLIF(f.classificacao_emenda_demanda, ''), e.natureza),
+      ano = COALESCE(NULLIF(f.ano, ''), e.ano_refer),
+      emendas_agregadoras = COALESCE(NULLIF(f.emendas_agregadoras, ''), e.num_emenda),
+      situacao_demandas_sempapel = COALESCE(NULLIF(f.situacao_demandas_sempapel, ''), e.situacao_d),
+      parlamentar = COALESCE(NULLIF(f.parlamentar, ''), e.parlamentar),
+      partido = COALESCE(NULLIF(f.partido, ''), e.partido),
+      conveniado = COALESCE(NULLIF(f.conveniado, ''), e.beneficiario),
+      municipio = COALESCE(NULLIF(f.municipio, ''), e.municipio),
+      objeto = COALESCE(NULLIF(f.objeto, ''), e.objeto),
+      regional = COALESCE(NULLIF(f.regional, ''), e.regional),
+      portfolio = COALESCE(NULLIF(f.portfolio, ''), e.portfolio),
+      numero_convenio = COALESCE(NULLIF(f.numero_convenio, ''), e.num_convenio),
+      valor = COALESCE(f.valor, e.valor)
+    FROM emendas e
+    WHERE TRIM(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) = TRIM(REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g'))
+      AND f.emenda IS NOT NULL
+      AND f.emenda != ''
+      AND LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8
+    RETURNING f.id
+  )
+  SELECT COUNT(*) INTO v_updated2 FROM matched2;
+
   -- PASSO 2: Inserir emendas que não existem na formalização
-  -- (emendas com num_convenio que não tem correspondência)
+  -- (emendas com num_convenio ou codigo_num que não tem correspondência)
   WITH new_records AS (
     INSERT INTO formalizacao (
       ano, parlamentar, partido, emenda, demanda,
@@ -142,14 +186,21 @@ BEGIN
         SELECT 1 FROM formalizacao f
         WHERE TRIM(f.numero_convenio) = TRIM(e.num_convenio)
       )
+      AND NOT EXISTS (
+        SELECT 1 FROM formalizacao f
+        WHERE LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8
+          AND TRIM(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) = TRIM(REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g'))
+      )
     RETURNING id
   )
   SELECT COUNT(*) INTO v_inserted FROM new_records;
 
   RETURN json_build_object(
-    'updated', v_updated,
+    'updated', v_updated + v_updated2,
+    'updated_by_convenio', v_updated,
+    'updated_by_emenda', v_updated2,
     'inserted', v_inserted,
-    'message', v_updated || ' formalizacoes atualizadas, ' || v_inserted || ' novas inseridas'
+    'message', (v_updated + v_updated2) || ' formalizacoes atualizadas, ' || v_inserted || ' novas inseridas'
   );
 END;
 $$;

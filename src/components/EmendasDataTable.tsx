@@ -89,6 +89,19 @@ export function EmendasDataTable({
   formatCurrency,
   formatDate,
 }: EmendasDataTableProps) {
+  // Formatar número de emenda no padrão 0000.000.0000
+  const formatEmendaNumber = (value?: string): string => {
+    if (!value) return '—';
+    // Remove tudo que não é dígito
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 0) return value; // Se não tem dígitos, retorna original
+    // Formata como 0000.000.00000 (4.3.5 ou ajustado)
+    if (digits.length >= 10) {
+      return `${digits.slice(0, 4)}.${digits.slice(4, 7)}.${digits.slice(7)}`;
+    }
+    return value; // Se não tem dígitos suficientes, retorna original
+  };
+
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const columnHeaderRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
   const headerFilterRef = useRef<HTMLDivElement>(null);
@@ -134,7 +147,7 @@ export function EmendasDataTable({
 
   const columnDefinitions: ColumnDef[] = [
     { key: 'ano_refer', label: 'Ano', render: (e) => e.ano_refer || '—' },
-    { key: 'codigo_num', label: 'Código/Nº Emenda', render: (e) => e.codigo_num || '—' },
+    { key: 'codigo_num', label: 'Código/Nº Emenda', render: (e) => formatEmendaNumber(e.codigo_num) },
     { key: 'num_emenda', label: 'Nº Emenda Agregadora', render: (e) => e.num_emenda || '—' },
     { key: 'natureza', label: 'Natureza', render: (e) => e.natureza || '—' },
     { key: 'parlamentar', label: 'Parlamentar', render: (e) => e.parlamentar || '—' },
@@ -164,7 +177,7 @@ export function EmendasDataTable({
     { key: 'data_pagamento', label: 'Data Pagamento', render: (e) => formatDate(e.data_pagamento || '') },
     { key: 'agencia', label: 'Agência', render: (e) => e.agencia || '—' },
     { key: 'conta', label: 'Conta', render: (e) => e.conta || '—' },
-    { key: 'dados_bancarios', label: 'Dados Bancários', render: (e) => e.dados_bancarios || '—' },
+
     { key: 'qtd_dias', label: 'Qtd. Dias', render: (e) => e.qtd_dias != null ? String(e.qtd_dias) : '—' },
     { key: 'data_prorrogacao', label: 'Notificação LOA', render: (e) => formatDate(e.data_prorrogacao || '') },
     { key: 'num_codigo', label: 'Nº Código Único', render: (e) => e.num_codigo || '—' },
