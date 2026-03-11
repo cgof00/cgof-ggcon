@@ -39,7 +39,8 @@ import {
   BookOpen,
   Bell,
   CheckSquare,
-  XCircle
+  XCircle,
+  SlidersHorizontal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Papa from 'papaparse';
@@ -1008,11 +1009,11 @@ export default function App() {
         valor: true,
         posicao_anterior: false,
         situacao_demandas_sempapel: true,
-        area_estagio: true,
+        area_estagio: false,
         recurso: false,
         tecnico: true,
         data_liberacao: true,
-        area_estagio_situacao_demanda: false,
+        area_estagio_situacao_demanda: true,
         situacao_analise_demanda: true,
         data_analise_demanda: true,
         motivo_retorno_diligencia: true,
@@ -1031,6 +1032,51 @@ export default function App() {
         concluida_em: true
       });
       console.log('👤 Colunas ajustadas para usuário comum');
+    } else if (user.role === 'admin') {
+      // Administradores veem apenas colunas específicas
+      setVisibleColumns({
+        seq: false,
+        ano: true,
+        parlamentar: true,
+        partido: true,
+        emenda: true,
+        emendas_agregadoras: false,
+        demanda: true,
+        demandas_formalizacao: false,
+        numero_convenio: false,
+        classificacao_emenda_demanda: true,
+        tipo_formalizacao: false,
+        regional: false,
+        municipio: false,
+        conveniado: true,
+        objeto: false,
+        portfolio: true,
+        valor: true,
+        posicao_anterior: false,
+        situacao_demandas_sempapel: false,
+        area_estagio: false,
+        recurso: false,
+        tecnico: false,
+        data_liberacao: false,
+        area_estagio_situacao_demanda: false,
+        situacao_analise_demanda: false,
+        data_analise_demanda: false,
+        motivo_retorno_diligencia: false,
+        data_retorno_diligencia: false,
+        conferencista: false,
+        data_recebimento_demanda: false,
+        data_retorno: false,
+        observacao_motivo_retorno: false,
+        data_liberacao_assinatura_conferencista: false,
+        data_liberacao_assinatura: false,
+        falta_assinatura: true,
+        assinatura: true,
+        publicacao: true,
+        vigencia: true,
+        encaminhado_em: true,
+        concluida_em: true
+      });
+      console.log('🔑 Colunas ajustadas para administrador');
     }
   }, [user]);
 
@@ -1425,6 +1471,16 @@ export default function App() {
 
       // Aplicar filtros em modo cache
       let filteredData = allData.filter(matchesAllFilters);
+
+      // 👤 Usuários comuns veem apenas demandas atribuídas a eles (técnico ou conferencista)
+      if (isUsuario && user?.nome) {
+        const nomeUsuario = user.nome.toLowerCase().trim();
+        filteredData = filteredData.filter(f => {
+          const tecnico = String(f.tecnico || '').toLowerCase().trim();
+          const conferencista = String(f.conferencista || '').toLowerCase().trim();
+          return tecnico === nomeUsuario || conferencista === nomeUsuario;
+        });
+      }
       
       // Aplicar "Ocultar Vazias" - genérico para todas as colunas
       filteredData = filteredData.filter(f => {
@@ -2123,6 +2179,36 @@ export default function App() {
                         Atribuir a Conferencista ({selectedRows.size})
                       </motion.button>
                     )}
+                    {/* Botão Filtros Avançados */}
+                    <button
+                      onClick={() => setIsFilterOpen(!isFilterOpen)}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                        isFilterOpen ? 'bg-[#1351B4] text-white border-2 border-[#1351B4]' : 'bg-white text-gray-700 border border-gray-300 hover:border-[#1351B4] hover:text-[#1351B4]'
+                      }`}
+                    >
+                      <SlidersHorizontal className="w-4 h-4" />
+                      Filtros
+                      {(() => {
+                        const count = Object.values(filters).filter(v => Array.isArray(v) && v.length > 0).length
+                          + Object.values(headerFilters).filter((v: any) => v && v.length > 0).length
+                          + Object.values(columnTextFilters).filter((v: any) => v && v.length > 0).length
+                          + (searchTerm ? 1 : 0);
+                        return count > 0 ? (
+                          <span className={`ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded ${
+                            isFilterOpen ? 'bg-yellow-400 text-gray-800' : 'bg-red-500 text-white'
+                          }`}>{count}</span>
+                        ) : null;
+                      })()}
+                    </button>
+                    {/* Botão Limpar Todos os Filtros */}
+                    <button
+                      onClick={() => clearAllFilters()}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-white text-red-600 border border-red-300 hover:bg-red-50 hover:border-red-500"
+                      title="Limpar todos os filtros"
+                    >
+                      <X className="w-4 h-4" />
+                      Limpar Filtros
+                    </button>
                     <button
                       onClick={() => setIsColumnMenuOpen(!isColumnMenuOpen)}
                       className={`relative px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
