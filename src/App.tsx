@@ -2902,9 +2902,9 @@ export default function App() {
                                     }}
                                     className={`cursor-pointer transition-all ${
                                       selectedFormalizacao?.id === f.id 
-                                        ? 'bg-indigo-100 border-l-4 border-indigo-600' 
+                                        ? 'bg-indigo-200 border-l-4 border-indigo-600' 
                                         : isRowSelected
-                                        ? 'bg-yellow-50 border-l-4 border-yellow-400'
+                                        ? 'bg-amber-100 border-l-4 border-amber-500'
                                         : (f.publicacao && String(f.publicacao).trim() !== '' && String(f.publicacao).trim() !== '—') || (f.concluida_em && String(f.concluida_em).trim() !== '' && String(f.concluida_em).trim() !== '—')
                                         ? 'bg-emerald-50 border-l-4 border-emerald-500 hover:bg-emerald-100'
                                         : 'hover:bg-blue-50'
@@ -2941,7 +2941,10 @@ export default function App() {
                                     {visibleCols.map(col => (
                                       <td 
                                         key={`${f.id}-${col.key}`}
-                                        className={`px-3 py-1.5 text-slate-700 truncate text-xs ${col.align === 'right' ? 'text-right font-semibold text-emerald-600' : ''}`}
+                                        className={`px-3 py-1.5 truncate text-xs ${
+                                          col.align === 'right' ? 'text-right font-semibold text-emerald-700' : 'text-slate-800'
+                                        }`}
+                                        style={{ backgroundColor: 'inherit' }}
                                         title={String(col.render(f))}
                                       >
                                         {col.render(f)}
