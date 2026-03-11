@@ -3502,36 +3502,6 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   </div>
                 )}
 
-                {/* 0️⃣ Dados Gerais (somente admin) */}
-                {isAdmin && editingFormalizacao && (
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="px-5 py-3 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
-                      <div className="bg-amber-500 text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">0</div>
-                      <h3 className="text-xs font-bold text-amber-700 uppercase tracking-wide flex items-center gap-2">
-                        <Settings className="w-3.5 h-3.5" />
-                        Dados Gerais (Admin)
-                      </h3>
-                    </div>
-                    <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
-                      <Input label="Ano" name="ano" defaultValue={editingFormalizacao?.ano} />
-                      <Input label="Partido" name="partido" defaultValue={editingFormalizacao?.partido} />
-                      <Input label="Emendas Agregadoras" name="emendas_agregadoras" defaultValue={editingFormalizacao?.emendas_agregadoras} />
-                      <Input label="Demandas Formalização" name="demandas_formalizacao" defaultValue={editingFormalizacao?.demandas_formalizacao} />
-                      <Input label="Nº Convênio" name="num_convenio" defaultValue={editingFormalizacao?.num_convenio} />
-                      <Input label="Classificação" name="classificacao_emenda_demanda" defaultValue={editingFormalizacao?.classificacao} />
-                      <Input label="Tipo Formalização" name="tipo_formalizacao" defaultValue={editingFormalizacao?.tipo_formalizacao} />
-                      <Input label="Regional" name="regional" defaultValue={editingFormalizacao?.regional} />
-                      <Input label="Município" name="municipio" defaultValue={editingFormalizacao?.municipio} />
-                      <Input label="Conveniado" name="conveniado" defaultValue={editingFormalizacao?.conveniado} />
-                      <Input label="Objeto" name="objeto" defaultValue={editingFormalizacao?.objeto} />
-                      <Input label="Portfólio" name="portfolio" defaultValue={editingFormalizacao?.portfolio} />
-                      <Input label="Valor" name="valor" type="number" defaultValue={editingFormalizacao?.valor} />
-                      <Input label="Posição Anterior" name="posicao_anterior" defaultValue={editingFormalizacao?.posicao_anterior} />
-                      <Input label="Situação SemPapel" name="situacao_demandas_sempapel" defaultValue={editingFormalizacao?.situacao_demandas_sempapel} />
-                    </div>
-                  </div>
-                )}
-
                 {/* 1️⃣ Atribuição da Demanda */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                   <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
@@ -3603,27 +3573,33 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     <Input label="Situação - Análise Demanda" name="situacao_analise_demanda" defaultValue={editingFormalizacao?.situacao_analise_demanda} />
                     <div className="flex flex-col gap-1">
                       <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data - Análise Demanda</label>
-                      <input type="hidden" name="data_analise_demanda" id="data_analise_demanda_hidden" defaultValue={editingFormalizacao?.data_analise_demanda || ''} />
-                      <div className="flex items-center gap-2">
-                        <span id="data_analise_demanda_display" className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center">
-                          {editingFormalizacao?.data_analise_demanda ? formatDateForDisplay(editingFormalizacao.data_analise_demanda) : '—'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const now = new Date();
-                            const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                            const hiddenInput = document.getElementById('data_analise_demanda_hidden') as HTMLInputElement;
-                            const displaySpan = document.getElementById('data_analise_demanda_display');
-                            if (hiddenInput) hiddenInput.value = dataHoje;
-                            if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
-                        >
-                          <CheckSquare className="w-3.5 h-3.5" />
-                          Demanda Analisada
-                        </button>
-                      </div>
+                      {isAdmin ? (
+                        <Input label="" name="data_analise_demanda" type="date" defaultValue={editingFormalizacao?.data_analise_demanda} />
+                      ) : (
+                        <>
+                          <input type="hidden" name="data_analise_demanda" id="data_analise_demanda_hidden" defaultValue={editingFormalizacao?.data_analise_demanda || ''} />
+                          <div className="flex items-center gap-2">
+                            <span id="data_analise_demanda_display" className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center">
+                              {editingFormalizacao?.data_analise_demanda ? formatDateForDisplay(editingFormalizacao.data_analise_demanda) : '—'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const now = new Date();
+                                const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                                const hiddenInput = document.getElementById('data_analise_demanda_hidden') as HTMLInputElement;
+                                const displaySpan = document.getElementById('data_analise_demanda_display');
+                                if (hiddenInput) hiddenInput.value = dataHoje;
+                                if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              <CheckSquare className="w-3.5 h-3.5" />
+                              Demanda Analisada
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3675,27 +3651,33 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data Liberação - Conferencista</label>
-                      <input type="hidden" name="data_liberacao_assinatura_conferencista" id="data_liberacao_conferencista_hidden" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista || ''} />
-                      <div className="flex items-center gap-2">
-                        <span id="data_liberacao_conferencista_display" className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center">
-                          {editingFormalizacao?.data_liberacao_assinatura_conferencista ? formatDateForDisplay(editingFormalizacao.data_liberacao_assinatura_conferencista) : '—'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const now = new Date();
-                            const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                            const hiddenInput = document.getElementById('data_liberacao_conferencista_hidden') as HTMLInputElement;
-                            const displaySpan = document.getElementById('data_liberacao_conferencista_display');
-                            if (hiddenInput) hiddenInput.value = dataHoje;
-                            if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
-                        >
-                          <CheckSquare className="w-3.5 h-3.5" />
-                          Liberação Conferência
-                        </button>
-                      </div>
+                      {isAdmin ? (
+                        <Input label="" name="data_liberacao_assinatura_conferencista" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista} />
+                      ) : (
+                        <>
+                          <input type="hidden" name="data_liberacao_assinatura_conferencista" id="data_liberacao_conferencista_hidden" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista || ''} />
+                          <div className="flex items-center gap-2">
+                            <span id="data_liberacao_conferencista_display" className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center">
+                              {editingFormalizacao?.data_liberacao_assinatura_conferencista ? formatDateForDisplay(editingFormalizacao.data_liberacao_assinatura_conferencista) : '—'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const now = new Date();
+                                const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                                const hiddenInput = document.getElementById('data_liberacao_conferencista_hidden') as HTMLInputElement;
+                                const displaySpan = document.getElementById('data_liberacao_conferencista_display');
+                                if (hiddenInput) hiddenInput.value = dataHoje;
+                                if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              <CheckSquare className="w-3.5 h-3.5" />
+                              Liberação Conferência
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

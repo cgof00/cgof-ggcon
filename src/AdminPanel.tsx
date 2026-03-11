@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertCircle, BarChart3, FileText, CheckCheck, ChevronDown, ChevronRight, Filter, Calendar, RefreshCw, Clock, TrendingUp } from 'lucide-react';
+import { AlertCircle, BarChart3, FileText, CheckCheck, ChevronDown, ChevronRight, Filter, Calendar, RefreshCw, Clock, TrendingUp, AlertTriangle, MapPin, Users, UserCheck, BookOpen, Send, Zap, PieChart } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
 // Categorias de situação para o quadro detalhado
@@ -18,26 +18,92 @@ const SITUACAO_CATEGORIAS = [
   { key: 'outrasPend', label: 'Outras Pend.', short: 'Outras', match: ['OUTRAS PENDÊNCIAS', 'EMPENHO CANCELADO', 'PROCESSO SIAFEM'] },
 ];
 
+const COLORS = ['#1351B4', '#0C326F', '#2670E8', '#155BCB', '#3F8EFC', '#1A73E8', '#4285F4', '#5B9CF4', '#7CB3F7', '#A0C8FA', '#0D47A1', '#1565C0', '#1976D2', '#1E88E5', '#2196F3'];
+
 function matchSituacao(areaEstagio: string, matchPatterns: string[]): boolean {
   const upper = (areaEstagio || '').toUpperCase();
   return matchPatterns.some(pattern => upper.includes(pattern));
 }
 
+function parseDate(str: string): Date | null {
+  if (!str || typeof str !== 'string') return null;
+  const trimmed = str.trim();
+  if (!trimmed) return null;
+  if (trimmed.includes('/')) {
+    const p = trimmed.split('/');
+    if (p.length >= 3) { const d = new Date(+p[2], +p[1] - 1, +p[0]); return isNaN(d.getTime()) ? null : d; }
+  }
+  const d = new Date(trimmed);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function daysBetween(from: Date, to: Date): number {
+  return Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function CollapsibleCard({ id, title, icon: Icon, count, color, collapsed, toggle, children }: {
+  id: string; title: string; icon: any; count?: number; color: string; collapsed: boolean; toggle: () => void; children: React.ReactNode;
+}) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+      <button onClick={toggle} className={`w-full flex items-center justify-between px-6 py-4 ${color} text-white transition-all`}>
+        <div className="flex items-center gap-2">
+          <Icon className="w-5 h-5" />
+          <h3 className="text-base font-bold">{title}</h3>
+          {count !== undefined && <span className="ml-2 text-xs bg-white/20 px-2 py-0.5 rounded-full">{count}</span>}
+        </div>
+        {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+      </button>
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
+            <div className="p-5">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function HorizontalBar({ items, colorFrom, colorTo }: { items: { label: string; value: number }[]; colorFrom: string; colorTo: string }) {
+  const max = Math.max(...items.map(i => i.value), 1);
+  return (
+    <div className="space-y-3">
+      {items.map((item, idx) => (
+        <div key={idx} className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-slate-700 flex-1 pr-4">{item.label}</span>
+            <div className={`${colorFrom.includes('green') ? 'bg-green-100 text-green-700' : colorFrom.includes('indigo') ? 'bg-indigo-100 text-indigo-700' : colorFrom.includes('amber') ? 'bg-amber-100 text-amber-700' : colorFrom.includes('red') ? 'bg-red-100 text-red-700' : 'bg-[#1351B4]/10 text-[#1351B4]'} px-3 py-1 rounded-full font-bold text-sm min-w-12 text-center`}>{item.value}</div>
+          </div>
+          <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+            <motion.div initial={{ width: 0 }} animate={{ width: `${(item.value / max) * 100}%` }} transition={{ duration: 0.8, delay: idx * 0.03, ease: 'easeOut' }} className={`h-full bg-gradient-to-r ${colorFrom} ${colorTo} rounded-full shadow-md`} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function AdminPanel() {
   const { user } = useAuth();
 
-  const [dashboardData, setDashboardData] = useState<any>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [rawFormalizacoes, setRawFormalizacoes] = useState<any[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
 
-  // All collapsed by default
   const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({
     quadroTecnico: true,
     situacao: true,
     tempoTecnicos: true,
-    concluidasTipo: true,
     topMunicipios: true,
     evolucaoMensal: true,
+    demandasRegional: true,
+    conferencistas: true,
+    atrasadas: true,
+    publicacoesMes: true,
+    diligencias: true,
+    taxaConclusao: true,
+    tempoMedioAnalise: true,
   });
 
   const [filtroTecnico, setFiltroTecnico] = useState('');
@@ -46,37 +112,41 @@ export function AdminPanel() {
   const [filtroDataFinal, setFiltroDataFinal] = useState('');
   const [filtrosAtivos, setFiltrosAtivos] = useState(false);
 
-  const toggleCard = (cardId: string) => {
-    setCollapsedCards(prev => ({ ...prev, [cardId]: !prev[cardId] }));
-  };
+  const toggle = (id: string) => setCollapsedCards(prev => ({ ...prev, [id]: !prev[id] }));
 
   const uniqueTecnicos = useMemo(() => {
     return Array.from(new Set(rawFormalizacoes.map((f: any) => f.tecnico || 'Sem Técnico'))).sort();
   }, [rawFormalizacoes]);
 
-  // Filtered source data
+  const uniqueRegionais = useMemo(() => {
+    return Array.from(new Set(rawFormalizacoes.map((f: any) => f.regional || '').filter(Boolean))).sort();
+  }, [rawFormalizacoes]);
+
   const filtered = useMemo(() => {
     if (!filtrosAtivos || !rawFormalizacoes.length) return rawFormalizacoes;
     let data = [...rawFormalizacoes];
     if (filtroTecnico) data = data.filter((f: any) => (f.tecnico || 'Sem Técnico') === filtroTecnico);
+    if (filtroRegional) data = data.filter((f: any) => (f.regional || '') === filtroRegional);
     if (filtroDataInicial) data = data.filter((f: any) => (f.data_entrada || f.created_at || '') >= filtroDataInicial);
     if (filtroDataFinal) data = data.filter((f: any) => (f.data_entrada || f.created_at || '') <= filtroDataFinal);
     return data;
-  }, [rawFormalizacoes, filtrosAtivos, filtroTecnico, filtroDataInicial, filtroDataFinal]);
+  }, [rawFormalizacoes, filtrosAtivos, filtroTecnico, filtroRegional, filtroDataInicial, filtroDataFinal]);
 
-  // Dashboard summary
+  // === METRICS ===
+
   const displayData = useMemo(() => {
     const source = filtered;
-    if (!source.length && !dashboardData) return null;
-    if (!source.length) return dashboardData;
-
+    if (!source.length) return null;
     const totalEmendas = source.filter((f: any) => f.emenda && String(f.emenda).trim() !== '').length;
     const totalDemandas = source.filter((f: any) => f.demandas_formalizacao && String(f.demandas_formalizacao).trim() !== '').length;
+    const concluidas = source.filter((f: any) => f.concluida_em && String(f.concluida_em).trim() !== '').length;
+    const emAndamento = source.length - concluidas;
+    const publicadas = source.filter((f: any) => f.publicacao && String(f.publicacao).trim() !== '').length;
 
     const situacoes = [
       'DEMANDA COM O TÉCNICO', 'EM ANÁLISE DA DOCUMENTAÇÃO', 'EM ANÁLISE DO PLANO DE TRABALHO',
-      'AGUARDANDO DOCUMENTAÇÃO', 'DEMANDA EM DILIGÊNCIA', 'DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS',
-      'DEMANDA EM DILIGÊNCIA PLANO DE TRABALHO - CRS', 'COMITÊ GESTOR', 'OUTRAS PENDÊNCIAS',
+      'AGUARDANDO DOCUMENTAÇÃO', 'DEMANDA EM DILIGÊNCIA', 'DEMANDA EM DILIGÊNCIA DOCUMENTO',
+      'DEMANDA EM DILIGÊNCIA PLANO DE TRABALHO', 'COMITÊ GESTOR', 'OUTRAS PENDÊNCIAS',
       'EM FORMALIZAÇÃO', 'EM CONFERÊNCIA', 'CONFERÊNCIA COM PENDÊNCIA', 'EM ASSINATURA',
       'EMPENHO CANCELADO', 'LAUDAS', 'PUBLICAÇÃO NO DOE', 'PROCESSO SIAFEM'
     ];
@@ -89,66 +159,47 @@ export function AdminPanel() {
       .map(([situacao, count]) => ({ situacao, count }))
       .sort((a, b) => b.count - a.count);
 
-    return { totalEmendas, totalDemandas, distribuicaoSituacao };
-  }, [filtered, dashboardData]);
+    return { totalEmendas, totalDemandas, concluidas, emAndamento, publicadas, distribuicaoSituacao };
+  }, [filtered]);
 
   // Quadro detalhado por técnico
   const quadroTecnico = useMemo(() => {
     const source = filtered;
     if (!source.length) return { rows: [] as any[], totals: null as any };
-
     const tecnicoMap = new Map<string, any>();
-
     source.forEach((f: any) => {
       const tecnico = f.tecnico || 'Sem Técnico';
       if (!tecnicoMap.has(tecnico)) {
         tecnicoMap.set(tecnico, {
-          tecnico,
-          recebidas: 0,
+          tecnico, recebidas: 0,
           ...Object.fromEntries(SITUACAO_CATEGORIAS.map(c => [c.key, 0])),
-          totalGGCON: 0,
-          concluida: 0,
-          transfVol: 0,
-          emendaLOA: 0,
+          totalGGCON: 0, concluida: 0, transfVol: 0, emendaLOA: 0,
         });
       }
       const row = tecnicoMap.get(tecnico)!;
       row.recebidas++;
-
       const concluida = f.concluida_em && String(f.concluida_em).trim() !== '';
       if (concluida) {
         row.concluida++;
         const tipo = (f.tipo_formalizacao || f.classificacao_emenda_demanda || '').toUpperCase();
         if (tipo.includes('TRANSFERÊNCIA') || tipo.includes('TRANSFERENCIA') || tipo.includes('VOLUNTÁRIA') || tipo.includes('VOLUNTARIA')) {
           row.transfVol++;
-        } else {
-          row.emendaLOA++;
-        }
+        } else { row.emendaLOA++; }
       } else {
         const areaEstagio = f.area_estagio_situacao_demanda || '';
         let matched = false;
         for (const cat of SITUACAO_CATEGORIAS) {
-          if (matchSituacao(areaEstagio, cat.match)) {
-            row[cat.key]++;
-            matched = true;
-            break;
-          }
+          if (matchSituacao(areaEstagio, cat.match)) { row[cat.key]++; matched = true; break; }
         }
         if (!matched) row.outrasPend++;
         row.totalGGCON++;
       }
     });
-
     const rows = Array.from(tecnicoMap.values()).sort((a, b) => b.recebidas - a.recebidas);
-
     const totals: any = {
-      tecnico: 'Total',
-      recebidas: 0,
+      tecnico: 'Total', recebidas: 0,
       ...Object.fromEntries(SITUACAO_CATEGORIAS.map(c => [c.key, 0])),
-      totalGGCON: 0,
-      concluida: 0,
-      transfVol: 0,
-      emendaLOA: 0,
+      totalGGCON: 0, concluida: 0, transfVol: 0, emendaLOA: 0,
     };
     rows.forEach(r => {
       totals.recebidas += r.recebidas;
@@ -158,7 +209,6 @@ export function AdminPanel() {
       totals.transfVol += r.transfVol;
       totals.emendaLOA += r.emendaLOA;
     });
-
     return { rows, totals };
   }, [filtered]);
 
@@ -168,30 +218,11 @@ export function AdminPanel() {
     return filtered
       .filter((f: any) => f.tecnico && (!f.concluida_em || String(f.concluida_em).trim() === ''))
       .map((f: any) => {
-        const dataRef = f.data_recebimento_demanda || f.data_entrada || f.created_at || '';
-        let dias = 0;
-        if (dataRef) {
-          const partes = dataRef.includes('/') ? dataRef.split('/') : null;
-          const dt = partes ? new Date(+partes[2], +partes[1] - 1, +partes[0]) : new Date(dataRef);
-          if (!isNaN(dt.getTime())) dias = Math.floor((hoje.getTime() - dt.getTime()) / (1000 * 60 * 60 * 24));
-        }
+        const dt = parseDate(f.data_recebimento_demanda || f.data_entrada || f.created_at || '');
+        const dias = dt ? daysBetween(dt, hoje) : 0;
         return { tecnico: f.tecnico, demanda: f.demandas_formalizacao || f.demanda || f.emenda || '—', dias, situacao: f.area_estagio_situacao_demanda || '—' };
       })
       .sort((a: any, b: any) => b.dias - a.dias);
-  }, [filtered]);
-
-  // Concluídas por tipo
-  const concluidasPorTipo = useMemo(() => {
-    const concluidas = filtered.filter((f: any) => f.concluida_em && String(f.concluida_em).trim() !== '');
-    const tipoMap = new Map<string, number>();
-    concluidas.forEach((f: any) => {
-      const tipo = f.tipo_formalizacao || f.classificacao_emenda_demanda || 'Não Informado';
-      tipoMap.set(tipo, (tipoMap.get(tipo) || 0) + 1);
-    });
-    return {
-      total: concluidas.length,
-      porTipo: Array.from(tipoMap.entries()).map(([tipo, count]) => ({ tipo, count })).sort((a, b) => b.count - a.count)
-    };
   }, [filtered]);
 
   // Top Municípios
@@ -204,55 +235,168 @@ export function AdminPanel() {
     return Array.from(munMap.entries()).map(([municipio, count]) => ({ municipio, count })).sort((a, b) => b.count - a.count).slice(0, 15);
   }, [filtered]);
 
-  // Evolução mensal
+  // Evolução mensal por técnico (últimos 12 meses)
   const evolucaoMensal = useMemo(() => {
-    const mesMap = new Map<string, { recebidas: number; concluidas: number }>();
+    const tecnicoMesMap = new Map<string, Map<string, { recebidas: number; concluidas: number }>>();
+    const allMeses = new Set<string>();
     filtered.forEach((f: any) => {
+      const tecnico = f.tecnico || 'Sem Técnico';
       const dataStr = f.data_recebimento_demanda || f.data_entrada || '';
       if (!dataStr) return;
       let mes = '';
       if (dataStr.includes('/')) {
         const p = dataStr.split('/');
         if (p.length >= 3) mes = `${p[2]}-${p[1].padStart(2, '0')}`;
-      } else {
-        mes = dataStr.substring(0, 7);
-      }
+      } else { mes = dataStr.substring(0, 7); }
       if (!mes || mes.length < 7) return;
+      allMeses.add(mes);
+      if (!tecnicoMesMap.has(tecnico)) tecnicoMesMap.set(tecnico, new Map());
+      const mesMap = tecnicoMesMap.get(tecnico)!;
       if (!mesMap.has(mes)) mesMap.set(mes, { recebidas: 0, concluidas: 0 });
       mesMap.get(mes)!.recebidas++;
       if (f.concluida_em && String(f.concluida_em).trim() !== '') mesMap.get(mes)!.concluidas++;
     });
-    return Array.from(mesMap.entries()).map(([mes, data]) => ({ mes, ...data })).sort((a, b) => a.mes.localeCompare(b.mes)).slice(-12);
+    const meses = Array.from(allMeses).sort().slice(-12);
+    const tecnicos = Array.from(tecnicoMesMap.keys()).sort();
+    return { meses, tecnicos, data: tecnicoMesMap };
   }, [filtered]);
+
+  // Demandas por Regional
+  const demandasRegional = useMemo(() => {
+    const regMap = new Map<string, { total: number; concluidas: number; pendentes: number }>();
+    filtered.forEach((f: any) => {
+      const reg = f.regional || 'Não Informada';
+      if (!regMap.has(reg)) regMap.set(reg, { total: 0, concluidas: 0, pendentes: 0 });
+      const r = regMap.get(reg)!;
+      r.total++;
+      if (f.concluida_em && String(f.concluida_em).trim() !== '') r.concluidas++;
+      else r.pendentes++;
+    });
+    return Array.from(regMap.entries()).map(([regional, data]) => ({ regional, ...data })).sort((a, b) => b.total - a.total);
+  }, [filtered]);
+
+  // Demandas por Conferencista
+  const demandasConferencista = useMemo(() => {
+    const confMap = new Map<string, { total: number; conferidas: number; pendentes: number }>();
+    filtered.forEach((f: any) => {
+      const conf = f.conferencista || 'Sem Conferencista';
+      if (!confMap.has(conf)) confMap.set(conf, { total: 0, conferidas: 0, pendentes: 0 });
+      const c = confMap.get(conf)!;
+      c.total++;
+      if (f.data_liberacao_assinatura_conferencista && String(f.data_liberacao_assinatura_conferencista).trim() !== '') c.conferidas++;
+      else c.pendentes++;
+    });
+    return Array.from(confMap.entries()).map(([conferencista, data]) => ({ conferencista, ...data })).sort((a, b) => b.total - a.total);
+  }, [filtered]);
+
+  // Demandas Atrasadas (>30 dias sem conclusão)
+  const demandasAtrasadas = useMemo(() => {
+    const hoje = new Date();
+    return filtered
+      .filter((f: any) => {
+        if (f.concluida_em && String(f.concluida_em).trim() !== '') return false;
+        const dt = parseDate(f.data_recebimento_demanda || f.data_entrada || f.created_at || '');
+        return dt ? daysBetween(dt, hoje) > 30 : false;
+      })
+      .map((f: any) => {
+        const dt = parseDate(f.data_recebimento_demanda || f.data_entrada || f.created_at || '')!;
+        const dias = daysBetween(dt, hoje);
+        return {
+          tecnico: f.tecnico || 'Sem Técnico',
+          demanda: f.demandas_formalizacao || f.demanda || f.emenda || '—',
+          dias,
+          situacao: f.area_estagio_situacao_demanda || '—',
+          regional: f.regional || '—',
+        };
+      })
+      .sort((a, b) => b.dias - a.dias);
+  }, [filtered]);
+
+  // Publicações por mês
+  const publicacoesMes = useMemo(() => {
+    const mesMap = new Map<string, number>();
+    filtered.forEach((f: any) => {
+      const pubStr = f.publicacao || '';
+      if (!pubStr.trim()) return;
+      const dt = parseDate(pubStr);
+      if (!dt) return;
+      const mes = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+      mesMap.set(mes, (mesMap.get(mes) || 0) + 1);
+    });
+    return Array.from(mesMap.entries()).map(([mes, count]) => ({ mes, count })).sort((a, b) => a.mes.localeCompare(b.mes)).slice(-12);
+  }, [filtered]);
+
+  // Diligências em aberto
+  const diligenciasAberto = useMemo(() => {
+    const diligencias = filtered.filter((f: any) => {
+      const sit = (f.area_estagio_situacao_demanda || '').toUpperCase();
+      return sit.includes('DILIGÊNCIA') || sit.includes('DILIGENCIA');
+    });
+    const porTecnico = new Map<string, number>();
+    diligencias.forEach((f: any) => {
+      const t = f.tecnico || 'Sem Técnico';
+      porTecnico.set(t, (porTecnico.get(t) || 0) + 1);
+    });
+    return {
+      total: diligencias.length,
+      porTecnico: Array.from(porTecnico.entries()).map(([tecnico, count]) => ({ tecnico, count })).sort((a, b) => b.count - a.count),
+    };
+  }, [filtered]);
+
+  // Taxa de conclusão por técnico
+  const taxaConclusao = useMemo(() => {
+    const tecMap = new Map<string, { total: number; concluidas: number }>();
+    filtered.forEach((f: any) => {
+      const t = f.tecnico || 'Sem Técnico';
+      if (!tecMap.has(t)) tecMap.set(t, { total: 0, concluidas: 0 });
+      const r = tecMap.get(t)!;
+      r.total++;
+      if (f.concluida_em && String(f.concluida_em).trim() !== '') r.concluidas++;
+    });
+    return Array.from(tecMap.entries())
+      .map(([tecnico, data]) => ({ tecnico, ...data, taxa: data.total > 0 ? Math.round((data.concluidas / data.total) * 100) : 0 }))
+      .sort((a, b) => b.taxa - a.taxa);
+  }, [filtered]);
+
+  // Tempo médio de análise por técnico
+  const tempoMedioAnalise = useMemo(() => {
+    const tecMap = new Map<string, number[]>();
+    filtered.forEach((f: any) => {
+      if (!f.tecnico) return;
+      const dtReceb = parseDate(f.data_recebimento_demanda || f.data_entrada || '');
+      const dtAnalise = parseDate(f.data_analise_demanda || '');
+      if (!dtReceb || !dtAnalise) return;
+      const dias = daysBetween(dtReceb, dtAnalise);
+      if (dias < 0 || dias > 365) return;
+      if (!tecMap.has(f.tecnico)) tecMap.set(f.tecnico, []);
+      tecMap.get(f.tecnico)!.push(dias);
+    });
+    return Array.from(tecMap.entries())
+      .map(([tecnico, dias]) => ({ tecnico, mediaDias: Math.round(dias.reduce((a, b) => a + b, 0) / dias.length), qtd: dias.length }))
+      .sort((a, b) => a.mediaDias - b.mediaDias);
+  }, [filtered]);
+
+  // === DATA FETCHING - ALL RECORDS ===
 
   const carregarDashboard = async () => {
     try {
       setDashboardLoading(true);
       const token = localStorage.getItem('auth_token');
       if (!token) return;
-      const formRes = await fetch('/api/formalizacao', { headers: { 'Authorization': `Bearer ${token}` } });
-      const formResult = formRes.ok ? await formRes.json() : [];
-      const formalizacoes = Array.isArray(formResult) ? formResult : (formResult.data || []);
-      setRawFormalizacoes(formalizacoes);
-
-      const totalEmendas = formalizacoes.filter((f: any) => f.emenda && String(f.emenda).trim() !== '').length;
-      const totalDemandas = formalizacoes.filter((f: any) => f.demandas_formalizacao && String(f.demandas_formalizacao).trim() !== '').length;
-
-      const situacoes = [
-        'DEMANDA COM O TÉCNICO', 'EM ANÁLISE DA DOCUMENTAÇÃO', 'EM ANÁLISE DO PLANO DE TRABALHO',
-        'AGUARDANDO DOCUMENTAÇÃO', 'DEMANDA EM DILIGÊNCIA', 'DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS',
-        'DEMANDA EM DILIGÊNCIA PLANO DE TRABALHO - CRS', 'COMITÊ GESTOR', 'OUTRAS PENDÊNCIAS',
-        'EM FORMALIZAÇÃO', 'EM CONFERÊNCIA', 'CONFERÊNCIA COM PENDÊNCIA', 'EM ASSINATURA',
-        'EMPENHO CANCELADO', 'LAUDAS', 'PUBLICAÇÃO NO DOE', 'PROCESSO SIAFEM'
-      ];
-      const situacaoMap = new Map<string, number>();
-      situacoes.forEach(situacao => {
-        const count = formalizacoes.filter((f: any) => (f.area_estagio_situacao_demanda || '').toUpperCase().includes(situacao)).length;
-        if (count > 0) situacaoMap.set(situacao, count);
-      });
-      const distribuicaoSituacao = Array.from(situacaoMap.entries()).map(([situacao, count]) => ({ situacao, count })).sort((a, b) => b.count - a.count);
-
-      setDashboardData({ totalEmendas, totalDemandas, distribuicaoSituacao });
+      let allData: any[] = [];
+      let offset = 0;
+      const batchSize = 5000;
+      while (true) {
+        const res = await fetch(`/api/formalizacao?limit=${batchSize}&offset=${offset}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) break;
+        const result = await res.json();
+        const batch = Array.isArray(result) ? result : (result.data || []);
+        allData = allData.concat(batch);
+        if (batch.length < batchSize) break;
+        offset += batchSize;
+      }
+      setRawFormalizacoes(allData);
+      setTotalRecords(allData.length);
     } catch (err) {
       console.error('Erro ao carregar dashboard:', err);
     } finally {
@@ -276,15 +420,23 @@ export function AdminPanel() {
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5">
         <div className="flex items-center gap-2 mb-4">
           <Filter className="w-5 h-5 text-[#1351B4]" />
-          <h3 className="text-base font-bold text-slate-800">Filtros</h3>
+          <h3 className="text-base font-bold text-slate-800">Filtros do Dashboard</h3>
           {filtrosAtivos && <span className="ml-2 text-xs bg-[#1351B4] text-white px-2 py-0.5 rounded-full">Ativos</span>}
+          <span className="ml-auto text-xs text-slate-500 font-medium">{totalRecords.toLocaleString()} registros carregados</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Técnico</label>
             <select value={filtroTecnico} onChange={e => setFiltroTecnico(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none">
               <option value="">Todos</option>
               {uniqueTecnicos.map((t: string) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Regional</label>
+            <select value={filtroRegional} onChange={e => setFiltroRegional(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none">
+              <option value="">Todas</option>
+              {uniqueRegionais.map((r: string) => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
           <div>
@@ -305,7 +457,7 @@ export function AdminPanel() {
             <button onClick={() => setFiltrosAtivos(true)} className="flex-1 flex items-center justify-center gap-1.5 bg-[#1351B4] hover:bg-[#0C326F] text-white text-sm font-semibold rounded-lg px-4 py-2 transition-colors">
               <Filter className="w-4 h-4" /> Aplicar
             </button>
-            <button onClick={() => { setFiltroTecnico(''); setFiltroDataInicial(''); setFiltroDataFinal(''); setFiltroRegional(''); setFiltrosAtivos(false); }} className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg px-4 py-2 transition-colors">
+            <button onClick={() => { setFiltroTecnico(''); setFiltroRegional(''); setFiltroDataInicial(''); setFiltroDataFinal(''); setFiltrosAtivos(false); }} className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg px-4 py-2 transition-colors">
               <RefreshCw className="w-4 h-4" /> Limpar
             </button>
           </div>
@@ -316,347 +468,431 @@ export function AdminPanel() {
       {dashboardLoading ? (
         <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
           <RefreshCw className="w-8 h-8 text-[#1351B4] animate-spin mx-auto mb-3" />
-          <p className="text-slate-600 font-medium">Carregando dashboard...</p>
+          <p className="text-slate-600 font-medium">Carregando todos os dados da formalização...</p>
         </div>
       ) : displayData ? (
         <div className="space-y-5">
-          {/* Cards resumo */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-[#1351B4]/5 to-[#1351B4]/15 rounded-2xl p-6 border border-[#1351B4]/20 shadow-md">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-[#1351B4] uppercase tracking-wider mb-2">Total de Emendas</p>
-                  <p className="text-4xl font-bold text-[#0C326F]">{displayData.totalEmendas}</p>
-                </div>
-                <div className="bg-[#1351B4]/15 p-3 rounded-xl"><FileText className="text-[#1351B4] w-6 h-6" /></div>
-              </div>
+
+          {/* ===== CARDS RESUMO ===== */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-[#1351B4]/5 to-[#1351B4]/15 rounded-2xl p-5 border border-[#1351B4]/20 shadow-md">
+              <p className="text-xs font-semibold text-[#1351B4] uppercase tracking-wider mb-1">Total Emendas</p>
+              <p className="text-3xl font-bold text-[#0C326F]">{displayData.totalEmendas.toLocaleString()}</p>
             </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-gradient-to-br from-[#0C326F]/5 to-[#0C326F]/15 rounded-2xl p-6 border border-[#0C326F]/20 shadow-md">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-[#0C326F] uppercase tracking-wider mb-2">Total de Demandas</p>
-                  <p className="text-4xl font-bold text-[#0C326F]">{displayData.totalDemandas}</p>
-                </div>
-                <div className="bg-[#0C326F]/15 p-3 rounded-xl"><CheckCheck className="text-[#0C326F] w-6 h-6" /></div>
-              </div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-gradient-to-br from-[#0C326F]/5 to-[#0C326F]/15 rounded-2xl p-5 border border-[#0C326F]/20 shadow-md">
+              <p className="text-xs font-semibold text-[#0C326F] uppercase tracking-wider mb-1">Total Demandas</p>
+              <p className="text-3xl font-bold text-[#0C326F]">{displayData.totalDemandas.toLocaleString()}</p>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-5 border border-green-200 shadow-md">
+              <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Concluídas</p>
+              <p className="text-3xl font-bold text-green-800">{displayData.concluidas.toLocaleString()}</p>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-2xl p-5 border border-amber-200 shadow-md">
+              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-1">Em Andamento</p>
+              <p className="text-3xl font-bold text-amber-800">{displayData.emAndamento.toLocaleString()}</p>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-gradient-to-br from-violet-50 to-violet-100 rounded-2xl p-5 border border-violet-200 shadow-md">
+              <p className="text-xs font-semibold text-violet-700 uppercase tracking-wider mb-1">Publicadas</p>
+              <p className="text-3xl font-bold text-violet-800">{displayData.publicadas.toLocaleString()}</p>
             </motion.div>
           </div>
 
           {/* ===== QUADRO DETALHADO POR TÉCNICO ===== */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-            <button onClick={() => toggleCard('quadroTecnico')} className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#1351B4] to-[#0C326F] text-white hover:from-[#0C326F] hover:to-[#1351B4] transition-all">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5" />
-                <h3 className="text-base font-bold">Quadro de Demandas por Técnico</h3>
-                <span className="ml-2 text-xs bg-white/20 px-2 py-0.5 rounded-full">{quadroTecnico.rows.length}</span>
+          <CollapsibleCard id="quadroTecnico" title="Quadro de Demandas por Técnico" icon={BarChart3} count={quadroTecnico.rows.length} color="bg-gradient-to-r from-[#1351B4] to-[#0C326F] hover:from-[#0C326F] hover:to-[#1351B4]" collapsed={collapsedCards.quadroTecnico} toggle={() => toggle('quadroTecnico')}>
+            {quadroTecnico.rows.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-800 text-white">
+                      <th className="text-left px-3 py-3 font-bold whitespace-nowrap sticky left-0 bg-slate-800 z-10 min-w-[140px]">Técnico</th>
+                      <th className="text-center px-2 py-3 font-bold whitespace-nowrap">Deman.<br/>Recebidas</th>
+                      {SITUACAO_CATEGORIAS.map(cat => (
+                        <th key={cat.key} className="text-center px-2 py-3 font-bold whitespace-nowrap">{cat.short}</th>
+                      ))}
+                      <th className="text-center px-2 py-3 font-bold whitespace-nowrap bg-slate-700">Total no<br/>GGCON</th>
+                      <th className="text-center px-2 py-3 font-bold whitespace-nowrap bg-slate-700">Concluída</th>
+                      <th className="text-center px-2 py-3 font-bold whitespace-nowrap bg-slate-700">Transf.<br/>Vol.</th>
+                      <th className="text-center px-2 py-3 font-bold whitespace-nowrap bg-slate-700">Emenda<br/>LOA</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quadroTecnico.rows.map((row: any, idx: number) => (
+                      <tr key={idx} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                        <td className={`px-3 py-2.5 font-semibold text-slate-900 whitespace-nowrap sticky left-0 z-10 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>{row.tecnico}</td>
+                        <td className="px-2 py-2.5 text-center font-bold text-slate-800">{row.recebidas}</td>
+                        {SITUACAO_CATEGORIAS.map(cat => (
+                          <td key={cat.key} className="px-2 py-2.5 text-center">{cellValue(row[cat.key])}</td>
+                        ))}
+                        <td className="px-2 py-2.5 text-center font-bold text-slate-800 bg-slate-50">{row.totalGGCON}</td>
+                        <td className="px-2 py-2.5 text-center">{cellValue(row.concluida, 'dark')}</td>
+                        <td className="px-2 py-2.5 text-center">{cellValue(row.transfVol, 'dark')}</td>
+                        <td className="px-2 py-2.5 text-center">{cellValue(row.emendaLOA, 'dark')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {quadroTecnico.totals && (
+                    <tfoot>
+                      <tr className="bg-slate-800 text-white font-bold">
+                        <td className="px-3 py-3 sticky left-0 bg-slate-800 z-10">Total</td>
+                        <td className="px-2 py-3 text-center">{quadroTecnico.totals.recebidas}</td>
+                        {SITUACAO_CATEGORIAS.map(cat => (
+                          <td key={cat.key} className="px-2 py-3 text-center">{quadroTecnico.totals[cat.key] > 0 ? quadroTecnico.totals[cat.key] : '—'}</td>
+                        ))}
+                        <td className="px-2 py-3 text-center bg-slate-700">{quadroTecnico.totals.totalGGCON}</td>
+                        <td className="px-2 py-3 text-center bg-slate-700">{quadroTecnico.totals.concluida}</td>
+                        <td className="px-2 py-3 text-center bg-slate-700">{quadroTecnico.totals.transfVol}</td>
+                        <td className="px-2 py-3 text-center bg-slate-700">{quadroTecnico.totals.emendaLOA}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
               </div>
-              {collapsedCards['quadroTecnico'] ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-            </button>
-            <AnimatePresence initial={false}>
-              {!collapsedCards['quadroTecnico'] && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
-                  <div className="p-4">
-                    {quadroTecnico.rows.length > 0 ? (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs border-collapse">
-                          <thead>
-                            <tr className="bg-slate-800 text-white">
-                              <th className="text-left px-3 py-3 font-bold whitespace-nowrap sticky left-0 bg-slate-800 z-10 min-w-[140px]">Técnico</th>
-                              <th className="text-center px-2 py-3 font-bold whitespace-nowrap">Deman.<br/>Recebidas</th>
-                              {SITUACAO_CATEGORIAS.map(cat => (
-                                <th key={cat.key} className="text-center px-2 py-3 font-bold whitespace-nowrap">{cat.short}</th>
-                              ))}
-                              <th className="text-center px-2 py-3 font-bold whitespace-nowrap bg-slate-700">Total no<br/>GGCON</th>
-                              <th className="text-center px-2 py-3 font-bold whitespace-nowrap bg-slate-700">Concluída</th>
-                              <th className="text-center px-2 py-3 font-bold whitespace-nowrap bg-slate-700">Transf.<br/>Vol.</th>
-                              <th className="text-center px-2 py-3 font-bold whitespace-nowrap bg-slate-700">Emenda<br/>LOA</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {quadroTecnico.rows.map((row: any, idx: number) => (
-                              <tr key={idx} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
-                                <td className={`px-3 py-2.5 font-semibold text-slate-900 whitespace-nowrap sticky left-0 z-10 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>{row.tecnico}</td>
-                                <td className="px-2 py-2.5 text-center font-bold text-slate-800">{row.recebidas}</td>
-                                {SITUACAO_CATEGORIAS.map(cat => (
-                                  <td key={cat.key} className="px-2 py-2.5 text-center">{cellValue(row[cat.key])}</td>
-                                ))}
-                                <td className="px-2 py-2.5 text-center font-bold text-slate-800 bg-slate-50">{row.totalGGCON}</td>
-                                <td className="px-2 py-2.5 text-center">{cellValue(row.concluida, 'dark')}</td>
-                                <td className="px-2 py-2.5 text-center">{cellValue(row.transfVol, 'dark')}</td>
-                                <td className="px-2 py-2.5 text-center">{cellValue(row.emendaLOA, 'dark')}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          {quadroTecnico.totals && (
-                            <tfoot>
-                              <tr className="bg-slate-800 text-white font-bold">
-                                <td className="px-3 py-3 sticky left-0 bg-slate-800 z-10">Total</td>
-                                <td className="px-2 py-3 text-center">{quadroTecnico.totals.recebidas}</td>
-                                {SITUACAO_CATEGORIAS.map(cat => (
-                                  <td key={cat.key} className="px-2 py-3 text-center">{quadroTecnico.totals[cat.key] > 0 ? quadroTecnico.totals[cat.key] : '—'}</td>
-                                ))}
-                                <td className="px-2 py-3 text-center bg-slate-700">{quadroTecnico.totals.totalGGCON}</td>
-                                <td className="px-2 py-3 text-center bg-slate-700">{quadroTecnico.totals.concluida}</td>
-                                <td className="px-2 py-3 text-center bg-slate-700">{quadroTecnico.totals.transfVol}</td>
-                                <td className="px-2 py-3 text-center bg-slate-700">{quadroTecnico.totals.emendaLOA}</td>
-                              </tr>
-                            </tfoot>
-                          )}
-                        </table>
+            ) : <p className="text-slate-500 text-center py-8">Nenhum técnico atribuído</p>}
+          </CollapsibleCard>
+
+          {/* ===== TAXA DE CONCLUSÃO POR TÉCNICO ===== */}
+          <CollapsibleCard id="taxaConclusao" title="Taxa de Conclusão por Técnico" icon={Zap} count={taxaConclusao.length} color="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700" collapsed={collapsedCards.taxaConclusao} toggle={() => toggle('taxaConclusao')}>
+            {taxaConclusao.length > 0 ? (
+              <div className="space-y-3">
+                {taxaConclusao.map((item, idx) => (
+                  <div key={idx} className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-slate-700 flex-1 pr-4">{item.tecnico}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500">{item.concluidas}/{item.total}</span>
+                        <div className={`px-3 py-1 rounded-full font-bold text-sm min-w-16 text-center ${item.taxa >= 70 ? 'bg-green-100 text-green-700' : item.taxa >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{item.taxa}%</div>
                       </div>
-                    ) : (
-                      <p className="text-slate-500 text-center py-8">Nenhum técnico atribuído</p>
-                    )}
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                      <motion.div initial={{ width: 0 }} animate={{ width: `${item.taxa}%` }} transition={{ duration: 0.8, delay: idx * 0.03 }} className={`h-full rounded-full shadow-md ${item.taxa >= 70 ? 'bg-gradient-to-r from-green-400 to-green-600' : item.taxa >= 40 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-red-400 to-red-600'}`} />
+                    </div>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+                ))}
+              </div>
+            ) : <p className="text-slate-500 text-center py-8">Sem dados</p>}
+          </CollapsibleCard>
+
+          {/* ===== TEMPO MÉDIO DE ANÁLISE POR TÉCNICO ===== */}
+          <CollapsibleCard id="tempoMedioAnalise" title="Tempo Médio de Análise por Técnico (dias)" icon={Clock} count={tempoMedioAnalise.length} color="bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700" collapsed={collapsedCards.tempoMedioAnalise} toggle={() => toggle('tempoMedioAnalise')}>
+            {tempoMedioAnalise.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-cyan-200">
+                      <th className="text-left px-4 py-3 font-bold text-slate-700">Técnico</th>
+                      <th className="text-center px-4 py-3 font-bold text-slate-700">Média (dias)</th>
+                      <th className="text-center px-4 py-3 font-bold text-slate-700">Qtd Análises</th>
+                      <th className="text-left px-4 py-3 font-bold text-slate-700 w-1/3">Desempenho</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tempoMedioAnalise.map((item, idx) => {
+                      const max = Math.max(...tempoMedioAnalise.map(i => i.mediaDias), 1);
+                      return (
+                        <tr key={idx} className="border-b border-slate-100 hover:bg-cyan-50/50">
+                          <td className="px-4 py-3 font-medium text-slate-900">{item.tecnico}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-block px-3 py-1 rounded-full font-semibold text-xs ${item.mediaDias <= 7 ? 'bg-green-100 text-green-700' : item.mediaDias <= 15 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                              {item.mediaDias} dias
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center font-medium text-slate-600">{item.qtd}</td>
+                          <td className="px-4 py-3">
+                            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                              <motion.div initial={{ width: 0 }} animate={{ width: `${(item.mediaDias / max) * 100}%` }} transition={{ duration: 0.6, delay: idx * 0.05 }} className={`h-full rounded-full ${item.mediaDias <= 7 ? 'bg-green-500' : item.mediaDias <= 15 ? 'bg-amber-500' : 'bg-red-500'}`} />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : <p className="text-slate-500 text-center py-8">Sem dados de análise</p>}
+          </CollapsibleCard>
 
           {/* ===== DISTRIBUIÇÃO DE SITUAÇÃO ===== */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-            <button onClick={() => toggleCard('situacao')} className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#1351B4] to-[#0C326F] text-white hover:from-[#0C326F] hover:to-[#1351B4] transition-all">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5" />
-                <h3 className="text-base font-bold">Distribuição de Situação da Demanda</h3>
+          <CollapsibleCard id="situacao" title="Distribuição de Situação da Demanda" icon={PieChart} color="bg-gradient-to-r from-[#1351B4] to-[#0C326F] hover:from-[#0C326F] hover:to-[#1351B4]" collapsed={collapsedCards.situacao} toggle={() => toggle('situacao')}>
+            {displayData.distribuicaoSituacao.length > 0 ? (
+              <HorizontalBar
+                items={displayData.distribuicaoSituacao.map((i: any) => ({ label: i.situacao, value: i.count }))}
+                colorFrom="from-[#1351B4]" colorTo="to-[#0C326F]"
+              />
+            ) : (
+              <div className="text-center py-12">
+                <div className="bg-slate-50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-slate-400 w-8 h-8" /></div>
+                <p className="text-slate-500 font-medium">Nenhuma demanda com situação definida</p>
               </div>
-              {collapsedCards['situacao'] ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-            </button>
-            <AnimatePresence initial={false}>
-              {!collapsedCards['situacao'] && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
-                  <div className="p-6">
-                    {displayData.distribuicaoSituacao.length > 0 ? (
-                      <div className="space-y-4">
-                        {displayData.distribuicaoSituacao.map((item: any, idx: number) => {
-                          const maxCount = Math.max(...displayData.distribuicaoSituacao.map((i: any) => i.count));
-                          const percentage = (item.count / maxCount) * 100;
-                          return (
-                            <div key={idx} className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <label className="text-sm font-semibold text-slate-700 flex-1 pr-4">{item.situacao}</label>
-                                <div className="bg-[#1351B4]/10 text-[#1351B4] px-3 py-1 rounded-full font-bold text-sm min-w-12 text-center">{item.count}</div>
-                              </div>
-                              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                                <motion.div initial={{ width: 0 }} animate={{ width: `${percentage}%` }} transition={{ duration: 0.8, ease: 'easeOut' }} className="h-full bg-gradient-to-r from-[#1351B4] to-[#0C326F] rounded-full shadow-md" />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12">
-                        <div className="bg-slate-50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-slate-400 w-8 h-8" /></div>
-                        <p className="text-slate-500 font-medium">Nenhuma demanda com situação definida</p>
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+            )}
+          </CollapsibleCard>
 
-          {/* ===== TEMPO COM TÉCNICOS ===== */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-            <button onClick={() => toggleCard('tempoTecnicos')} className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 transition-all">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5" />
-                <h3 className="text-base font-bold">Tempo das Demandas com Técnicos</h3>
-                <span className="ml-2 text-xs bg-white/20 px-2 py-0.5 rounded-full">{tempoComTecnicos.length}</span>
-              </div>
-              {collapsedCards['tempoTecnicos'] ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-            </button>
-            <AnimatePresence initial={false}>
-              {!collapsedCards['tempoTecnicos'] && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
-                  <div className="p-6">
-                    {tempoComTecnicos.length > 0 ? (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b-2 border-amber-200">
-                              <th className="text-left px-4 py-3 font-bold text-slate-700">Técnico</th>
-                              <th className="text-left px-4 py-3 font-bold text-slate-700">Demanda</th>
-                              <th className="text-center px-4 py-3 font-bold text-slate-700">Dias</th>
-                              <th className="text-left px-4 py-3 font-bold text-slate-700">Situação</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {tempoComTecnicos.map((item: any, idx: number) => (
-                              <tr key={idx} className="border-b border-slate-100 hover:bg-amber-50/50 transition-colors">
-                                <td className="px-4 py-3 font-medium text-slate-900">{item.tecnico}</td>
-                                <td className="px-4 py-3 text-slate-600 max-w-xs truncate" title={item.demanda}>{item.demanda}</td>
-                                <td className="px-4 py-3 text-center">
-                                  <span className={`inline-block px-3 py-1 rounded-full font-semibold text-xs ${item.dias > 30 ? 'bg-red-100 text-red-700' : item.dias > 15 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
-                                    {item.dias} dias
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-slate-600 text-xs">{item.situacao}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <p className="text-slate-500 text-center py-8">Nenhuma demanda não concluída com técnico atribuído</p>
-                    )}
+          {/* ===== DEMANDAS ATRASADAS (>30 dias) ===== */}
+          <CollapsibleCard id="atrasadas" title="Demandas Atrasadas (>30 dias sem conclusão)" icon={AlertTriangle} count={demandasAtrasadas.length} color="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700" collapsed={collapsedCards.atrasadas} toggle={() => toggle('atrasadas')}>
+            {demandasAtrasadas.length > 0 ? (
+              <>
+                <div className="grid grid-cols-3 gap-3 mb-5">
+                  <div className="bg-red-50 rounded-xl p-4 text-center border border-red-200">
+                    <p className="text-2xl font-bold text-red-700">{demandasAtrasadas.filter(d => d.dias > 90).length}</p>
+                    <p className="text-xs font-semibold text-red-600 mt-1">Críticas (&gt;90 dias)</p>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+                  <div className="bg-amber-50 rounded-xl p-4 text-center border border-amber-200">
+                    <p className="text-2xl font-bold text-amber-700">{demandasAtrasadas.filter(d => d.dias > 60 && d.dias <= 90).length}</p>
+                    <p className="text-xs font-semibold text-amber-600 mt-1">Alerta (61-90 dias)</p>
+                  </div>
+                  <div className="bg-yellow-50 rounded-xl p-4 text-center border border-yellow-200">
+                    <p className="text-2xl font-bold text-yellow-700">{demandasAtrasadas.filter(d => d.dias <= 60).length}</p>
+                    <p className="text-xs font-semibold text-yellow-600 mt-1">Atenção (31-60 dias)</p>
+                  </div>
+                </div>
+                <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-white">
+                      <tr className="border-b-2 border-red-200">
+                        <th className="text-left px-4 py-3 font-bold text-slate-700">Técnico</th>
+                        <th className="text-left px-4 py-3 font-bold text-slate-700">Demanda</th>
+                        <th className="text-center px-4 py-3 font-bold text-slate-700">Dias</th>
+                        <th className="text-left px-4 py-3 font-bold text-slate-700">Regional</th>
+                        <th className="text-left px-4 py-3 font-bold text-slate-700">Situação</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {demandasAtrasadas.slice(0, 50).map((item, idx) => (
+                        <tr key={idx} className="border-b border-slate-100 hover:bg-red-50/50">
+                          <td className="px-4 py-2.5 font-medium text-slate-900 text-xs">{item.tecnico}</td>
+                          <td className="px-4 py-2.5 text-slate-600 text-xs max-w-xs truncate" title={item.demanda}>{item.demanda}</td>
+                          <td className="px-4 py-2.5 text-center">
+                            <span className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-xs ${item.dias > 90 ? 'bg-red-600 text-white' : item.dias > 60 ? 'bg-amber-500 text-white' : 'bg-yellow-400 text-yellow-900'}`}>{item.dias}d</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-600 text-xs">{item.regional}</td>
+                          <td className="px-4 py-2.5 text-slate-500 text-xs truncate max-w-[200px]" title={item.situacao}>{item.situacao}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {demandasAtrasadas.length > 50 && <p className="text-xs text-slate-500 text-center py-2">Mostrando 50 de {demandasAtrasadas.length} demandas atrasadas</p>}
+                </div>
+              </>
+            ) : <p className="text-slate-500 text-center py-8">Nenhuma demanda atrasada</p>}
+          </CollapsibleCard>
 
-          {/* ===== CONCLUÍDAS POR TIPO ===== */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-            <button onClick={() => toggleCard('concluidasTipo')} className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 transition-all">
-              <div className="flex items-center gap-2">
-                <CheckCheck className="w-5 h-5" />
-                <h3 className="text-base font-bold">Concluídas por Tipo</h3>
-                <span className="ml-2 text-xs bg-white/20 px-2 py-0.5 rounded-full">{concluidasPorTipo.total}</span>
-              </div>
-              {collapsedCards['concluidasTipo'] ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-            </button>
-            <AnimatePresence initial={false}>
-              {!collapsedCards['concluidasTipo'] && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
-                  <div className="p-6">
-                    {concluidasPorTipo.porTipo.length > 0 ? (
-                      <div className="space-y-4">
-                        {concluidasPorTipo.porTipo.map((item: any, idx: number) => {
-                          const maxCount = Math.max(...concluidasPorTipo.porTipo.map((i: any) => i.count));
-                          const percentage = (item.count / maxCount) * 100;
-                          return (
-                            <div key={idx} className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <label className="text-sm font-semibold text-slate-700 flex-1 pr-4">{item.tipo}</label>
-                                <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold text-sm min-w-12 text-center">{item.count}</div>
+          {/* ===== DILIGÊNCIAS EM ABERTO ===== */}
+          <CollapsibleCard id="diligencias" title="Diligências em Aberto por Técnico" icon={Send} count={diligenciasAberto.total} color="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700" collapsed={collapsedCards.diligencias} toggle={() => toggle('diligencias')}>
+            {diligenciasAberto.porTecnico.length > 0 ? (
+              <HorizontalBar
+                items={diligenciasAberto.porTecnico.map(i => ({ label: i.tecnico, value: i.count }))}
+                colorFrom="from-orange-400" colorTo="to-orange-600"
+              />
+            ) : <p className="text-slate-500 text-center py-8">Nenhuma diligência em aberto</p>}
+          </CollapsibleCard>
+
+          {/* ===== DEMANDAS POR CONFERENCISTA ===== */}
+          <CollapsibleCard id="conferencistas" title="Demandas por Conferencista" icon={UserCheck} count={demandasConferencista.length} color="bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700" collapsed={collapsedCards.conferencistas} toggle={() => toggle('conferencistas')}>
+            {demandasConferencista.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-violet-200">
+                      <th className="text-left px-4 py-3 font-bold text-slate-700">Conferencista</th>
+                      <th className="text-center px-4 py-3 font-bold text-slate-700">Total</th>
+                      <th className="text-center px-4 py-3 font-bold text-slate-700">Conferidas</th>
+                      <th className="text-center px-4 py-3 font-bold text-slate-700">Pendentes</th>
+                      <th className="text-left px-4 py-3 font-bold text-slate-700 w-1/4">Progresso</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {demandasConferencista.map((item, idx) => {
+                      const pct = item.total > 0 ? Math.round((item.conferidas / item.total) * 100) : 0;
+                      return (
+                        <tr key={idx} className="border-b border-slate-100 hover:bg-violet-50/50">
+                          <td className="px-4 py-3 font-medium text-slate-900">{item.conferencista}</td>
+                          <td className="px-4 py-3 text-center font-bold text-slate-800">{item.total}</td>
+                          <td className="px-4 py-3 text-center">{cellValue(item.conferidas, 'green')}</td>
+                          <td className="px-4 py-3 text-center">{cellValue(item.pendentes)}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                                <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6, delay: idx * 0.05 }} className="h-full bg-gradient-to-r from-violet-400 to-violet-600 rounded-full" />
                               </div>
-                              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                                <motion.div initial={{ width: 0 }} animate={{ width: `${percentage}%` }} transition={{ duration: 0.8, ease: 'easeOut' }} className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full shadow-md" />
-                              </div>
+                              <span className="text-xs font-semibold text-slate-500 w-10">{pct}%</span>
                             </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12">
-                        <div className="bg-slate-50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-slate-400 w-8 h-8" /></div>
-                        <p className="text-slate-500 font-medium">Nenhuma demanda concluída</p>
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : <p className="text-slate-500 text-center py-8">Sem conferencistas</p>}
+          </CollapsibleCard>
+
+          {/* ===== DEMANDAS POR REGIONAL ===== */}
+          <CollapsibleCard id="demandasRegional" title="Demandas por Regional" icon={MapPin} count={demandasRegional.length} color="bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700" collapsed={collapsedCards.demandasRegional} toggle={() => toggle('demandasRegional')}>
+            {demandasRegional.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-indigo-200">
+                      <th className="text-left px-4 py-3 font-bold text-slate-700">Regional</th>
+                      <th className="text-center px-4 py-3 font-bold text-slate-700">Total</th>
+                      <th className="text-center px-4 py-3 font-bold text-slate-700">Concluídas</th>
+                      <th className="text-center px-4 py-3 font-bold text-slate-700">Pendentes</th>
+                      <th className="text-left px-4 py-3 font-bold text-slate-700 w-1/4">Progresso</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {demandasRegional.map((item, idx) => {
+                      const pct = item.total > 0 ? Math.round((item.concluidas / item.total) * 100) : 0;
+                      return (
+                        <tr key={idx} className="border-b border-slate-100 hover:bg-indigo-50/50">
+                          <td className="px-4 py-3 font-medium text-slate-900">{item.regional}</td>
+                          <td className="px-4 py-3 text-center font-bold text-slate-800">{item.total}</td>
+                          <td className="px-4 py-3 text-center">{cellValue(item.concluidas, 'green')}</td>
+                          <td className="px-4 py-3 text-center">{cellValue(item.pendentes)}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                                <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6, delay: idx * 0.05 }} className="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-full" />
+                              </div>
+                              <span className="text-xs font-semibold text-slate-500 w-10">{pct}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : <p className="text-slate-500 text-center py-8">Sem dados de regional</p>}
+          </CollapsibleCard>
 
           {/* ===== TOP MUNICÍPIOS ===== */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-            <button onClick={() => toggleCard('topMunicipios')} className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white hover:from-indigo-600 hover:to-indigo-700 transition-all">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5" />
-                <h3 className="text-base font-bold">Top 15 Municípios</h3>
-              </div>
-              {collapsedCards['topMunicipios'] ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-            </button>
-            <AnimatePresence initial={false}>
-              {!collapsedCards['topMunicipios'] && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
-                  <div className="p-6">
-                    {topMunicipios.length > 0 ? (
-                      <div className="space-y-3">
-                        {topMunicipios.map((item: any, idx: number) => {
-                          const maxCount = Math.max(...topMunicipios.map((i: any) => i.count));
-                          const percentage = (item.count / maxCount) * 100;
-                          return (
-                            <div key={idx} className="space-y-1.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-slate-700 flex-1 pr-4 flex items-center gap-2">
-                                  <span className="text-xs text-slate-400 font-bold w-5 text-right">{idx + 1}.</span>
-                                  {item.municipio}
-                                </span>
-                                <div className="bg-indigo-100 text-indigo-700 px-3 py-0.5 rounded-full font-bold text-xs min-w-10 text-center">{item.count}</div>
-                              </div>
-                              <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden ml-7">
-                                <motion.div initial={{ width: 0 }} animate={{ width: `${percentage}%` }} transition={{ duration: 0.8, delay: idx * 0.05, ease: 'easeOut' }} className="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-full" />
-                              </div>
-                            </div>
-                          );
-                        })}
+          <CollapsibleCard id="topMunicipios" title="Top 15 Municípios" icon={MapPin} color="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700" collapsed={collapsedCards.topMunicipios} toggle={() => toggle('topMunicipios')}>
+            {topMunicipios.length > 0 ? (
+              <div className="space-y-3">
+                {topMunicipios.map((item: any, idx: number) => {
+                  const maxCount = Math.max(...topMunicipios.map((i: any) => i.count));
+                  const pct = (item.count / maxCount) * 100;
+                  return (
+                    <div key={idx} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-slate-700 flex-1 pr-4 flex items-center gap-2">
+                          <span className="text-xs text-slate-400 font-bold w-5 text-right">{idx + 1}.</span>
+                          {item.municipio}
+                        </span>
+                        <div className="bg-sky-100 text-sky-700 px-3 py-0.5 rounded-full font-bold text-xs min-w-10 text-center">{item.count}</div>
                       </div>
-                    ) : (
-                      <p className="text-slate-500 text-center py-8">Nenhum município encontrado</p>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-
-          {/* ===== EVOLUÇÃO MENSAL ===== */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-            <button onClick={() => toggleCard('evolucaoMensal')} className="w-full flex items-center justify-between px-6 py-4 bg-gradient-to-r from-teal-500 to-teal-600 text-white hover:from-teal-600 hover:to-teal-700 transition-all">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                <h3 className="text-base font-bold">Evolução Mensal (Últimos 12 meses)</h3>
+                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden ml-7">
+                        <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, delay: idx * 0.05, ease: 'easeOut' }} className="h-full bg-gradient-to-r from-sky-400 to-sky-600 rounded-full" />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              {collapsedCards['evolucaoMensal'] ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-            </button>
-            <AnimatePresence initial={false}>
-              {!collapsedCards['evolucaoMensal'] && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
-                  <div className="p-6">
-                    {evolucaoMensal.length > 0 ? (
-                      <>
-                        <div className="flex items-end gap-2 h-48 mb-4">
-                          {(() => {
-                            const maxVal = Math.max(...evolucaoMensal.map(m => Math.max(m.recebidas, m.concluidas)));
-                            return evolucaoMensal.map((item, idx) => (
-                              <div key={idx} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
-                                <div className="flex gap-0.5 items-end h-full w-full justify-center">
-                                  <motion.div initial={{ height: 0 }} animate={{ height: `${maxVal > 0 ? (item.recebidas / maxVal) * 100 : 0}%` }} transition={{ duration: 0.6, delay: idx * 0.05 }} className="w-3 bg-teal-400 rounded-t min-h-[2px]" title={`Recebidas: ${item.recebidas}`} />
-                                  <motion.div initial={{ height: 0 }} animate={{ height: `${maxVal > 0 ? (item.concluidas / maxVal) * 100 : 0}%` }} transition={{ duration: 0.6, delay: idx * 0.05 + 0.1 }} className="w-3 bg-green-500 rounded-t min-h-[2px]" title={`Concluídas: ${item.concluidas}`} />
-                                </div>
-                                <span className="text-[10px] text-slate-500 whitespace-nowrap transform -rotate-45 origin-center mt-1">
-                                  {item.mes.substring(5)}/{item.mes.substring(2, 4)}
-                                </span>
-                              </div>
-                            ));
-                          })()}
-                        </div>
-                        <div className="flex items-center justify-center gap-6 text-xs text-slate-600">
-                          <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-teal-400 rounded" /> Recebidas</span>
-                          <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-green-500 rounded" /> Concluídas</span>
-                        </div>
-                        <div className="mt-4 overflow-x-auto">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="border-b border-slate-200">
-                                <th className="text-left px-2 py-2 font-bold text-slate-600">Mês</th>
-                                {evolucaoMensal.map((m, i) => <th key={i} className="text-center px-1 py-2 font-semibold text-slate-500">{m.mes.substring(5)}/{m.mes.substring(2, 4)}</th>)}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr className="border-b border-slate-100">
-                                <td className="px-2 py-1.5 font-semibold text-teal-600">Recebidas</td>
-                                {evolucaoMensal.map((m, i) => <td key={i} className="text-center px-1 py-1.5 font-medium">{m.recebidas || '—'}</td>)}
-                              </tr>
-                              <tr>
-                                <td className="px-2 py-1.5 font-semibold text-green-600">Concluídas</td>
-                                {evolucaoMensal.map((m, i) => <td key={i} className="text-center px-1 py-1.5 font-medium">{m.concluidas || '—'}</td>)}
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </>
-                    ) : (
-                      <p className="text-slate-500 text-center py-8">Nenhum dado de evolução mensal disponível</p>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+            ) : <p className="text-slate-500 text-center py-8">Nenhum município encontrado</p>}
+          </CollapsibleCard>
+
+          {/* ===== PUBLICAÇÕES POR MÊS ===== */}
+          <CollapsibleCard id="publicacoesMes" title="Publicações por Mês" icon={BookOpen} count={publicacoesMes.reduce((a, b) => a + b.count, 0)} color="bg-gradient-to-r from-fuchsia-500 to-fuchsia-600 hover:from-fuchsia-600 hover:to-fuchsia-700" collapsed={collapsedCards.publicacoesMes} toggle={() => toggle('publicacoesMes')}>
+            {publicacoesMes.length > 0 ? (
+              <>
+                <div className="flex items-end gap-2 h-48 mb-4">
+                  {(() => {
+                    const maxVal = Math.max(...publicacoesMes.map(m => m.count), 1);
+                    return publicacoesMes.map((item, idx) => (
+                      <div key={idx} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+                        <span className="text-[10px] font-bold text-fuchsia-700">{item.count}</span>
+                        <motion.div initial={{ height: 0 }} animate={{ height: `${(item.count / maxVal) * 100}%` }} transition={{ duration: 0.6, delay: idx * 0.05 }} className="w-full max-w-8 bg-gradient-to-t from-fuchsia-600 to-fuchsia-400 rounded-t min-h-[2px]" title={`${item.count} publicações`} />
+                        <span className="text-[10px] text-slate-500 whitespace-nowrap transform -rotate-45 origin-center mt-1">
+                          {item.mes.substring(5)}/{item.mes.substring(2, 4)}
+                        </span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </>
+            ) : <p className="text-slate-500 text-center py-8">Nenhuma publicação registrada</p>}
+          </CollapsibleCard>
+
+          {/* ===== TEMPO COM TÉCNICOS ===== */}
+          <CollapsibleCard id="tempoTecnicos" title="Tempo das Demandas com Técnicos" icon={Clock} count={tempoComTecnicos.length} color="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700" collapsed={collapsedCards.tempoTecnicos} toggle={() => toggle('tempoTecnicos')}>
+            {tempoComTecnicos.length > 0 ? (
+              <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-white">
+                    <tr className="border-b-2 border-amber-200">
+                      <th className="text-left px-4 py-3 font-bold text-slate-700">Técnico</th>
+                      <th className="text-left px-4 py-3 font-bold text-slate-700">Demanda</th>
+                      <th className="text-center px-4 py-3 font-bold text-slate-700">Dias</th>
+                      <th className="text-left px-4 py-3 font-bold text-slate-700">Situação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tempoComTecnicos.slice(0, 100).map((item: any, idx: number) => (
+                      <tr key={idx} className="border-b border-slate-100 hover:bg-amber-50/50 transition-colors">
+                        <td className="px-4 py-2.5 font-medium text-slate-900 text-xs">{item.tecnico}</td>
+                        <td className="px-4 py-2.5 text-slate-600 text-xs max-w-xs truncate" title={item.demanda}>{item.demanda}</td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className={`inline-block px-3 py-1 rounded-full font-semibold text-xs ${item.dias > 30 ? 'bg-red-100 text-red-700' : item.dias > 15 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                            {item.dias} dias
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-600 text-xs">{item.situacao}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {tempoComTecnicos.length > 100 && <p className="text-xs text-slate-500 text-center py-2">Mostrando 100 de {tempoComTecnicos.length}</p>}
+              </div>
+            ) : <p className="text-slate-500 text-center py-8">Nenhuma demanda não concluída com técnico atribuído</p>}
+          </CollapsibleCard>
+
+          {/* ===== EVOLUÇÃO MENSAL POR TÉCNICO ===== */}
+          <CollapsibleCard id="evolucaoMensal" title="Evolução Mensal por Técnico (Últimos 12 meses)" icon={TrendingUp} color="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700" collapsed={collapsedCards.evolucaoMensal} toggle={() => toggle('evolucaoMensal')}>
+            {evolucaoMensal.meses.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-teal-700 text-white">
+                      <th className="text-left px-3 py-3 font-bold whitespace-nowrap sticky left-0 bg-teal-700 z-10 min-w-[140px]">Técnico</th>
+                      {evolucaoMensal.meses.map((m, i) => (
+                        <th key={i} className="text-center px-2 py-3 font-semibold whitespace-nowrap">{m.substring(5)}/{m.substring(2, 4)}</th>
+                      ))}
+                      <th className="text-center px-3 py-3 font-bold whitespace-nowrap bg-teal-800">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {evolucaoMensal.tecnicos.map((tecnico, idx) => {
+                      const mesMap = evolucaoMensal.data.get(tecnico)!;
+                      const total = evolucaoMensal.meses.reduce((sum, m) => sum + (mesMap.get(m)?.recebidas || 0), 0);
+                      return (
+                        <tr key={idx} className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-teal-50/30'}`}>
+                          <td className={`px-3 py-2.5 font-semibold text-slate-900 whitespace-nowrap sticky left-0 z-10 ${idx % 2 === 0 ? 'bg-white' : 'bg-teal-50'}`}>{tecnico}</td>
+                          {evolucaoMensal.meses.map((m, i) => {
+                            const val = mesMap.get(m)?.recebidas || 0;
+                            return <td key={i} className="px-2 py-2.5 text-center">{val > 0 ? <span className="inline-block px-2 py-0.5 rounded bg-teal-100 text-teal-800 font-bold text-xs">{val}</span> : <span className="text-slate-300">—</span>}</td>;
+                          })}
+                          <td className="px-3 py-2.5 text-center font-bold text-teal-800 bg-teal-50">{total}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-teal-700 text-white font-bold">
+                      <td className="px-3 py-3 sticky left-0 bg-teal-700 z-10">Total</td>
+                      {evolucaoMensal.meses.map((m, i) => {
+                        const total = evolucaoMensal.tecnicos.reduce((sum, t) => sum + (evolucaoMensal.data.get(t)?.get(m)?.recebidas || 0), 0);
+                        return <td key={i} className="px-2 py-3 text-center">{total || '—'}</td>;
+                      })}
+                      <td className="px-3 py-3 text-center bg-teal-800">
+                        {evolucaoMensal.meses.reduce((sum, m) => sum + evolucaoMensal.tecnicos.reduce((s, t) => s + (evolucaoMensal.data.get(t)?.get(m)?.recebidas || 0), 0), 0)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            ) : <p className="text-slate-500 text-center py-8">Nenhum dado de evolução mensal disponível</p>}
+          </CollapsibleCard>
+
         </div>
       ) : null}
     </div>
