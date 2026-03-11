@@ -33,17 +33,19 @@ export const onRequest: PagesFunction = async (context) => {
       console.log(`📥 GET /api/formalizacao - limit=${limit}, offset=${offset}`);
 
       const resp = await fetch(
-        `${SUPABASE_URL}/rest/v1/formalizacao?select=*&order=id.asc&offset=${offset}&limit=${limit}`,
+        `${SUPABASE_URL}/rest/v1/formalizacao?select=*&order=id.asc`,
         {
           headers: {
             'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
             'apikey': SUPABASE_SERVICE_ROLE_KEY,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Range': `${offset}-${offset + limit - 1}`,
+            'Prefer': 'count=exact'
           }
         }
       );
 
-      if (!resp.ok) {
+      if (!resp.ok && resp.status !== 206) {
         const err = await resp.text();
         console.error(`❌ Supabase error: ${resp.status} - ${err.substring(0, 200)}`);
         return new Response(JSON.stringify([]), {

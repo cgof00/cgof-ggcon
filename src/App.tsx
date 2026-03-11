@@ -1040,7 +1040,6 @@ export default function App() {
         encaminhado_em: false,
         concluida_em: true
       });
-      setHideConcluidas(true); // Usuário comum: ocultar concluídas por padrão
       console.log('👤 Colunas ajustadas para usuário comum');
     } else if (user.role === 'admin') {
       // Administradores veem apenas colunas específicas
@@ -2580,8 +2579,20 @@ export default function App() {
                   />
                 </div>
 
-                {/* Botão Limpar Filtros */}
-                <div className="mt-4 flex justify-end">
+                {/* Botão Limpar Filtros + Ocultar Concluídas */}
+                <div className="mt-4 flex items-center justify-between">
+                  <label className="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-gray-100 px-2 py-1 rounded">
+                    <input
+                      type="checkbox"
+                      checked={hideConcluidas}
+                      onChange={(e) => {
+                        setHideConcluidas(e.target.checked);
+                        fetchFormalizacoesComFiltros(0);
+                      }}
+                      className="rounded cursor-pointer accent-[#1351B4] w-3.5 h-3.5"
+                    />
+                    <span className="text-gray-700 font-medium">Ocultar Concluídas/Publicadas</span>
+                  </label>
                   <button
                     onClick={() => clearAllFilters()}
                     className="px-4 py-2 text-sm font-bold text-white rounded-lg transition-all border border-[#1351B4] bg-[#1351B4] hover:bg-[#0C326F]"
@@ -2679,29 +2690,17 @@ export default function App() {
                       </div>
                     )}
                     
-                    {/* Toggle Ocultar Concluídas */}
-                    <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 border-b border-gray-200">
-                      <label className="flex items-center gap-1.5 text-[11px] cursor-pointer hover:bg-gray-100 px-2 py-0.5 rounded">
-                        <input
-                          type="checkbox"
-                          checked={hideConcluidas}
-                          onChange={(e) => {
-                            setHideConcluidas(e.target.checked);
-                            fetchFormalizacoesComFiltros(0);
-                          }}
-                          className="rounded cursor-pointer accent-[#1351B4] w-3 h-3"
-                        />
-                        <span className="text-gray-600 font-medium">Ocultar Concluídas/Publicadas</span>
-                      </label>
-                      {Object.keys(columnWidths).length > 0 && (
+                    {/* Resetar larguras */}
+                    {Object.keys(columnWidths).length > 0 && (
+                      <div className="flex items-center px-3 py-1 bg-gray-50 border-b border-gray-200">
                         <button
                           onClick={() => setColumnWidths({})}
                           className="text-[10px] text-[#1351B4] hover:underline ml-auto"
                         >
                           Resetar larguras
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     <div 
                       ref={tableContainerRef}
@@ -2758,7 +2757,7 @@ export default function App() {
                         
                         const visibleCols = columnDefinitions.filter(col => visibleColumns[col.key as keyof typeof visibleColumns]);
                         return (
-                          <table className="min-w-fit text-sm">
+                          <table className="min-w-fit text-sm" style={{ tableLayout: 'fixed' }}>
                             <thead className="bg-[#1351B4] sticky top-0 z-20">
                               <tr>
                                 {/* Header do checkbox */}
@@ -2795,7 +2794,7 @@ export default function App() {
                                       className={`px-2 py-1.5 text-left text-white text-xs whitespace-nowrap cursor-pointer transition-colors hover:bg-[#0C326F] relative ${
                                         col.align === 'right' ? 'text-right' : ''
                                       } ${sortColumn === col.key ? 'bg-[#0C326F]' : ''}`}
-                                      style={{ minWidth: 70, width: columnWidths[col.key] || undefined }}
+                                      style={{ minWidth: 110, width: columnWidths[col.key] || 110 }}
                                     >
                                       {/* Label + Sort + Filter (estilo Excel) */}
                                       <div 
@@ -3053,7 +3052,7 @@ export default function App() {
                                         className={`px-3 py-1.5 truncate text-xs ${
                                           col.align === 'right' ? 'text-right font-semibold text-emerald-700' : 'text-slate-800'
                                         }`}
-                                        style={{ backgroundColor: 'inherit', width: columnWidths[col.key] || undefined, maxWidth: columnWidths[col.key] || undefined }}
+                                        style={{ backgroundColor: 'inherit', width: columnWidths[col.key] || 110, maxWidth: columnWidths[col.key] || 110, overflow: 'hidden' }}
                                         title={String(col.render(f))}
                                       >
                                         {col.render(f)}
