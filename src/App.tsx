@@ -2194,8 +2194,8 @@ export default function App() {
             <div className="flex items-center justify-end gap-2 mb-2">
                 {activeTab === 'formalizacao' && (
                   <>
-                    {/* Botão Atribuir a Técnico - aparece quando há seleção */}
-                    {selectedRows.size > 0 && (
+                    {/* Botão Atribuir a Técnico - aparece quando há seleção (só admin) */}
+                    {isAdmin && selectedRows.size > 0 && (
                       <motion.button
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -2206,8 +2206,8 @@ export default function App() {
                         Atribuir a Técnico ({selectedRows.size})
                       </motion.button>
                     )}
-                    {/* Botão Atribuir a Conferencista - aparece quando há seleção */}
-                    {selectedRows.size > 0 && (
+                    {/* Botão Atribuir a Conferencista - aparece quando há seleção (só admin) */}
+                    {isAdmin && selectedRows.size > 0 && (
                       <motion.button
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -2579,20 +2579,8 @@ export default function App() {
                   />
                 </div>
 
-                {/* Botão Limpar Filtros + Ocultar Concluídas */}
-                <div className="mt-4 flex items-center justify-between">
-                  <label className="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-gray-100 px-2 py-1 rounded">
-                    <input
-                      type="checkbox"
-                      checked={hideConcluidas}
-                      onChange={(e) => {
-                        setHideConcluidas(e.target.checked);
-                        fetchFormalizacoesComFiltros(0);
-                      }}
-                      className="rounded cursor-pointer accent-[#1351B4] w-3.5 h-3.5"
-                    />
-                    <span className="text-gray-700 font-medium">Ocultar Concluídas/Publicadas</span>
-                  </label>
+                {/* Botão Limpar Filtros */}
+                <div className="mt-4 flex justify-end">
                   <button
                     onClick={() => clearAllFilters()}
                     className="px-4 py-2 text-sm font-bold text-white rounded-lg transition-all border border-[#1351B4] bg-[#1351B4] hover:bg-[#0C326F]"
@@ -2630,63 +2618,81 @@ export default function App() {
               <div className="space-y-2">
                   <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                     {/* Compact Pagination Bar */}
-                    {activeTab === 'formalizacao' && totalPaginas > 1 && (
+                    {activeTab === 'formalizacao' && (
                       <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border-b border-gray-200 flex-wrap">
-                        <button
-                          onClick={() => fetchFormalizacoesComFiltros(0)}
-                          disabled={paginaAtual === 0 || formalizacaoSearchResult.loading}
-                          className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
-                          title="Primeira página"
-                        >
-                          ⏮
-                        </button>
-                        <button
-                          onClick={() => fetchFormalizacoesComFiltros(Math.max(0, paginaAtual - 1))}
-                          disabled={paginaAtual === 0 || formalizacaoSearchResult.loading}
-                          className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
-                          title="Página anterior"
-                        >
-                          ◀
-                        </button>
-                        <div className="flex items-center gap-0.5">
-                          {Array.from({ length: Math.min(5, totalPaginas) }).map((_, i) => {
-                            const startPage = Math.max(0, Math.min(paginaAtual - 2, totalPaginas - 5));
-                            const pagina = startPage + i;
-                            return (
-                              <button
-                                key={`page-top-${pagina}`}
-                                onClick={() => fetchFormalizacoesComFiltros(pagina)}
-                                disabled={formalizacaoSearchResult.loading}
-                                className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${
-                                  paginaAtual === pagina
-                                    ? 'text-white bg-[#1351B4]'
-                                    : 'bg-white text-gray-600 border border-gray-300 hover:border-[#1351B4] hover:text-[#1351B4]'
-                                } disabled:opacity-40 disabled:cursor-not-allowed`}
-                              >
-                                {pagina + 1}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <button
-                          onClick={() => fetchFormalizacoesComFiltros(Math.min(totalPaginas - 1, paginaAtual + 1))}
-                          disabled={paginaAtual >= totalPaginas - 1 || formalizacaoSearchResult.loading}
-                          className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
-                          title="Próxima página"
-                        >
-                          ▶
-                        </button>
-                        <button
-                          onClick={() => fetchFormalizacoesComFiltros(totalPaginas - 1)}
-                          disabled={paginaAtual >= totalPaginas - 1 || formalizacaoSearchResult.loading}
-                          className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
-                          title="Última página"
-                        >
-                          ⏭
-                        </button>
-                        <span className="text-[10px] text-gray-500 ml-1">
-                          Pág. {paginaAtual + 1}/{totalPaginas} · {formalizacaoSearchResult.total.toLocaleString('pt-BR')} registros
-                        </span>
+                        {/* Ocultar Concluídas/Publicadas */}
+                        <label className="flex items-center gap-1.5 text-[10px] cursor-pointer hover:bg-gray-100 px-1.5 py-0.5 rounded mr-2">
+                          <input
+                            type="checkbox"
+                            checked={hideConcluidas}
+                            onChange={(e) => {
+                              setHideConcluidas(e.target.checked);
+                              fetchFormalizacoesComFiltros(0);
+                            }}
+                            className="rounded cursor-pointer accent-[#1351B4] w-3 h-3"
+                          />
+                          <span className="text-gray-600 font-medium">Ocultar Concluídas</span>
+                        </label>
+                        {totalPaginas > 1 && (
+                          <>
+                            <div className="w-px h-4 bg-gray-300" />
+                            <button
+                              onClick={() => fetchFormalizacoesComFiltros(0)}
+                              disabled={paginaAtual === 0 || formalizacaoSearchResult.loading}
+                              className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
+                              title="Primeira página"
+                            >
+                              ⏮
+                            </button>
+                            <button
+                              onClick={() => fetchFormalizacoesComFiltros(Math.max(0, paginaAtual - 1))}
+                              disabled={paginaAtual === 0 || formalizacaoSearchResult.loading}
+                              className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
+                              title="Página anterior"
+                            >
+                              ◀
+                            </button>
+                            <div className="flex items-center gap-0.5">
+                              {Array.from({ length: Math.min(5, totalPaginas) }).map((_, i) => {
+                                const startPage = Math.max(0, Math.min(paginaAtual - 2, totalPaginas - 5));
+                                const pagina = startPage + i;
+                                return (
+                                  <button
+                                    key={`page-top-${pagina}`}
+                                    onClick={() => fetchFormalizacoesComFiltros(pagina)}
+                                    disabled={formalizacaoSearchResult.loading}
+                                    className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${
+                                      paginaAtual === pagina
+                                        ? 'text-white bg-[#1351B4]'
+                                        : 'bg-white text-gray-600 border border-gray-300 hover:border-[#1351B4] hover:text-[#1351B4]'
+                                    } disabled:opacity-40 disabled:cursor-not-allowed`}
+                                  >
+                                    {pagina + 1}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <button
+                              onClick={() => fetchFormalizacoesComFiltros(Math.min(totalPaginas - 1, paginaAtual + 1))}
+                              disabled={paginaAtual >= totalPaginas - 1 || formalizacaoSearchResult.loading}
+                              className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
+                              title="Próxima página"
+                            >
+                              ▶
+                            </button>
+                            <button
+                              onClick={() => fetchFormalizacoesComFiltros(totalPaginas - 1)}
+                              disabled={paginaAtual >= totalPaginas - 1 || formalizacaoSearchResult.loading}
+                              className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
+                              title="Última página"
+                            >
+                              ⏭
+                            </button>
+                            <span className="text-[10px] text-gray-500 ml-1">
+                              Pág. {paginaAtual + 1}/{totalPaginas} · {formalizacaoSearchResult.total.toLocaleString('pt-BR')} registros
+                            </span>
+                          </>
+                        )}
                       </div>
                     )}
                     
@@ -2760,7 +2766,8 @@ export default function App() {
                           <table className="min-w-fit text-sm" style={{ tableLayout: 'fixed' }}>
                             <thead className="bg-[#1351B4] sticky top-0 z-20">
                               <tr>
-                                {/* Header do checkbox */}
+                                {/* Header do checkbox - só admin */}
+                                {isAdmin && (
                                 <th className="px-3 py-1.5 w-12 bg-[#1351B4] align-middle">
                                   <input
                                     type="checkbox"
@@ -2782,6 +2789,7 @@ export default function App() {
                                     title="Selecionar tudo na página"
                                   />
                                 </th>
+                                )}
                                 {visibleCols.map(col => {
                                   const selectedVals = getColumnFilterValues(col.key);
                                   const hasActive = selectedVals.length > 0;
@@ -3018,7 +3026,8 @@ export default function App() {
                                         : 'hover:bg-blue-50'
                                     }`}
                                   >
-                                    {/* Checkbox para seleção */}
+                                    {/* Checkbox para seleção - só admin */}
+                                    {isAdmin && (
                                     <td className="px-3 py-1.5 w-12">
                                       <input
                                         type="checkbox"
@@ -3046,6 +3055,7 @@ export default function App() {
                                         className="rounded border-slate-300 text-amber-500 focus:ring-amber-500 cursor-pointer w-4 h-4"
                                       />
                                     </td>
+                                    )}
                                     {visibleCols.map(col => (
                                       <td 
                                         key={`${f.id}-${col.key}`}
