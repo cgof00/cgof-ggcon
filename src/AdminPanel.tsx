@@ -385,7 +385,7 @@ export function AdminPanel() {
       if (!token) return;
       let allData: any[] = [];
       let offset = 0;
-      const batchSize = 5000;
+      const batchSize = 1000;
       while (true) {
         const res = await fetch(`/api/formalizacao?limit=${batchSize}&offset=${offset}`, { headers: { 'Authorization': `Bearer ${token}` } });
         if (!res.ok) break;
