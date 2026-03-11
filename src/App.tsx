@@ -1067,7 +1067,7 @@ export default function App() {
         recurso: false,
         tecnico: true,
         data_liberacao: true,
-        area_estagio_situacao_demanda: false,
+        area_estagio_situacao_demanda: true,
         situacao_analise_demanda: false,
         data_analise_demanda: false,
         motivo_retorno_diligencia: false,
@@ -2798,13 +2798,24 @@ export default function App() {
                                   const hasActive = selectedVals.length > 0;
                                   const isOpen = headerFilterOpen === col.key;
                                   
+                                  // Cores dos cabeçalhos por coluna
+                                  const headerBgColor = col.key === 'area_estagio_situacao_demanda'
+                                    ? 'bg-red-600 hover:bg-red-700'
+                                    : ['tecnico', 'data_liberacao', 'conferencista', 'data_recebimento_demanda'].includes(col.key)
+                                    ? 'bg-yellow-500 hover:bg-yellow-600 text-gray-900'
+                                    : ['data_liberacao_assinatura', 'falta_assinatura', 'assinatura', 'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em'].includes(col.key)
+                                    ? 'bg-orange-500 hover:bg-orange-600'
+                                    : 'hover:bg-[#0C326F]';
+                                  
+                                  const isYellow = ['tecnico', 'data_liberacao', 'conferencista', 'data_recebimento_demanda'].includes(col.key);
+
                                   return (
                                     <th 
                                       key={col.key}
                                       ref={(el) => { if (el) columnHeaderRefs.current[col.key] = el; }}
-                                      className={`px-2 py-1.5 text-left text-white text-xs whitespace-nowrap cursor-pointer transition-colors hover:bg-[#0C326F] relative ${
+                                      className={`px-2 py-1.5 text-left ${isYellow ? 'text-gray-900' : 'text-white'} text-xs whitespace-nowrap cursor-pointer transition-colors relative ${headerBgColor} ${
                                         col.align === 'right' ? 'text-right' : ''
-                                      } ${sortColumn === col.key ? 'bg-[#0C326F]' : ''}`}
+                                      } ${sortColumn === col.key ? 'brightness-90' : ''}`}
                                       style={{ minWidth: col.width || 110, width: columnWidths[col.key] || col.width || 110 }}
                                     >
                                       {/* Label + Sort + Filter (estilo Excel) */}
@@ -2830,7 +2841,7 @@ export default function App() {
                                       >
                                         <span className="truncate">{col.label}</span>
                                         {sortColumn === col.key && (
-                                          <span className="text-yellow-300 text-[10px] flex-shrink-0">
+                                          <span className={`${isYellow ? 'text-red-600' : 'text-yellow-300'} text-[10px] flex-shrink-0`}>
                                             {sortOrder === 'asc' ? '▲' : '▼'}
                                           </span>
                                         )}

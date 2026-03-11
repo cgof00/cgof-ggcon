@@ -94,6 +94,7 @@ export function AdminPanel() {
   const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({
     quadroTecnico: true,
     situacao: true,
+    detalheSituacao: true,
     tempoTecnicos: true,
     topMunicipios: true,
     evolucaoMensal: true,
@@ -105,6 +106,8 @@ export function AdminPanel() {
     taxaConclusao: true,
     tempoMedioAnalise: true,
   });
+
+  const [expandedSituacoes, setExpandedSituacoes] = useState<Set<string>>(new Set());
 
   const [filtroTecnico, setFiltroTecnico] = useState('');
   const [filtroRegional, setFiltroRegional] = useState('');
@@ -162,6 +165,28 @@ export function AdminPanel() {
     return { totalEmendas, totalDemandas, concluidas, emAndamento, publicadas, distribuicaoSituacao };
   }, [filtered]);
 
+  // Detalhamento por situação da demanda (agrupado por area_estagio_situacao_demanda)
+  const detalhamentoPorSituacao = useMemo(() => {
+    const source = filtered.filter((f: any) => !f.concluida_em || String(f.concluida_em).trim() === '');
+    const situacaoMap = new Map<string, any[]>();
+    source.forEach((f: any) => {
+      const sit = (f.area_estagio_situacao_demanda || '').trim();
+      const key = sit || 'SEM SITUAÇÃO DEFINIDA';
+      if (!situacaoMap.has(key)) situacaoMap.set(key, []);
+      situacaoMap.get(key)!.push({
+        tecnico: f.tecnico || 'Sem Técnico',
+        demanda: f.demandas_formalizacao || f.demanda || f.emenda || '—',
+        municipio: f.municipio || '—',
+        data_liberacao: f.data_liberacao || '—',
+        data_analise_demanda: f.data_analise_demanda || '—',
+        data_liberacao_assinatura_conferencista: f.data_liberacao_assinatura_conferencista || '—',
+      });
+    });
+    return Array.from(situacaoMap.entries())
+      .map(([situacao, demandas]) => ({ situacao, demandas, count: demandas.length }))
+      .sort((a, b) => b.count - a.count);
+  }, [filtered]);
+
   // Quadro detalhado por técnico
   const quadroTecnico = useMemo(() => {
     const source = filtered;
@@ -187,9 +212,16 @@ export function AdminPanel() {
         } else { row.emendaLOA++; }
       } else {
         const areaEstagio = f.area_estagio_situacao_demanda || '';
+        const hasDataLiberacao = f.data_liberacao && String(f.data_liberacao).trim() !== '';
         let matched = false;
-        for (const cat of SITUACAO_CATEGORIAS) {
-          if (matchSituacao(areaEstagio, cat.match)) { row[cat.key]++; matched = true; break; }
+        // C/Técnico: tem data_liberacao E area_estagio vazia
+        if (hasDataLiberacao && !areaEstagio.trim()) {
+          row.demandaComTecnico++;
+          matched = true;
+        } else {
+          for (const cat of SITUACAO_CATEGORIAS) {
+            if (matchSituacao(areaEstagio, cat.match)) { row[cat.key]++; matched = true; break; }
+          }
         }
         if (!matched) row.outrasPend++;
         row.totalGGCON++;
@@ -624,6 +656,67 @@ export function AdminPanel() {
                 <p className="text-slate-500 font-medium">Nenhuma demanda com situação definida</p>
               </div>
             )}
+          </CollapsibleCard>
+
+          {/* ===== DETALHAMENTO POR SITUAÇÃO DA DEMANDA ===== */}
+          <CollapsibleCard id="detalheSituacao" title="Detalhamento por Situação da Demanda" icon={FileText} count={detalhamentoPorSituacao.length} color="bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700" collapsed={collapsedCards.detalheSituacao} toggle={() => toggle('detalheSituacao')}>
+            {detalhamentoPorSituacao.length > 0 ? (
+              <div className="space-y-3">
+                {detalhamentoPorSituacao.map((grupo, idx) => {
+                  const isExpanded = expandedSituacoes.has(grupo.situacao);
+                  return (
+                    <div key={idx} className="border border-slate-200 rounded-xl overflow-hidden">
+                      <button
+                        onClick={() => setExpandedSituacoes(prev => {
+                          const next = new Set(prev);
+                          if (next.has(grupo.situacao)) next.delete(grupo.situacao); else next.add(grupo.situacao);
+                          return next;
+                        })}
+                        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-500" /> : <ChevronRight className="w-4 h-4 text-slate-500" />}
+                          <span className="text-sm font-bold text-slate-800">{grupo.situacao}</span>
+                        </div>
+                        <span className="bg-indigo-100 text-indigo-700 px-3 py-0.5 rounded-full font-bold text-xs">{grupo.count}</span>
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {isExpanded && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                            <div className="overflow-x-auto max-h-72 overflow-y-auto">
+                              <table className="w-full text-xs">
+                                <thead className="sticky top-0 bg-indigo-50">
+                                  <tr className="border-b border-indigo-200">
+                                    <th className="text-left px-3 py-2 font-bold text-slate-700">Técnico</th>
+                                    <th className="text-left px-3 py-2 font-bold text-slate-700">Nº Demanda</th>
+                                    <th className="text-left px-3 py-2 font-bold text-slate-700">Município</th>
+                                    <th className="text-center px-3 py-2 font-bold text-slate-700">Dt. Liberação</th>
+                                    <th className="text-center px-3 py-2 font-bold text-slate-700">Dt. Análise</th>
+                                    <th className="text-center px-3 py-2 font-bold text-slate-700">Dt. Lib. Assin. Conf.</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {grupo.demandas.map((d: any, dIdx: number) => (
+                                    <tr key={dIdx} className={`border-b border-slate-100 hover:bg-indigo-50/50 ${dIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}>
+                                      <td className="px-3 py-2 font-medium text-slate-900 whitespace-nowrap">{d.tecnico}</td>
+                                      <td className="px-3 py-2 text-slate-700 max-w-[200px] truncate" title={d.demanda}>{d.demanda}</td>
+                                      <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{d.municipio}</td>
+                                      <td className="px-3 py-2 text-center text-slate-600 whitespace-nowrap">{d.data_liberacao}</td>
+                                      <td className="px-3 py-2 text-center text-slate-600 whitespace-nowrap">{d.data_analise_demanda}</td>
+                                      <td className="px-3 py-2 text-center text-slate-600 whitespace-nowrap">{d.data_liberacao_assinatura_conferencista}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : <p className="text-slate-500 text-center py-8">Nenhuma demanda com situação definida</p>}
           </CollapsibleCard>
 
           {/* ===== DEMANDAS ATRASADAS (>30 dias) ===== */}
