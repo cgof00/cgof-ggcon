@@ -640,7 +640,7 @@ export default function App() {
   // Estado para rastrear qual filtro tem "Mostrar Somente Vazias" ativado
   const [showOnlyEmptyFields, setShowOnlyEmptyFields] = useState<{ [key: string]: boolean }>({});
   // Estado para ocultar demandas concluídas (padrão true para usuário comum)
-  const [hideConcluidas, setHideConcluidas] = useState(false);
+  const [hideConcluidas, setHideConcluidas] = useState(true);
   // Estado para larguras de colunas (redimensionamento estilo Excel)
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
   const resizingColRef = useRef<string | null>(null);
