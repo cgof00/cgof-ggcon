@@ -297,8 +297,8 @@ async function main() {
       if (!fIds || fIds.length === 0) { notInFormalizacao++; continue; }
 
       const updateData: any = {};
-      if (emendaItem.detalhes) updateData.demanda = emendaItem.detalhes;
-      if (emendaItem.natureza) updateData.classificacao_emenda_demanda = emendaItem.natureza;
+      if (emendaItem.detalhes) updateData.demanda = String(emendaItem.detalhes).trim();
+      if (emendaItem.natureza) updateData.classificacao_emenda_demanda = String(emendaItem.natureza).replace(/[\x00-\x1F\x7F\xA0]/g, '').trim();
       if (emendaItem.ano_refer) updateData.ano = emendaItem.ano_refer;
       if (emendaItem.num_emenda) updateData.emendas_agregadoras = emendaItem.num_emenda;
       if (emendaItem.situacao_d) updateData.situacao_demandas_sempapel = emendaItem.situacao_d;

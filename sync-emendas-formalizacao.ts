@@ -96,8 +96,8 @@ async function main() {
       if (!fIds) continue;
 
       const updateData: any = {};
-      if (emenda.detalhes) updateData.demanda = emenda.detalhes;
-      if (emenda.natureza) updateData.classificacao_emenda_demanda = emenda.natureza;
+      if (emenda.detalhes) updateData.demanda = String(emenda.detalhes).trim();
+      if (emenda.natureza) updateData.classificacao_emenda_demanda = String(emenda.natureza).replace(/[\x00-\x1F\x7F\xA0]/g, '').trim();
       if (emenda.ano_refer) updateData.ano = emenda.ano_refer;
       if (emenda.num_emenda) updateData.emendas_agregadoras = emenda.num_emenda;
       if (emenda.situacao_d) updateData.situacao_demandas_sempapel = emenda.situacao_d;

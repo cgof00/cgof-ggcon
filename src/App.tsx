@@ -716,7 +716,7 @@ export default function App() {
       // Verificar searchTerm
       if (searchTerm) {
         const s = searchTerm.toLowerCase();
-        const match = ['parlamentar','conveniado','objeto','demanda','demandas_formalizacao','tecnico','emenda','regional','municipio','num_convenio','area_estagio','area_estagio_situacao_demanda','conferencista']
+        const match = ['parlamentar','conveniado','objeto','demanda','demandas_formalizacao','tecnico','emenda','regional','municipio','numero_convenio','area_estagio','area_estagio_situacao_demanda','conferencista']
           .some(k => (f[k] && String(f[k]).toLowerCase().includes(s)));
         if (!match) return false;
       }
@@ -755,8 +755,8 @@ export default function App() {
   const columnToDataField: Record<string, string> = {
     seq: 'seq', ano: 'ano', parlamentar: 'parlamentar', partido: 'partido',
     emenda: 'emenda', emendas_agregadoras: 'emendas_agregadoras', demanda: 'demanda',
-    demandas_formalizacao: 'demandas_formalizacao', numero_convenio: 'num_convenio',
-    classificacao_emenda_demanda: 'classificacao', tipo_formalizacao: 'tipo_formalizacao',
+    demandas_formalizacao: 'demandas_formalizacao', numero_convenio: 'numero_convenio',
+    classificacao_emenda_demanda: 'classificacao_emenda_demanda', tipo_formalizacao: 'tipo_formalizacao',
     regional: 'regional', municipio: 'municipio', conveniado: 'conveniado', objeto: 'objeto',
     portfolio: 'portfolio', valor: 'valor', posicao_anterior: 'posicao_anterior',
     situacao_demandas_sempapel: 'situacao_demandas_sempapel', area_estagio: 'area_estagio',
@@ -1443,7 +1443,7 @@ export default function App() {
             (f.emenda && String(f.emenda).toLowerCase().includes(searchLower)) ||
             (f.regional && f.regional.toLowerCase().includes(searchLower)) ||
             (f.municipio && f.municipio.toLowerCase().includes(searchLower)) ||
-            (f.num_convenio && String(f.num_convenio).toLowerCase().includes(searchLower)) ||
+            (f.numero_convenio && String(f.numero_convenio).toLowerCase().includes(searchLower)) ||
             (f.area_estagio && f.area_estagio.toLowerCase().includes(searchLower)) ||
             (f.area_estagio_situacao_demanda && f.area_estagio_situacao_demanda.toLowerCase().includes(searchLower)) ||
             (f.conferencista && f.conferencista.toLowerCase().includes(searchLower));
@@ -1827,8 +1827,8 @@ export default function App() {
         'emendas_agregadoras': 'emendas_agregadoras',
         'demanda': 'demanda',
         'demandas_formalizacao': 'demandas_formalizacao',
-        'numero_convenio': 'num_convenio',
-        'classificacao_emenda_demanda': 'classificacao',
+        'numero_convenio': 'numero_convenio',
+        'classificacao_emenda_demanda': 'classificacao_emenda_demanda',
         'tipo_formalizacao': 'tipo_formalizacao',
         'regional': 'regional',
         'municipio': 'municipio',
@@ -2730,8 +2730,8 @@ export default function App() {
                           { key: 'emendas_agregadoras', label: 'Emendas Agregadoras', render: (f: any) => f.emendas_agregadoras },
                           { key: 'demanda', label: 'Demanda', width: 50, render: (f: any) => f.demanda },
                           { key: 'demandas_formalizacao', label: 'Demandas Formalização', render: (f: any) => f.demandas_formalizacao },
-                          { key: 'numero_convenio', label: 'Nº Convênio', render: (f: any) => f.num_convenio },
-                          { key: 'classificacao_emenda_demanda', label: 'Classificação', render: (f: any) => f.classificacao },
+                          { key: 'numero_convenio', label: 'Nº Convênio', render: (f: any) => f.numero_convenio },
+                          { key: 'classificacao_emenda_demanda', label: 'Classificação', render: (f: any) => f.classificacao_emenda_demanda },
                           { key: 'tipo_formalizacao', label: 'Tipo Formalização', render: (f: any) => f.tipo_formalizacao },
                           { key: 'regional', label: 'Regional', render: (f: any) => f.regional },
                           { key: 'municipio', label: 'Município', render: (f: any) => f.municipio },
@@ -3246,7 +3246,7 @@ export default function App() {
                         <DetailItem label="Emendas Agregadoras" value={selectedFormalizacao.emendas_agregadoras} />
                         <DetailItem label="Demandas Formalização" value={selectedFormalizacao.demandas_formalizacao} />
                         <DetailItem label="Portfólio" value={selectedFormalizacao.portfolio} />
-                        <DetailItem label="Classificação" value={selectedFormalizacao.classificacao} />
+                        <DetailItem label="Classificação" value={selectedFormalizacao.classificacao_emenda_demanda} />
                       </div>
                       <div className="rounded-lg bg-gray-50/80 px-3.5 py-2.5">
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Objeto</span>
@@ -3264,7 +3264,7 @@ export default function App() {
                         <DetailItem label="Regional" value={selectedFormalizacao.regional} />
                         <DetailItem label="Município" value={selectedFormalizacao.municipio} />
                         <DetailItem label="Conveniado" value={selectedFormalizacao.conveniado} />
-                        <DetailItem label="Nº Convênio" value={selectedFormalizacao.num_convenio} />
+                        <DetailItem label="Nº Convênio" value={selectedFormalizacao.numero_convenio} />
                         <DetailItem label="Tipo de Formalização" value={selectedFormalizacao.tipo_formalizacao} />
                       </div>
                     </section>
