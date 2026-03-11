@@ -1096,22 +1096,32 @@ export default function App() {
   };
   useEffect(() => {
     if (!isAdmin || formalizacoes.length === 0) return;
-    const prontas = formalizacoes.filter(
-      (f: Formalizacao) => f.data_analise_demanda && f.data_liberacao_assinatura_conferencista
+    // Alertas: demandas com data_analise_demanda OU data_liberacao_assinatura_conferencista
+    const comDatas = formalizacoes.filter(
+      (f: Formalizacao) => f.data_analise_demanda || f.data_liberacao_assinatura_conferencista
     );
     const seenIds = alertasVistosRef.current;
-    const novas = prontas.filter((f: Formalizacao) => !seenIds.has(f.id));
+    const novas = comDatas.filter((f: Formalizacao) => !seenIds.has(f.id));
     if (novas.length > 0) {
       setAdminAlertas(prev => {
         const existingIds = new Set(prev.map(a => a.id));
         const reallyNew = novas.filter(f => !existingIds.has(f.id));
         if (reallyNew.length === 0) return prev;
-        return [...prev, ...reallyNew.map((f: Formalizacao) => ({
-          id: f.id,
-          tipo: 'Analisada e Conferida',
-          descricao: `Demanda ${f.demanda || f.emenda || `#${f.id}`} — analisada em ${formatDateForDisplay(f.data_analise_demanda || '')} e conferida em ${formatDateForDisplay(f.data_liberacao_assinatura_conferencista || '')}`,
-          data: f.data_liberacao_assinatura_conferencista || f.data_analise_demanda || ''
-        }))];
+        return [...prev, ...reallyNew.map((f: Formalizacao) => {
+          const partes: string[] = [];
+          if (f.data_analise_demanda) {
+            partes.push(`Técnico: ${f.tecnico || '(n/a)'} — Data Análise: ${formatDateForDisplay(f.data_analise_demanda)}`);
+          }
+          if (f.data_liberacao_assinatura_conferencista) {
+            partes.push(`Conferencista: ${f.conferencista || '(n/a)'} — Data Lib.: ${formatDateForDisplay(f.data_liberacao_assinatura_conferencista)}`);
+          }
+          return {
+            id: f.id,
+            tipo: f.data_analise_demanda && f.data_liberacao_assinatura_conferencista ? 'Analisada e Conferida' : f.data_analise_demanda ? 'Analisada' : 'Conferida',
+            descricao: `Demanda ${f.demandas_formalizacao || f.demanda || `#${f.id}`} — ${partes.join(' | ')}`,
+            data: f.data_liberacao_assinatura_conferencista || f.data_analise_demanda || ''
+          };
+        })];
       });
     }
   }, [formalizacoes, isAdmin]);
@@ -3488,6 +3498,36 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         <span className="text-[10px] font-semibold text-[#1351B4]/60 uppercase tracking-wider">Demanda</span>
                         <p className="text-sm font-semibold text-gray-800 mt-0.5">{editingFormalizacao.demanda || editingFormalizacao.demandas_formalizacao || '—'}</p>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 0️⃣ Dados Gerais (somente admin) */}
+                {isAdmin && editingFormalizacao && (
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="px-5 py-3 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
+                      <div className="bg-amber-500 text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">0</div>
+                      <h3 className="text-xs font-bold text-amber-700 uppercase tracking-wide flex items-center gap-2">
+                        <Settings className="w-3.5 h-3.5" />
+                        Dados Gerais (Admin)
+                      </h3>
+                    </div>
+                    <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                      <Input label="Ano" name="ano" defaultValue={editingFormalizacao?.ano} />
+                      <Input label="Partido" name="partido" defaultValue={editingFormalizacao?.partido} />
+                      <Input label="Emendas Agregadoras" name="emendas_agregadoras" defaultValue={editingFormalizacao?.emendas_agregadoras} />
+                      <Input label="Demandas Formalização" name="demandas_formalizacao" defaultValue={editingFormalizacao?.demandas_formalizacao} />
+                      <Input label="Nº Convênio" name="num_convenio" defaultValue={editingFormalizacao?.num_convenio} />
+                      <Input label="Classificação" name="classificacao_emenda_demanda" defaultValue={editingFormalizacao?.classificacao} />
+                      <Input label="Tipo Formalização" name="tipo_formalizacao" defaultValue={editingFormalizacao?.tipo_formalizacao} />
+                      <Input label="Regional" name="regional" defaultValue={editingFormalizacao?.regional} />
+                      <Input label="Município" name="municipio" defaultValue={editingFormalizacao?.municipio} />
+                      <Input label="Conveniado" name="conveniado" defaultValue={editingFormalizacao?.conveniado} />
+                      <Input label="Objeto" name="objeto" defaultValue={editingFormalizacao?.objeto} />
+                      <Input label="Portfólio" name="portfolio" defaultValue={editingFormalizacao?.portfolio} />
+                      <Input label="Valor" name="valor" type="number" defaultValue={editingFormalizacao?.valor} />
+                      <Input label="Posição Anterior" name="posicao_anterior" defaultValue={editingFormalizacao?.posicao_anterior} />
+                      <Input label="Situação SemPapel" name="situacao_demandas_sempapel" defaultValue={editingFormalizacao?.situacao_demandas_sempapel} />
                     </div>
                   </div>
                 )}

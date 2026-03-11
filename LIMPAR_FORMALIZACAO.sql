@@ -8,7 +8,7 @@ DECLARE
   col_name TEXT;
   cols TEXT[] := ARRAY[
     'parlamentar', 'partido', 'emenda', 'emendas_agregadoras',
-    'demanda', 'demandas_formalizacao', 'classificacao',
+    'demanda', 'demandas_formalizacao', 'classificacao_emenda_demanda',
     'tipo_formalizacao', 'regional', 'municipio', 'conveniado',
     'objeto', 'portfolio', 'posicao_anterior',
     'situacao_demandas_sempapel', 'area_estagio', 'recurso',
