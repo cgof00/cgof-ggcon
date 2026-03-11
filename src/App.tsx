@@ -637,6 +637,15 @@ export default function App() {
 
   // Estado para rastrear qual filtro tem "Ocultar Vazios" ativado
   const [hideEmptyFields, setHideEmptyFields] = useState<{ [key: string]: boolean }>({});
+  // Estado para rastrear qual filtro tem "Mostrar Somente Vazias" ativado
+  const [showOnlyEmptyFields, setShowOnlyEmptyFields] = useState<{ [key: string]: boolean }>({});
+  // Estado para ocultar demandas concluídas (padrão true para usuário comum)
+  const [hideConcluidas, setHideConcluidas] = useState(false);
+  // Estado para larguras de colunas (redimensionamento estilo Excel)
+  const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
+  const resizingColRef = useRef<string | null>(null);
+  const resizeStartXRef = useRef(0);
+  const resizeStartWidthRef = useRef(0);
 
   // Estado do filtro de cabeçalho Excel-like
   const [headerFilterOpen, setHeaderFilterOpen] = useState<string | null>(null);
@@ -1031,6 +1040,7 @@ export default function App() {
         encaminhado_em: false,
         concluida_em: true
       });
+      setHideConcluidas(true); // Usuário comum: ocultar concluídas por padrão
       console.log('👤 Colunas ajustadas para usuário comum');
     } else if (user.role === 'admin') {
       // Administradores veem apenas colunas específicas
@@ -1502,6 +1512,25 @@ export default function App() {
         return true;
       });
 
+      // Aplicar "Mostrar Somente Vazias" - genérico para todas as colunas
+      filteredData = filteredData.filter(f => {
+        for (const [field, show] of Object.entries(showOnlyEmptyFields)) {
+          if (!show) continue;
+          const val = f[field];
+          if (val && String(val).trim() !== '' && String(val).trim() !== '—') return false;
+        }
+        return true;
+      });
+
+      // Aplicar "Ocultar Concluídas" para usuário comum
+      if (hideConcluidas) {
+        filteredData = filteredData.filter(f => {
+          const concluida = String(f.concluida_em || '').trim();
+          const publicacao = String(f.publicacao || '').trim();
+          return (concluida === '' || concluida === '—') && (publicacao === '' || publicacao === '—');
+        });
+      }
+
       // Ordenação dos resultados filtrados ANTES de paginar
       const sortedData = sortData(filteredData, sortColumn, sortOrder);
 
@@ -1649,6 +1678,7 @@ export default function App() {
     setColumnTextFilters({});
     setSearchTerm('');
     setHideEmptyFields({});
+    setShowOnlyEmptyFields({});
   };
 
   // Silent background refresh: invalidate cache and reload data with progress bar (preserva filtros)
@@ -2649,6 +2679,30 @@ export default function App() {
                       </div>
                     )}
                     
+                    {/* Toggle Ocultar Concluídas */}
+                    <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 border-b border-gray-200">
+                      <label className="flex items-center gap-1.5 text-[11px] cursor-pointer hover:bg-gray-100 px-2 py-0.5 rounded">
+                        <input
+                          type="checkbox"
+                          checked={hideConcluidas}
+                          onChange={(e) => {
+                            setHideConcluidas(e.target.checked);
+                            fetchFormalizacoesComFiltros(0);
+                          }}
+                          className="rounded cursor-pointer accent-[#1351B4] w-3 h-3"
+                        />
+                        <span className="text-gray-600 font-medium">Ocultar Concluídas/Publicadas</span>
+                      </label>
+                      {Object.keys(columnWidths).length > 0 && (
+                        <button
+                          onClick={() => setColumnWidths({})}
+                          className="text-[10px] text-[#1351B4] hover:underline ml-auto"
+                        >
+                          Resetar larguras
+                        </button>
+                      )}
+                    </div>
+
                     <div 
                       ref={tableContainerRef}
                       onMouseDown={handleTableMouseDown}
@@ -2741,7 +2795,7 @@ export default function App() {
                                       className={`px-2 py-1.5 text-left text-white text-xs whitespace-nowrap cursor-pointer transition-colors hover:bg-[#0C326F] relative ${
                                         col.align === 'right' ? 'text-right' : ''
                                       } ${sortColumn === col.key ? 'bg-[#0C326F]' : ''}`}
-                                      style={{ minWidth: 70 }}
+                                      style={{ minWidth: 70, width: columnWidths[col.key] || undefined }}
                                     >
                                       {/* Label + Sort + Filter (estilo Excel) */}
                                       <div 
@@ -2792,6 +2846,36 @@ export default function App() {
                                           <Filter className="w-2.5 h-2.5" />
                                         </button>
                                       </div>
+                                      {/* Resize handle estilo Excel */}
+                                      <div
+                                        onMouseDown={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          resizingColRef.current = col.key;
+                                          resizeStartXRef.current = e.clientX;
+                                          const th = columnHeaderRefs.current[col.key];
+                                          resizeStartWidthRef.current = th ? th.offsetWidth : 100;
+                                          const handleMouseMove = (ev: MouseEvent) => {
+                                            if (!resizingColRef.current) return;
+                                            const diff = ev.clientX - resizeStartXRef.current;
+                                            const newWidth = Math.max(50, resizeStartWidthRef.current + diff);
+                                            setColumnWidths(prev => ({ ...prev, [resizingColRef.current!]: newWidth }));
+                                          };
+                                          const handleMouseUp = () => {
+                                            resizingColRef.current = null;
+                                            document.removeEventListener('mousemove', handleMouseMove);
+                                            document.removeEventListener('mouseup', handleMouseUp);
+                                            document.body.style.cursor = '';
+                                            document.body.style.userSelect = '';
+                                          };
+                                          document.addEventListener('mousemove', handleMouseMove);
+                                          document.addEventListener('mouseup', handleMouseUp);
+                                          document.body.style.cursor = 'col-resize';
+                                          document.body.style.userSelect = 'none';
+                                        }}
+                                        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-yellow-400/60 z-10"
+                                        title="Arrastar para redimensionar"
+                                      />
                                       {/* Dropdown multi-select */}
                                       {isOpen && (
                                         <div
@@ -2814,11 +2898,25 @@ export default function App() {
                                                 checked={hideEmptyFields[col.key] || false}
                                                 onChange={(e) => {
                                                   setHideEmptyFields({ ...hideEmptyFields, [col.key]: e.target.checked });
+                                                  if (e.target.checked) setShowOnlyEmptyFields({ ...showOnlyEmptyFields, [col.key]: false });
                                                   fetchFormalizacoesComFiltros(0);
                                                 }}
                                                 className="rounded cursor-pointer accent-[#1351B4] w-3 h-3"
                                               />
                                               <span className="text-gray-600">Ocultar vazios</span>
+                                            </label>
+                                            <label className="flex items-center gap-1.5 text-[10px] cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
+                                              <input
+                                                type="checkbox"
+                                                checked={showOnlyEmptyFields[col.key] || false}
+                                                onChange={(e) => {
+                                                  setShowOnlyEmptyFields({ ...showOnlyEmptyFields, [col.key]: e.target.checked });
+                                                  if (e.target.checked) setHideEmptyFields({ ...hideEmptyFields, [col.key]: false });
+                                                  fetchFormalizacoesComFiltros(0);
+                                                }}
+                                                className="rounded cursor-pointer accent-[#1351B4] w-3 h-3"
+                                              />
+                                              <span className="text-gray-600">Somente vazios</span>
                                             </label>
                                           </div>
                                           <div className="max-h-56 overflow-y-auto">
@@ -2856,6 +2954,7 @@ export default function App() {
                                               onClick={() => {
                                                 setColumnFilterValues(col.key, []);
                                                 setHideEmptyFields({ ...hideEmptyFields, [col.key]: false });
+                                                setShowOnlyEmptyFields({ ...showOnlyEmptyFields, [col.key]: false });
                                               }}
                                               className="flex-1 px-2 py-1 text-[10px] text-[#1351B4] hover:bg-blue-50 rounded font-medium"
                                             >
@@ -2954,7 +3053,7 @@ export default function App() {
                                         className={`px-3 py-1.5 truncate text-xs ${
                                           col.align === 'right' ? 'text-right font-semibold text-emerald-700' : 'text-slate-800'
                                         }`}
-                                        style={{ backgroundColor: 'inherit' }}
+                                        style={{ backgroundColor: 'inherit', width: columnWidths[col.key] || undefined, maxWidth: columnWidths[col.key] || undefined }}
                                         title={String(col.render(f))}
                                       >
                                         {col.render(f)}
