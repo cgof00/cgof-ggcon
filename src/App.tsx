@@ -2620,19 +2620,22 @@ export default function App() {
                     {/* Compact Pagination Bar */}
                     {activeTab === 'formalizacao' && (
                       <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border-b border-gray-200 flex-wrap">
-                        {/* Ocultar Concluídas/Publicadas */}
+                        {/* Mostrar Concluídas/Publicadas */}
                         <label className="flex items-center gap-1.5 text-[10px] cursor-pointer hover:bg-gray-100 px-1.5 py-0.5 rounded mr-2">
                           <input
                             type="checkbox"
-                            checked={hideConcluidas}
+                            checked={!hideConcluidas}
                             onChange={(e) => {
-                              setHideConcluidas(e.target.checked);
+                              setHideConcluidas(!e.target.checked);
                               fetchFormalizacoesComFiltros(0);
                             }}
                             className="rounded cursor-pointer accent-[#1351B4] w-3 h-3"
                           />
-                          <span className="text-gray-600 font-medium">Ocultar Concluídas</span>
+                          <span className="text-gray-600 font-medium">Mostrar Concluídas</span>
                         </label>
+                        <span className="text-[10px] text-gray-500">
+                          {formalizacaoSearchResult.total.toLocaleString('pt-BR')} registros
+                        </span>
                         {totalPaginas > 1 && (
                           <>
                             <div className="w-px h-4 bg-gray-300" />
@@ -2689,7 +2692,7 @@ export default function App() {
                               ⏭
                             </button>
                             <span className="text-[10px] text-gray-500 ml-1">
-                              Pág. {paginaAtual + 1}/{totalPaginas} · {formalizacaoSearchResult.total.toLocaleString('pt-BR')} registros
+                              Pág. {paginaAtual + 1}/{totalPaginas}
                             </span>
                           </>
                         )}
@@ -2720,12 +2723,12 @@ export default function App() {
                       {(() => {
                         const columnDefinitions = [
                           { key: 'seq', label: 'Seq', render: (f: any) => '—' },
-                          { key: 'ano', label: 'Ano', render: (f: any) => f.ano },
+                          { key: 'ano', label: 'Ano', width: 50, render: (f: any) => f.ano },
                           { key: 'parlamentar', label: 'Parlamentar', render: (f: any) => f.parlamentar },
-                          { key: 'partido', label: 'Partido', render: (f: any) => f.partido },
+                          { key: 'partido', label: 'Partido', width: 50, render: (f: any) => f.partido },
                           { key: 'emenda', label: 'Emenda', render: (f: any) => formatEmendaNumber(f.emenda) },
                           { key: 'emendas_agregadoras', label: 'Emendas Agregadoras', render: (f: any) => f.emendas_agregadoras },
-                          { key: 'demanda', label: 'Demanda', render: (f: any) => f.demanda },
+                          { key: 'demanda', label: 'Demanda', width: 50, render: (f: any) => f.demanda },
                           { key: 'demandas_formalizacao', label: 'Demandas Formalização', render: (f: any) => f.demandas_formalizacao },
                           { key: 'numero_convenio', label: 'Nº Convênio', render: (f: any) => f.num_convenio },
                           { key: 'classificacao_emenda_demanda', label: 'Classificação', render: (f: any) => f.classificacao },
@@ -2802,7 +2805,7 @@ export default function App() {
                                       className={`px-2 py-1.5 text-left text-white text-xs whitespace-nowrap cursor-pointer transition-colors hover:bg-[#0C326F] relative ${
                                         col.align === 'right' ? 'text-right' : ''
                                       } ${sortColumn === col.key ? 'bg-[#0C326F]' : ''}`}
-                                      style={{ minWidth: 110, width: columnWidths[col.key] || 110 }}
+                                      style={{ minWidth: col.width || 110, width: columnWidths[col.key] || col.width || 110 }}
                                     >
                                       {/* Label + Sort + Filter (estilo Excel) */}
                                       <div 
@@ -3062,7 +3065,7 @@ export default function App() {
                                         className={`px-3 py-1.5 truncate text-xs ${
                                           col.align === 'right' ? 'text-right font-semibold text-emerald-700' : 'text-slate-800'
                                         }`}
-                                        style={{ backgroundColor: 'inherit', width: columnWidths[col.key] || 110, maxWidth: columnWidths[col.key] || 110, overflow: 'hidden' }}
+                                        style={{ backgroundColor: 'inherit', width: columnWidths[col.key] || col.width || 110, maxWidth: columnWidths[col.key] || col.width || 110, overflow: 'hidden' }}
                                         title={String(col.render(f))}
                                       >
                                         {col.render(f)}
