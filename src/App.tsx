@@ -1044,27 +1044,27 @@ export default function App() {
         demanda: true,
         demandas_formalizacao: false,
         numero_convenio: false,
-        classificacao_emenda_demanda: true,
+        classificacao_emenda_demanda: false,
         tipo_formalizacao: false,
         regional: false,
         municipio: false,
-        conveniado: true,
+        conveniado: false,
         objeto: false,
-        portfolio: true,
+        portfolio: false,
         valor: true,
         posicao_anterior: false,
         situacao_demandas_sempapel: false,
         area_estagio: false,
         recurso: false,
-        tecnico: false,
-        data_liberacao: false,
+        tecnico: true,
+        data_liberacao: true,
         area_estagio_situacao_demanda: false,
         situacao_analise_demanda: false,
         data_analise_demanda: false,
         motivo_retorno_diligencia: false,
         data_retorno_diligencia: false,
-        conferencista: false,
-        data_recebimento_demanda: false,
+        conferencista: true,
+        data_recebimento_demanda: true,
         data_retorno: false,
         observacao_motivo_retorno: false,
         data_liberacao_assinatura_conferencista: false,
@@ -2179,27 +2179,6 @@ export default function App() {
                         Atribuir a Conferencista ({selectedRows.size})
                       </motion.button>
                     )}
-                    {/* Botão Filtros Avançados */}
-                    <button
-                      onClick={() => setIsFilterOpen(!isFilterOpen)}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
-                        isFilterOpen ? 'bg-[#1351B4] text-white border-2 border-[#1351B4]' : 'bg-white text-gray-700 border border-gray-300 hover:border-[#1351B4] hover:text-[#1351B4]'
-                      }`}
-                    >
-                      <SlidersHorizontal className="w-4 h-4" />
-                      Filtros
-                      {(() => {
-                        const count = Object.values(filters).filter(v => Array.isArray(v) && v.length > 0).length
-                          + Object.values(headerFilters).filter((v: any) => v && v.length > 0).length
-                          + Object.values(columnTextFilters).filter((v: any) => v && v.length > 0).length
-                          + (searchTerm ? 1 : 0);
-                        return count > 0 ? (
-                          <span className={`ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded ${
-                            isFilterOpen ? 'bg-yellow-400 text-gray-800' : 'bg-red-500 text-white'
-                          }`}>{count}</span>
-                        ) : null;
-                      })()}
-                    </button>
                     {/* Botão Limpar Todos os Filtros */}
                     <button
                       onClick={() => clearAllFilters()}
@@ -2754,9 +2733,9 @@ export default function App() {
                                       } ${sortColumn === col.key ? 'bg-[#0C326F]' : ''}`}
                                       style={{ minWidth: 70 }}
                                     >
-                                      {/* Label + Sort (clicável para ordenar) */}
+                                      {/* Label + Sort + Filter (estilo Excel) */}
                                       <div 
-                                        className="flex items-center gap-1 font-bold mb-1"
+                                        className="flex items-center gap-1 font-bold"
                                         onClick={() => {
                                           const headerEl = columnHeaderRefs.current[col.key];
                                           if (headerEl && tableContainerRef.current) {
@@ -2775,35 +2754,34 @@ export default function App() {
                                         }}
                                         title={`Ordenar por ${col.label}`}
                                       >
-                                        {col.label}
+                                        <span className="truncate">{col.label}</span>
                                         {sortColumn === col.key && (
-                                          <span className="text-yellow-300 text-[10px]">
+                                          <span className="text-yellow-300 text-[10px] flex-shrink-0">
                                             {sortOrder === 'asc' ? '▲' : '▼'}
                                           </span>
                                         )}
+                                        {/* Botão filtro inline estilo Excel */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (isOpen) {
+                                              setHeaderFilterOpen(null);
+                                              setHeaderFilterSearch('');
+                                            } else {
+                                              setHeaderFilterOpen(col.key);
+                                              setHeaderFilterSearch('');
+                                            }
+                                          }}
+                                          className={`flex-shrink-0 w-4 h-4 flex items-center justify-center rounded-sm transition-all ${
+                                            hasActive 
+                                              ? 'bg-yellow-400 text-gray-800' 
+                                              : 'text-white/40 hover:text-white hover:bg-white/20'
+                                          }`}
+                                          title={`Filtrar ${col.label}`}
+                                        >
+                                          <Filter className="w-2.5 h-2.5" />
+                                        </button>
                                       </div>
-                                      {/* Botão de filtro (dentro do cabeçalho) */}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (isOpen) {
-                                            setHeaderFilterOpen(null);
-                                            setHeaderFilterSearch('');
-                                          } else {
-                                            setHeaderFilterOpen(col.key);
-                                            setHeaderFilterSearch('');
-                                          }
-                                        }}
-                                        className={`w-full px-1 py-0.5 text-[9px] rounded flex items-center justify-center gap-0.5 transition-all ${
-                                          hasActive 
-                                            ? 'bg-yellow-400 text-gray-800 font-bold' 
-                                            : 'bg-white/10 text-white/50 hover:bg-white/20 hover:text-white'
-                                        }`}
-                                        title={`Filtrar ${col.label}`}
-                                      >
-                                        <Filter className="w-2.5 h-2.5 flex-shrink-0" />
-                                        {hasActive ? <span>{selectedVals.length}</span> : <span className="text-[8px]">▼</span>}
-                                      </button>
                                       {/* Dropdown multi-select */}
                                       {isOpen && (
                                         <div
@@ -2927,6 +2905,8 @@ export default function App() {
                                         ? 'bg-indigo-100 border-l-4 border-indigo-600' 
                                         : isRowSelected
                                         ? 'bg-yellow-50 border-l-4 border-yellow-400'
+                                        : (f.publicacao && String(f.publicacao).trim() !== '' && String(f.publicacao).trim() !== '—') || (f.concluida_em && String(f.concluida_em).trim() !== '' && String(f.concluida_em).trim() !== '—')
+                                        ? 'bg-emerald-50 border-l-4 border-emerald-500 hover:bg-emerald-100'
                                         : 'hover:bg-blue-50'
                                     }`}
                                   >
