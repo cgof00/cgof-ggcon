@@ -1,9 +1,9 @@
 -- ============================================================
--- FIX: Corrige timeout na sincronização emendas → formalização
+-- FIX: Sincronização emendas → formalização em 3 etapas
 -- Cole e execute no Supabase SQL Editor
 -- ============================================================
 
--- 1. Índices em expressões (evita full table scan)
+-- 1. Índices para performance
 CREATE INDEX IF NOT EXISTS idx_emendas_num_convenio ON emendas(num_convenio);
 CREATE INDEX IF NOT EXISTS idx_emendas_codigo_num ON emendas(codigo_num);
 CREATE INDEX IF NOT EXISTS idx_formalizacao_numero_convenio ON formalizacao(numero_convenio);
@@ -17,26 +17,14 @@ CREATE INDEX IF NOT EXISTS idx_emendas_trim_num_convenio
   ON emendas (TRIM(num_convenio))
   WHERE num_convenio IS NOT NULL AND num_convenio != '';
 
-CREATE INDEX IF NOT EXISTS idx_formalizacao_emenda_digits
-  ON formalizacao (TRIM(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g')))
-  WHERE emenda IS NOT NULL AND emenda != ''
-    AND LENGTH(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g')) >= 8;
-
-CREATE INDEX IF NOT EXISTS idx_emendas_codigo_num_digits
-  ON emendas (TRIM(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g')))
-  WHERE codigo_num IS NOT NULL;
-
--- 2. Recriar função RPC com timeout de 300s
-CREATE OR REPLACE FUNCTION sync_emendas_formalizacao()
-RETURNS JSON
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET statement_timeout = '300s'
+-- ============================================================
+-- ETAPA 1: UPDATE por numero_convenio
+-- ============================================================
+CREATE OR REPLACE FUNCTION sync_step1_update_convenio()
+RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER
+SET statement_timeout = '120s'
 AS $$
-DECLARE
-  v_updated INTEGER := 0;
-  v_updated2 INTEGER := 0;
-  v_inserted INTEGER := 0;
+DECLARE v_updated INTEGER := 0;
 BEGIN
   WITH matched AS (
     UPDATE formalizacao f SET
@@ -60,8 +48,20 @@ BEGIN
     RETURNING f.id
   )
   SELECT COUNT(*) INTO v_updated FROM matched;
+  RETURN json_build_object('updated', v_updated);
+END;
+$$;
 
-  WITH matched2 AS (
+-- ============================================================
+-- ETAPA 2: UPDATE por emenda/codigo_num (dígitos)
+-- ============================================================
+CREATE OR REPLACE FUNCTION sync_step2_update_emenda()
+RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER
+SET statement_timeout = '120s'
+AS $$
+DECLARE v_updated INTEGER := 0;
+BEGIN
+  WITH matched AS (
     UPDATE formalizacao f SET
       demanda = COALESCE(NULLIF(TRIM(f.demanda), ''), e.detalhes),
       classificacao_emenda_demanda = COALESCE(NULLIF(TRIM(f.classificacao_emenda_demanda), ''), e.natureza),
@@ -78,43 +78,58 @@ BEGIN
       numero_convenio = COALESCE(NULLIF(TRIM(f.numero_convenio), ''), e.num_convenio),
       valor = COALESCE(f.valor, e.valor)
     FROM emendas e
-    WHERE REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g') = REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g')
+    WHERE f.emenda = e.codigo_num
       AND f.emenda IS NOT NULL AND TRIM(f.emenda) != ''
-      AND LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8
     RETURNING f.id
   )
-  SELECT COUNT(*) INTO v_updated2 FROM matched2;
-
-  WITH new_records AS (
-    INSERT INTO formalizacao (ano, parlamentar, partido, emenda, demanda,
-      classificacao_emenda_demanda, numero_convenio, regional, municipio,
-      conveniado, objeto, portfolio, valor)
-    SELECT e.ano_refer, e.parlamentar, e.partido, e.codigo_num, e.detalhes,
-      e.natureza, e.num_convenio, e.regional, e.municipio, e.beneficiario,
-      e.objeto, e.portfolio, e.valor
-    FROM emendas e
-    WHERE NOT EXISTS (
-      SELECT 1 FROM formalizacao f WHERE TRIM(f.numero_convenio) = TRIM(e.num_convenio)
-        AND e.num_convenio IS NOT NULL AND TRIM(e.num_convenio) != ''
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM formalizacao f
-      WHERE LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8
-        AND REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g') = REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g')
-    )
-    RETURNING id
-  )
-  SELECT COUNT(*) INTO v_inserted FROM new_records;
-
-  RETURN json_build_object(
-    'updated', v_updated + v_updated2,
-    'updated_by_convenio', v_updated,
-    'updated_by_emenda', v_updated2,
-    'inserted', v_inserted,
-    'message', (v_updated + v_updated2) || ' atualizadas, ' || v_inserted || ' inseridas'
-  );
+  SELECT COUNT(*) INTO v_updated FROM matched;
+  RETURN json_build_object('updated', v_updated);
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION sync_emendas_formalizacao() TO service_role;
+-- ============================================================
+-- ETAPA 3: INSERT novas emendas que NÃO existem na formalização
+-- Compara por valor EXATO de codigo_num e por numero_convenio
+-- ============================================================
+CREATE OR REPLACE FUNCTION sync_step3_insert_novas()
+RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER
+SET statement_timeout = '120s'
+AS $$
+DECLARE v_inserted INTEGER := 0;
+BEGIN
+  WITH new_records AS (
+    INSERT INTO formalizacao (
+      ano, parlamentar, partido, emenda, demanda,
+      classificacao_emenda_demanda, numero_convenio, regional,
+      municipio, conveniado, objeto, portfolio, valor
+    )
+    SELECT
+      e.ano_refer, e.parlamentar, e.partido, e.codigo_num, e.detalhes,
+      e.natureza, e.num_convenio, e.regional,
+      e.municipio, e.beneficiario, e.objeto, e.portfolio, e.valor
+    FROM emendas e
+    WHERE e.codigo_num IS NOT NULL
+      AND TRIM(e.codigo_num) != ''
+      -- Não existe na formalização por emenda (match exato)
+      AND NOT EXISTS (
+        SELECT 1 FROM formalizacao f WHERE f.emenda = e.codigo_num
+      )
+      -- Não existe na formalização por numero_convenio
+      AND NOT EXISTS (
+        SELECT 1 FROM formalizacao f
+        WHERE TRIM(f.numero_convenio) = TRIM(e.num_convenio)
+          AND e.num_convenio IS NOT NULL
+          AND TRIM(e.num_convenio) != ''
+      )
+    RETURNING id
+  )
+  SELECT COUNT(*) INTO v_inserted FROM new_records;
+  RETURN json_build_object('inserted', v_inserted);
+END;
+$$;
+
+-- Permissões
+GRANT EXECUTE ON FUNCTION sync_step1_update_convenio() TO service_role;
+GRANT EXECUTE ON FUNCTION sync_step2_update_emenda() TO service_role;
+GRANT EXECUTE ON FUNCTION sync_step3_insert_novas() TO service_role;
 NOTIFY pgrst, 'reload schema';

@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { useAuth } from './AuthContext';
 import { AdminPanel } from './AdminPanel';
 import { UserManagementPanel } from './UserManagementPanel';
@@ -1103,54 +1104,95 @@ export default function App() {
     }
   };
 
-  // ===== Import CSV handler =====
+  // ===== Import file handler (CSV, XLS, XLSX, XML) =====
   const BATCH_SIZE = 200;
-  const handleImportCSV = (file: File) => {
+
+  // Extrai rows (Record<string, string>[]) de um arquivo Excel/XML
+  const parseExcelFile = (file: File): Promise<Record<string, string>[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const data = new Uint8Array(evt.target!.result as ArrayBuffer);
+          const wb = XLSX.read(data, { type: 'array' });
+          const sheetName = wb.SheetNames[0];
+          const ws = wb.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { raw: false, defval: '' });
+          resolve(rows);
+        } catch (e: any) {
+          reject(new Error(`Erro ao ler arquivo Excel: ${e.message}`));
+        }
+      };
+      reader.onerror = () => reject(new Error('Erro ao ler o arquivo'));
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const handleImportCSV = async (file: File) => {
     setImportStatus('parsing');
     setImportProgress(0); setImportTotal(0);
-    setImportMessage('Lendo CSV...'); setImportError('');
+    setImportMessage('Lendo arquivo...'); setImportError('');
     const tk = localStorage.getItem('auth_token');
     if (!tk) { setImportStatus('error'); setImportError('Token de autenticação não encontrado'); return; }
-    Papa.parse(file, {
-      header: true, delimiter: ';', skipEmptyLines: true, encoding: 'UTF-8',
-      complete: async (results) => {
-        const rows = results.data as Record<string, string>[];
-        const mapped = rows.map(mapCsvRowToEmendas).filter((r): r is Record<string, any> => r !== null);
-        const deduped = new Map<string, Record<string, any>>();
-        for (const rec of mapped) deduped.set(String(rec.codigo_num), rec);
-        const records = Array.from(deduped.values());
-        if (records.length === 0) { setImportStatus('error'); setImportError('Nenhum registro válido encontrado no CSV.'); return; }
-        const totalBatches = Math.ceil(records.length / BATCH_SIZE);
-        setImportTotal(records.length); setImportStatus('uploading');
-        setImportMessage(`Enviando ${records.length} registros em ${totalBatches} lotes...`);
-        let uploaded = 0;
-        for (let i = 0; i < records.length; i += BATCH_SIZE) {
-          const batch = records.slice(i, i + BATCH_SIZE);
-          const bn = Math.floor(i / BATCH_SIZE) + 1;
-          setImportMessage(`Lote ${bn}/${totalBatches} (${Math.min(i + BATCH_SIZE, records.length)}/${records.length})...`);
-          try {
-            const resp = await fetch('/api/admin/import-emendas', {
-              method: 'POST', headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ records: batch }),
-            });
-            if (!resp.ok) { const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' })); setImportStatus('error'); setImportError(`Erro no lote ${bn}: ${err.error || resp.statusText}`); return; }
-            uploaded += batch.length;
-            setImportProgress(Math.round((uploaded / records.length) * 90));
-          } catch (e: any) { setImportStatus('error'); setImportError(`Erro de rede no lote ${bn}: ${e.message}`); return; }
-        }
-        setImportStatus('syncing'); setImportProgress(92);
-        setImportMessage('Sincronizando emendas com formalizações...');
+
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const isExcel = ['xls', 'xlsx', 'xml'].includes(ext);
+
+    // Função que processa as rows já parseadas
+    const processRows = async (rows: Record<string, string>[]) => {
+      const mapped = rows.map(mapCsvRowToEmendas).filter((r): r is Record<string, any> => r !== null);
+      const deduped = new Map<string, Record<string, any>>();
+      for (const rec of mapped) deduped.set(String(rec.codigo_num), rec);
+      const records = Array.from(deduped.values());
+      if (records.length === 0) { setImportStatus('error'); setImportError('Nenhum registro válido encontrado no arquivo.'); return; }
+      const totalBatches = Math.ceil(records.length / BATCH_SIZE);
+      setImportTotal(records.length); setImportStatus('uploading');
+      setImportMessage(`Enviando ${records.length} registros em ${totalBatches} lotes...`);
+      let uploaded = 0;
+      for (let i = 0; i < records.length; i += BATCH_SIZE) {
+        const batch = records.slice(i, i + BATCH_SIZE);
+        const bn = Math.floor(i / BATCH_SIZE) + 1;
+        setImportMessage(`Lote ${bn}/${totalBatches} (${Math.min(i + BATCH_SIZE, records.length)}/${records.length})...`);
         try {
-          const syncResp = await fetch('/api/admin/sync-emendas', {
+          const resp = await fetch('/api/admin/import-emendas', {
             method: 'POST', headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ records: batch }),
           });
-          if (!syncResp.ok) { const err = await syncResp.json().catch(() => ({ error: 'Erro desconhecido' })); setImportStatus('error'); setImportError(`Erro na sincronização: ${err.error || syncResp.statusText}`); return; }
-          setImportProgress(100); setImportStatus('done');
-          setImportMessage(`Importação concluída! ${records.length} emendas importadas e sincronizadas.`);
-        } catch (e: any) { setImportStatus('error'); setImportError(`Erro de rede: ${e.message}`); }
-      },
-      error: (err) => { setImportStatus('error'); setImportError(`Erro ao ler CSV: ${err.message}`); }
-    });
+          if (!resp.ok) { const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' })); setImportStatus('error'); setImportError(`Erro no lote ${bn}: ${err.error || resp.statusText}`); return; }
+          uploaded += batch.length;
+          setImportProgress(Math.round((uploaded / records.length) * 90));
+        } catch (e: any) { setImportStatus('error'); setImportError(`Erro de rede no lote ${bn}: ${e.message}`); return; }
+      }
+      setImportStatus('syncing'); setImportProgress(92);
+      setImportMessage('Sincronizando emendas com formalizações...');
+      try {
+        const syncResp = await fetch('/api/admin/sync-emendas', {
+          method: 'POST', headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
+        });
+        if (!syncResp.ok) { const err = await syncResp.json().catch(() => ({ error: 'Erro desconhecido' })); setImportStatus('error'); setImportError(`Erro na sincronização: ${err.error || syncResp.statusText}`); return; }
+        setImportProgress(100); setImportStatus('done');
+        setImportMessage(`Importação concluída! ${records.length} emendas importadas e sincronizadas.`);
+      } catch (e: any) { setImportStatus('error'); setImportError(`Erro de rede: ${e.message}`); }
+    };
+
+    if (isExcel) {
+      try {
+        setImportMessage(`Lendo arquivo ${ext.toUpperCase()}...`);
+        const rows = await parseExcelFile(file);
+        await processRows(rows);
+      } catch (e: any) {
+        setImportStatus('error'); setImportError(e.message);
+      }
+    } else {
+      // CSV com PapaParse
+      Papa.parse(file, {
+        header: true, delimiter: ';', skipEmptyLines: true, encoding: 'UTF-8',
+        complete: async (results) => {
+          await processRows(results.data as Record<string, string>[]);
+        },
+        error: (err) => { setImportStatus('error'); setImportError(`Erro ao ler CSV: ${err.message}`); }
+      });
+    }
   };
 
   // Função para buscar formalizações com filtros do servidor
@@ -3259,16 +3301,16 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { if (importStatus === 'idle' || importStatus === 'done' || importStatus === 'error') setIsImportOpen(false); }} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Upload className="w-5 h-5 text-violet-600" /> Importar CSV de Emendas</h2>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Upload className="w-5 h-5 text-violet-600" /> Importar Emendas</h2>
                 <button onClick={() => { if (importStatus === 'idle' || importStatus === 'done' || importStatus === 'error') { setIsImportOpen(false); setImportStatus('idle'); setImportProgress(0); setImportMessage(''); setImportError(''); } }} className="p-1.5 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
               </div>
-              <p className="text-sm text-slate-500 mb-4">Selecione o CSV de emendas (delimitador <strong>;</strong>). O sistema importará e sincronizará automaticamente.</p>
+              <p className="text-sm text-slate-500 mb-4">Selecione o arquivo de emendas (<strong>CSV</strong>, <strong>XLS</strong>, <strong>XLSX</strong> ou <strong>XML</strong>). O sistema importará e sincronizará automaticamente.</p>
 
-              <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportCSV(f); e.target.value = ''; }} />
+              <input ref={fileInputRef} type="file" accept=".csv,.xls,.xlsx,.xml" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportCSV(f); e.target.value = ''; }} />
 
               <div className="flex items-center gap-3 mb-4">
                 <button onClick={() => fileInputRef.current?.click()} disabled={importStatus === 'uploading' || importStatus === 'syncing' || importStatus === 'parsing'} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:bg-slate-400 text-white text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
-                  <Upload className="w-4 h-4" /> Selecionar CSV
+                  <Upload className="w-4 h-4" /> Selecionar Arquivo
                 </button>
                 {importStatus === 'done' && (
                   <button onClick={() => { setImportStatus('idle'); setImportProgress(0); setImportMessage(''); setImportError(''); }} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg px-4 py-2.5 transition-colors">
