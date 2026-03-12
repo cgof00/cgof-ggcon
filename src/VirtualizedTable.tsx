@@ -129,8 +129,10 @@ export const VirtualizedTable = React.memo(function VirtualizedTable<T>({
             onDelete,
           }}
         >
-          {({ index, style }) => (
-            <div style={style} className="flex border-b border-gray-200 hover:bg-blue-50 transition-colors group">
+          {({ index, style }) => {
+            const hasFaltaAssinatura = data[index]?.falta_assinatura && String(data[index].falta_assinatura).trim() !== '';
+            return (
+            <div style={style} className={`flex border-b border-gray-200 transition-colors group ${hasFaltaAssinatura ? 'bg-amber-50 border-l-4 border-l-amber-400 hover:bg-amber-100' : 'hover:bg-blue-50'}`}>
               {columns.map((col) => (
                 <div
                   key={col.key}
@@ -168,7 +170,7 @@ export const VirtualizedTable = React.memo(function VirtualizedTable<T>({
                 )}
               </div>
             </div>
-          )}
+          );}
         </List>
       ) : (
         <div className="h-64 flex items-center justify-center text-gray-500">

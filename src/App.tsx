@@ -497,6 +497,7 @@ interface Formalizacao {
   vigencia?: string;
   encaminhado_em?: string;
   concluida_em?: string;
+  usuario_atribuido_id?: number;
 }
 
 export default function App() {
@@ -3604,6 +3605,56 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
 
               <form onSubmit={handleSubmitFormalizacao} className="flex-1 overflow-y-auto p-6 space-y-5">
 
+                {/* Permissões por papel: técnico e conferencista */}
+                {(() => {
+                  // Determinar se o usuário logado é o técnico ou conferencista atribuído a esta demanda
+                  const isTecnicoAtribuido = !isAdmin && isUsuario && editingFormalizacao && (
+                    (user?.id && editingFormalizacao.usuario_atribuido_id && user.id === editingFormalizacao.usuario_atribuido_id) ||
+                    (user?.nome && editingFormalizacao.tecnico && user.nome === editingFormalizacao.tecnico)
+                  );
+                  const isConferencistaAtribuido = !isAdmin && isUsuario && editingFormalizacao && (
+                    user?.nome && editingFormalizacao.conferencista && user.nome === editingFormalizacao.conferencista
+                  );
+                  // Campos que o técnico pode editar
+                  const tecnicoEditableFields = [
+                    'area_estagio_situacao_demanda', 'situacao_analise_demanda', 'data_analise_demanda',
+                    'data_liberacao_assinatura', 'falta_assinatura', 'assinatura',
+                    'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em'
+                  ];
+                  // Campos que o conferencista pode editar
+                  const conferencistaEditableFields = [
+                    'area_estagio_situacao_demanda', 'situacao_analise_demanda', 'conferencista',
+                    'data_liberacao_assinatura_conferencista', 'falta_assinatura', 'assinatura',
+                    'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em'
+                  ];
+                  // Verifica se um campo está desabilitado para o usuário atual
+                  const isFieldDisabled = (fieldName: string): boolean => {
+                    if (isAdmin) return false;
+                    if (isTecnicoAtribuido) return !tecnicoEditableFields.includes(fieldName);
+                    if (isConferencistaAtribuido) return !conferencistaEditableFields.includes(fieldName);
+                    if (isUsuario) return true; // usuário sem atribuição: tudo desabilitado
+                    return false; // intermediário: tudo habilitado
+                  };
+                  // Verifica se uma data já preenchida está bloqueada (só admin pode alterar)
+                  const isDateLocked = (fieldName: string): boolean => {
+                    if (isAdmin) return false;
+                    if (!editingFormalizacao) return false;
+                    const val = (editingFormalizacao as any)[fieldName];
+                    return !!val && val.trim() !== '';
+                  };
+                  // Combina: campo desabilitado por papel OU data bloqueada
+                  const isDisabled = (fieldName: string, isDate = false): boolean => {
+                    if (isFieldDisabled(fieldName)) return true;
+                    if (isDate && isDateLocked(fieldName)) return true;
+                    return false;
+                  };
+                  const disabledClass = (fieldName: string, isDate = false): string => {
+                    return isDisabled(fieldName, isDate) ? 'opacity-50 cursor-not-allowed bg-gray-50' : '';
+                  };
+
+                  return (
+                    <>
+
                 {/* Informações da Emenda (read-only) */}
                 {editingFormalizacao && (
                   <div className="bg-[#1351B4]/5 border border-[#1351B4]/15 rounded-xl px-5 py-4">
@@ -3624,37 +3675,22 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   </div>
                 )}
 
-                {/* 1️⃣ Atribuição da Demanda */}
+                {/* Área – Estágio da Situação da Demanda (campo separado) */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
-                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">1</div>
-                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
-                      <ClipboardList className="w-3.5 h-3.5" />
-                      Atribuição da Demanda
+                  <div className="px-5 py-3 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
+                    <div className="bg-amber-500 text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">★</div>
+                    <h3 className="text-xs font-bold text-amber-700 uppercase tracking-wide flex items-center gap-2">
+                      Área – Estágio da Situação da Demanda
                     </h3>
                   </div>
-                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                  <div className="p-5">
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Técnico</label>
-                      <select
-                        name="tecnico"
-                        defaultValue={editingFormalizacao?.tecnico || ''}
-                        disabled={user?.role === 'usuario'}
-                        className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none ${user?.role === 'usuario' ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
-                      >
-                        <option value="">-- Selecione o Técnico --</option>
-                        {tecnicosDisponiveis.map((t: any) => (
-                          <option key={t.id} value={t.nome}>{t.nome} ({t.email})</option>
-                        ))}
-                      </select>
-                    </div>
-                    <Input label="Data da Liberação" name="data_liberacao" type="date" defaultValue={editingFormalizacao?.data_liberacao} disabled={user?.role === 'usuario'} />
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Área – Estágio da Situação da Demanda</label>
+                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Selecione o estágio atual</label>
                       <select
                         name="area_estagio_situacao_demanda"
                         defaultValue={editingFormalizacao?.area_estagio_situacao_demanda || ''}
-                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none"
+                        disabled={isDisabled('area_estagio_situacao_demanda')}
+                        className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none ${disabledClass('area_estagio_situacao_demanda')}`}
                       >
                         <option value="">-- Selecione --</option>
                         <option value="DEMANDA COM O TÉCNICO">DEMANDA COM O TÉCNICO</option>
@@ -3676,9 +3712,37 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         <option value="PROCESSO SIAFEM">PROCESSO SIAFEM</option>
                       </select>
                     </div>
-                    <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={editingFormalizacao?.data_recebimento_demanda} disabled={user?.role === 'usuario'} />
-                    <Input label="Área - Estágio" name="area_estagio" defaultValue={editingFormalizacao?.area_estagio} />
-                    <Input label="Recurso" name="recurso" defaultValue={editingFormalizacao?.recurso} disabled={user?.role === 'usuario'} />
+                  </div>
+                </div>
+
+                {/* 1️⃣ Atribuição da Demanda */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
+                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">1</div>
+                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
+                      <ClipboardList className="w-3.5 h-3.5" />
+                      Atribuição da Demanda
+                    </h3>
+                  </div>
+                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Técnico</label>
+                      <select
+                        name="tecnico"
+                        defaultValue={editingFormalizacao?.tecnico || ''}
+                        disabled={isDisabled('tecnico')}
+                        className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none ${disabledClass('tecnico')}`}
+                      >
+                        <option value="">-- Selecione o Técnico --</option>
+                        {tecnicosDisponiveis.map((t: any) => (
+                          <option key={t.id} value={t.nome}>{t.nome} ({t.email})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <Input label="Data da Liberação" name="data_liberacao" type="date" defaultValue={editingFormalizacao?.data_liberacao} disabled={isDisabled('data_liberacao', true)} />
+                    <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={editingFormalizacao?.data_recebimento_demanda} disabled={isDisabled('data_recebimento_demanda', true)} />
+                    <Input label="Área - Estágio" name="area_estagio" defaultValue={editingFormalizacao?.area_estagio} disabled={isDisabled('area_estagio')} />
+                    <Input label="Recurso" name="recurso" defaultValue={editingFormalizacao?.recurso} disabled={isDisabled('recurso')} />
                   </div>
                 </div>
 
@@ -3692,11 +3756,18 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     </h3>
                   </div>
                   <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                    <Input label="Situação - Análise Demanda" name="situacao_analise_demanda" defaultValue={editingFormalizacao?.situacao_analise_demanda} />
+                    <Input label="Situação - Análise Demanda" name="situacao_analise_demanda" defaultValue={editingFormalizacao?.situacao_analise_demanda} disabled={isDisabled('situacao_analise_demanda')} />
                     <div className="flex flex-col gap-1">
                       <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data - Análise Demanda</label>
                       {isAdmin ? (
                         <Input label="" name="data_analise_demanda" type="date" defaultValue={editingFormalizacao?.data_analise_demanda} />
+                      ) : isDisabled('data_analise_demanda') || isDateLocked('data_analise_demanda') ? (
+                        <>
+                          <input type="hidden" name="data_analise_demanda" defaultValue={editingFormalizacao?.data_analise_demanda || ''} />
+                          <span className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center opacity-50">
+                            {editingFormalizacao?.data_analise_demanda ? formatDateForDisplay(editingFormalizacao.data_analise_demanda) : '—'}
+                          </span>
+                        </>
                       ) : (
                         <>
                           <input type="hidden" name="data_analise_demanda" id="data_analise_demanda_hidden" defaultValue={editingFormalizacao?.data_analise_demanda || ''} />
@@ -3737,13 +3808,13 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   </div>
                   <div className="p-5 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                      <Input label="Motivo do Retorno da Diligência" name="motivo_retorno_diligencia" defaultValue={editingFormalizacao?.motivo_retorno_diligencia} />
-                      <Input label="Data do Retorno da Diligência" name="data_retorno_diligencia" type="date" defaultValue={editingFormalizacao?.data_retorno_diligencia} />
+                      <Input label="Motivo do Retorno da Diligência" name="motivo_retorno_diligencia" defaultValue={editingFormalizacao?.motivo_retorno_diligencia} disabled={isDisabled('motivo_retorno_diligencia')} />
+                      <Input label="Data do Retorno da Diligência" name="data_retorno_diligencia" type="date" defaultValue={editingFormalizacao?.data_retorno_diligencia} disabled={isDisabled('data_retorno_diligencia', true)} />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                      <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={editingFormalizacao?.data_retorno} />
+                      <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={editingFormalizacao?.data_retorno} disabled={isDisabled('data_retorno', true)} />
                     </div>
-                    <Input label="Observação - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} className="col-span-full" />
+                    <Input label="Observação - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} disabled={isDisabled('observacao_motivo_retorno')} className="col-span-full" />
                   </div>
                 </div>
 
@@ -3762,8 +3833,8 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       <select
                         name="conferencista"
                         defaultValue={editingFormalizacao?.conferencista || ''}
-                        disabled={user?.role === 'usuario'}
-                        className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none ${user?.role === 'usuario' ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                        disabled={isDisabled('conferencista')}
+                        className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none ${disabledClass('conferencista')}`}
                       >
                         <option value="">-- Selecione o Conferencista --</option>
                         {tecnicosDisponiveis.map((t: any) => (
@@ -3775,6 +3846,13 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data Liberação - Conferencista</label>
                       {isAdmin ? (
                         <Input label="" name="data_liberacao_assinatura_conferencista" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista} />
+                      ) : isDisabled('data_liberacao_assinatura_conferencista') || isDateLocked('data_liberacao_assinatura_conferencista') ? (
+                        <>
+                          <input type="hidden" name="data_liberacao_assinatura_conferencista" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista || ''} />
+                          <span className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center opacity-50">
+                            {editingFormalizacao?.data_liberacao_assinatura_conferencista ? formatDateForDisplay(editingFormalizacao.data_liberacao_assinatura_conferencista) : '—'}
+                          </span>
+                        </>
                       ) : (
                         <>
                           <input type="hidden" name="data_liberacao_assinatura_conferencista" id="data_liberacao_conferencista_hidden" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista || ''} />
@@ -3815,10 +3893,10 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   </div>
                   <div className="p-5 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                      <Input label="Data Liberação de Assinatura" name="data_liberacao_assinatura" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura} disabled={user?.role === 'usuario'} />
+                      <Input label="Data Liberação de Assinatura" name="data_liberacao_assinatura" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura} disabled={isDisabled('data_liberacao_assinatura', true)} />
                       <div className="flex flex-col gap-1">
                         <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Falta Assinatura</label>
-                        <div className={`bg-white border border-gray-200 rounded-lg p-3 space-y-2 ${user?.role === 'usuario' ? 'opacity-50 pointer-events-none bg-gray-50' : ''}`}>
+                        <div className={`bg-white border border-gray-200 rounded-lg p-3 space-y-2 ${isDisabled('falta_assinatura') ? 'opacity-50 pointer-events-none bg-gray-50' : ''}`}>
                           {[
                             'GESTOR ADMINISTRATIVO DRS',
                             'GESTOR TÉCNICO DRS',
@@ -3849,7 +3927,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                      <Input label="Assinatura" name="assinatura" type="date" defaultValue={editingFormalizacao?.assinatura} disabled={user?.role === 'usuario'} />
+                      <Input label="Assinatura" name="assinatura" type="date" defaultValue={editingFormalizacao?.assinatura} disabled={isDisabled('assinatura', true)} />
                     </div>
                   </div>
                 </div>
@@ -3864,10 +3942,10 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     </h3>
                   </div>
                   <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
-                    <Input label="Publicação" name="publicacao" type="date" defaultValue={editingFormalizacao?.publicacao} disabled={user?.role === 'usuario'} />
-                    <Input label="Vigência" name="vigencia" type="date" defaultValue={editingFormalizacao?.vigencia} disabled={user?.role === 'usuario'} />
-                    <Input label="Encaminhado em" name="encaminhado_em" type="date" defaultValue={editingFormalizacao?.encaminhado_em} disabled={user?.role === 'usuario'} />
-                    <Input label="Concluída em" name="concluida_em" type="date" defaultValue={editingFormalizacao?.concluida_em} disabled={user?.role === 'usuario'} />
+                    <Input label="Publicação" name="publicacao" type="date" defaultValue={editingFormalizacao?.publicacao} disabled={isDisabled('publicacao', true)} />
+                    <Input label="Vigência" name="vigencia" type="date" defaultValue={editingFormalizacao?.vigencia} disabled={isDisabled('vigencia', true)} />
+                    <Input label="Encaminhado em" name="encaminhado_em" type="date" defaultValue={editingFormalizacao?.encaminhado_em} disabled={isDisabled('encaminhado_em', true)} />
+                    <Input label="Concluída em" name="concluida_em" type="date" defaultValue={editingFormalizacao?.concluida_em} disabled={isDisabled('concluida_em', true)} />
                   </div>
                 </div>
 
@@ -3888,6 +3966,10 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     {editingFormalizacao ? 'Atualizar Registro' : 'Salvar Demanda'}
                   </button>
                 </div>
+
+                    </>
+                  );
+                })()}
               </form>
             </motion.div>
           </div>
