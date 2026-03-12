@@ -130,7 +130,8 @@ export const VirtualizedTable = React.memo(function VirtualizedTable<T>({
           }}
         >
           {({ index, style }) => {
-            const hasFaltaAssinatura = data[index]?.falta_assinatura && String(data[index].falta_assinatura).trim() !== '';
+            const row = data[index] as any;
+            const hasFaltaAssinatura = row?.falta_assinatura && String(row.falta_assinatura).trim() !== '' && String(row.falta_assinatura).trim() !== 'DEMANDA ASSINADA';
             return (
             <div style={style} className={`flex border-b border-gray-200 transition-colors group ${hasFaltaAssinatura ? 'bg-amber-50 border-l-4 border-l-amber-400 hover:bg-amber-100' : 'hover:bg-blue-50'}`}>
               {columns.map((col) => (

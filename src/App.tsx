@@ -1706,14 +1706,19 @@ export default function App() {
     const formData = new FormData(e.currentTarget);
     const data: any = {};
     // Collect falta_assinatura checkboxes as comma-separated string
-    const faltaAssinatura = formData.getAll('falta_assinatura');
-    if (faltaAssinatura.length > 0) {
-      data['falta_assinatura'] = faltaAssinatura.join(', ');
+    const demandaAssinadaFlag = formData.get('demanda_assinada_flag');
+    if (demandaAssinadaFlag && String(demandaAssinadaFlag).trim() === 'DEMANDA ASSINADA') {
+      data['falta_assinatura'] = 'DEMANDA ASSINADA';
     } else {
-      data['falta_assinatura'] = '';
+      const faltaAssinatura = formData.getAll('falta_assinatura');
+      if (faltaAssinatura.length > 0) {
+        data['falta_assinatura'] = faltaAssinatura.join(', ');
+      } else {
+        data['falta_assinatura'] = '';
+      }
     }
     formData.forEach((value, key) => {
-      if (key === 'falta_assinatura') return; // already handled
+      if (key === 'falta_assinatura' || key === 'demanda_assinada_flag') return; // already handled
       if (key.includes('valor')) {
         data[key] = value ? Number(value) : 0;
       } else {
@@ -3038,6 +3043,8 @@ export default function App() {
                                         ? 'bg-amber-100 border-l-4 border-amber-500'
                                         : (f.publicacao && String(f.publicacao).trim() !== '' && String(f.publicacao).trim() !== '—') || (f.concluida_em && String(f.concluida_em).trim() !== '' && String(f.concluida_em).trim() !== '—')
                                         ? 'bg-emerald-50 border-l-4 border-emerald-500 hover:bg-emerald-100'
+                                        : f.falta_assinatura && String(f.falta_assinatura).trim() !== '' && String(f.falta_assinatura).trim() !== 'DEMANDA ASSINADA'
+                                        ? 'bg-amber-50 border-l-4 border-amber-400 hover:bg-amber-100'
                                         : 'hover:bg-blue-50'
                                     }`}
                                   >
@@ -3927,8 +3934,31 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                      <Input label="Assinatura" name="assinatura" type="date" defaultValue={editingFormalizacao?.assinatura} disabled={isDisabled('assinatura', true)} />
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Assinatura</label>
+                        <input
+                          type="date"
+                          name="assinatura"
+                          defaultValue={editingFormalizacao?.assinatura}
+                          disabled={isDisabled('assinatura', true)}
+                          onChange={(e) => {
+                            if (e.target.value && e.target.value.trim() !== '') {
+                              // Desmarcar todos os checkboxes de falta_assinatura
+                              const checkboxes = document.querySelectorAll<HTMLInputElement>('input[name="falta_assinatura"]');
+                              checkboxes.forEach(cb => { cb.checked = false; });
+                              // Marcar campo oculto com DEMANDA ASSINADA
+                              const hiddenDemandaAssinada = document.getElementById('demanda_assinada_flag') as HTMLInputElement;
+                              if (hiddenDemandaAssinada) hiddenDemandaAssinada.value = 'DEMANDA ASSINADA';
+                            } else {
+                              const hiddenDemandaAssinada = document.getElementById('demanda_assinada_flag') as HTMLInputElement;
+                              if (hiddenDemandaAssinada) hiddenDemandaAssinada.value = '';
+                            }
+                          }}
+                          className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all ${isDisabled('assinatura', true) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                        />
+                      </div>
                     </div>
+                    <input type="hidden" id="demanda_assinada_flag" name="demanda_assinada_flag" defaultValue="" />
                   </div>
                 </div>
 
