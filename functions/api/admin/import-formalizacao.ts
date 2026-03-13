@@ -1,5 +1,6 @@
 // POST /api/admin/import-formalizacao
 // Importa formalização via CSV - modo replace (apaga tudo e reinsere) ou append (só adiciona)
+// Cada invocação recebe um batch do frontend (max 200 registros) = máx 2 subrequests
 export const onRequest: PagesFunction = async (context) => {
   const { request, env } = context;
   const SUPABASE_URL = env.SUPABASE_URL;
@@ -56,77 +57,52 @@ export const onRequest: PagesFunction = async (context) => {
       return filtered;
     }).filter((r: any) => Object.keys(r).length > 0);
 
-    // Se modo replace, apagar todos os registros existentes
+    // Se modo replace, apagar TODOS os registros com uma única chamada
     if (mode === 'replace') {
-      // Buscar IDs em batches e deletar
-      let deletedTotal = 0;
-      while (true) {
-        const fetchResp = await fetch(
-          `${SUPABASE_URL}/rest/v1/formalizacao?select=id&limit=1000`,
-          {
-            headers: {
-              'Authorization': `Bearer ${SUPABASE_KEY}`,
-              'apikey': SUPABASE_KEY,
-            }
-          }
-        );
-        if (!fetchResp.ok) break;
-        const rows = await fetchResp.json() as any[];
-        if (!rows || rows.length === 0) break;
-
-        const ids = rows.map((r: any) => r.id);
-        const delResp = await fetch(
-          `${SUPABASE_URL}/rest/v1/formalizacao?id=in.(${ids.join(',')})`,
-          {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${SUPABASE_KEY}`,
-              'apikey': SUPABASE_KEY,
-              'Prefer': 'return=minimal'
-            }
-          }
-        );
-        if (!delResp.ok) {
-          const err = await delResp.text();
-          return new Response(JSON.stringify({ error: `Erro ao apagar registros: ${err.substring(0, 300)}` }), {
-            status: 500, headers: { 'Content-Type': 'application/json' }
-          });
-        }
-        deletedTotal += ids.length;
-        if (rows.length < 1000) break;
-      }
-      console.log(`Apagados ${deletedTotal} registros antigos`);
-    }
-
-    // Inserir novos registros em batches
-    let totalInserted = 0;
-    const errors: string[] = [];
-
-    for (let i = 0; i < filteredRecords.length; i += 100) {
-      const chunk = filteredRecords.slice(i, i + 100);
-      const insertResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/formalizacao`,
+      const delResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/formalizacao?id=gt.0`,
         {
-          method: 'POST',
+          method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${SUPABASE_KEY}`,
             'apikey': SUPABASE_KEY,
-            'Content-Type': 'application/json',
             'Prefer': 'return=minimal'
-          },
-          body: JSON.stringify(chunk)
+          }
         }
       );
-      if (!insertResp.ok) {
-        const err = await insertResp.text();
-        errors.push(`Lote ${Math.floor(i/100)+1}: ${err.substring(0, 200)}`);
-      } else {
-        totalInserted += chunk.length;
+      if (!delResp.ok) {
+        const err = await delResp.text();
+        return new Response(JSON.stringify({ error: `Erro ao apagar registros: ${err.substring(0, 300)}` }), {
+          status: 500, headers: { 'Content-Type': 'application/json' }
+        });
       }
+      console.log('Todos os registros antigos apagados');
+    }
+
+    // Inserir o batch recebido em uma única chamada
+    const insertResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/formalizacao`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(filteredRecords)
+      }
+    );
+
+    if (!insertResp.ok) {
+      const err = await insertResp.text();
+      return new Response(JSON.stringify({ error: err.substring(0, 300) }), {
+        status: insertResp.status, headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     return new Response(JSON.stringify({
-      count: totalInserted,
+      count: filteredRecords.length,
       total: filteredRecords.length,
       errors: errors.length > 0 ? errors : undefined,
       message: mode === 'replace'
