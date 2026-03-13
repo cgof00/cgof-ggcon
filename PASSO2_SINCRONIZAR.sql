@@ -1,94 +1,20 @@
 -- ============================================================
--- PASSO 2: SINCRONIZAR EMENDAS → FORMALIZAÇÃO
--- Execute DEPOIS de carregar os novos CSVs
+-- PASSO 2: COPIAR FORMALIZAÇÃO E SINCRONIZAR COM EMENDAS
+-- Execute DEPOIS de carregar o CSV na formalizacao_import
+-- ============================================================
+-- ⚠️ A tabela EMENDAS NÃO é tocada aqui.
+--    Emendas já foi atualizada pelo sistema (importação via interface).
 -- ============================================================
 -- Este script:
--- 0. Copia dados de emendas_import → emendas (mapeando cabeçalhos)
--- 1. Cria índices para performance
--- 2. Atualiza formalizações existentes com dados das emendas
--- 3. Insere emendas que não existem na formalização
--- 4. Cria uma função RPC para sync futuro (botão no sistema)
+-- 1. Copia dados de formalizacao_import → formalizacao (mapeando cabeçalhos)
+-- 2. Cria índices para performance
+-- 3. Atualiza formalizações existentes com dados das emendas
+-- 4. Insere emendas que não existem na formalização
+-- 5. Cria uma função RPC para sync futuro (botão no sistema)
 -- ============================================================
 
 -- ============================================================
--- PASSO 2.0: COPIAR emendas_import → emendas (mapeamento de colunas)
--- O CSV foi importado na tabela emendas_import com cabeçalhos legíveis.
--- Agora copiamos para a tabela emendas com nomes técnicos.
--- ⚠️ Pula automaticamente se emendas_import não existir (re-execução)
--- ============================================================
-
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'emendas_import') THEN
-    EXECUTE '
-    INSERT INTO emendas (
-      detalhes, natureza, ano_refer, codigo_num, num_emenda,
-      parecer_ld, situacao_e, situacao_d, data_ult_e, data_ult_d,
-      num_indicacao, parlamentar, partido, tipo_beneficiario,
-      beneficiario, cnpj, municipio, objeto, orgao_entidade, regional,
-      num_convenio, num_processo, data_assinatura, data_publicacao,
-      agencia, conta, valor, valor_desembolsado, portfolio, qtd_dias,
-      vigencia, data_prorrogacao, dados_bancarios, status,
-      data_pagamento, num_codigo, notas_empenho, valor_total_empenhado,
-      notas_liquidacao, valor_total_liquidado, programa,
-      valor_total_pago, ordem_bancaria, data_paga, valor_total_ordem_bancaria
-    )
-    SELECT DISTINCT ON ("Código/Nº Emenda")
-      "Detalhes da Demanda",
-      "Natureza",
-      "Ano Referência",
-      "Código/Nº Emenda",
-      "Nº Emenda Agregadora",
-      "Parecer LDO",
-      "Situação Emenda",
-      "Situação Demanda",
-      "Data da Última Tramitação Emenda",
-      "Data da Última Tramitação Demanda",
-      "Nº da Indicação",
-      "Parlamentar",
-      "Partido",
-      "Tipo Beneficiário",
-      "Beneficiário",
-      "CNPJ",
-      "Município",
-      "Objeto",
-      "Órgão Entidade/Responsável",
-      "Regional",
-      "Nº de Convênio",
-      "Nº de Processo",
-      "Assinatura",
-      "Publicação",
-      "Agência",
-      "Conta",
-      CASE WHEN "Valor" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor", ''.'', ''''), '','', ''.'')::NUMERIC ELSE 0 END,
-      CASE WHEN "Valor da Demanda" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor da Demanda", ''.'', ''''), '','', ''.'')::NUMERIC ELSE 0 END,
-      "Portfólio",
-      CASE WHEN "Qtd. Dias na Etapa" ~ ''^[0-9]+$'' THEN "Qtd. Dias na Etapa"::INTEGER ELSE 0 END,
-      "Vigência",
-      "Data da Primeira Notificação LOA Recebida pelo Beneficiário",
-      "Dados Bancários",
-      "Status do Pagamento",
-      "Data do Pagamento",
-      "Nº do Código Único",
-      "Notas e Empenho",
-      CASE WHEN "Valor Total Empenho" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor Total Empenho", ''.'', ''''), '','', ''.'')::NUMERIC ELSE 0 END,
-      "Notas de Lançamento",
-      CASE WHEN "Valor Total Lançamento" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor Total Lançamento", ''.'', ''''), '','', ''.'')::NUMERIC ELSE 0 END,
-      "Programações Desembolso",
-      CASE WHEN "Valor Total Programação Desembolso" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor Total Programação Desembolso", ''.'', ''''), '','', ''.'')::NUMERIC ELSE 0 END,
-      "Ordem Bancária",
-      "Data pagamento Ordem Bancária",
-      CASE WHEN "Valor Total Ordem Bancária" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor Total Ordem Bancária", ''.'', ''''), '','', ''.'')::NUMERIC ELSE 0 END
-    FROM emendas_import';
-    RAISE NOTICE '✅ PASSO 2.0: emendas_import copiado para emendas';
-    DROP TABLE IF EXISTS emendas_import;
-  ELSE
-    RAISE NOTICE '⏭️ PASSO 2.0: tabela emendas_import não existe, pulando (já foi processada anteriormente)';
-  END IF;
-END $$;
-
--- ============================================================
--- PASSO 2.0B: COPIAR formalizacao_import → formalizacao (mapeamento)
+-- PASSO 2.0: COPIAR formalizacao_import → formalizacao (mapeamento)
 -- O CSV foi importado na tabela formalizacao_import com cabeçalhos legíveis.
 -- Agora copiamos para a tabela formalizacao com nomes técnicos.
 -- ⚠️ Pula automaticamente se formalizacao_import não existir (re-execução)
@@ -120,7 +46,18 @@ BEGIN
       "Ano",
       "Parlamentar",
       "Partido",
-      "Emenda",
+      -- Converter notação científica (ex: 2,02429E+11) para formato 0000.000.00000
+      CASE
+        WHEN "Emenda" ~ ''[Ee][+]'' THEN
+          REGEXP_REPLACE(
+            LPAD(REPLACE("Emenda", '','', ''.'')::NUMERIC::BIGINT::TEXT, 12, ''0''),
+            ''(\d{4})(\d{3})(\d{5})'',
+            ''\1.\2.\3''
+          )
+        WHEN "Emenda" ~ ''^\d{12}$'' THEN
+          REGEXP_REPLACE("Emenda", ''(\d{4})(\d{3})(\d{5})'', ''\1.\2.\3'')
+        ELSE "Emenda"
+      END,
       "Emendas Agregadoras",
       "Demanda",
       "DEMANDAS FORMALIZAÇÃO",
@@ -157,10 +94,10 @@ BEGIN
       "Encaminhado em",
       "Concluída em"
     FROM formalizacao_import';
-    RAISE NOTICE '✅ PASSO 2.0B: formalizacao_import copiado para formalizacao';
+    RAISE NOTICE '✅ PASSO 2.0: formalizacao_import copiado para formalizacao';
     DROP TABLE IF EXISTS formalizacao_import;
   ELSE
-    RAISE NOTICE '⏭️ PASSO 2.0B: tabela formalizacao_import não existe, pulando (já foi processada anteriormente)';
+    RAISE NOTICE '⏭️ PASSO 2.0: tabela formalizacao_import não existe, pulando';
   END IF;
 END $$;
 
