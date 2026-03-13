@@ -2,7 +2,7 @@ import csv
 import sys
 import os
 
-input_file = r'C:\Users\afpereira\Downloads\CONTROLE - FORMALIZAÇÃO - GERAL (1).csv'
+input_file = r'C:\Users\afpereira\Downloads\geral.csv'
 output_file = r'C:\Users\afpereira\Downloads\FORMALIZACAO_LIMPO.csv'
 
 # Colunas a remover

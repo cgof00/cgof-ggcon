@@ -14,6 +14,12 @@
 -- ============================================================
 
 -- ============================================================
+-- CONFIGURAÇÃO: Forçar datestyle DD/MM/YYYY para datas brasileiras
+-- SEM ISSO, datas como 23/07/2024 falham (PostgreSQL tenta mês 23)
+-- ============================================================
+SET datestyle = 'ISO, DMY';
+
+-- ============================================================
 -- PASSO 2.0: COPIAR formalizacao_import → formalizacao (mapeamento)
 -- O CSV foi importado na tabela formalizacao_import com cabeçalhos legíveis.
 -- Agora copiamos para a tabela formalizacao com nomes técnicos.
@@ -21,8 +27,23 @@
 -- ============================================================
 
 DO $$
+DECLARE cnt INTEGER;
 BEGIN
+  -- Configurar datestyle DMY dentro do bloco para garantir
+  EXECUTE 'SET datestyle = ''ISO, DMY''';
+  
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'formalizacao_import') THEN
+    -- Criar função auxiliar para conversão segura de datas (não quebra se formato é inválido)
+    EXECUTE '
+      CREATE OR REPLACE FUNCTION _safe_to_date(val TEXT) RETURNS DATE AS $fn$
+      BEGIN
+        IF val IS NULL OR TRIM(val) = '''' THEN RETURN NULL; END IF;
+        RETURN TRIM(val)::DATE;
+      EXCEPTION WHEN OTHERS THEN
+        RETURN NULL;
+      END;
+      $fn$ LANGUAGE plpgsql IMMUTABLE';
+
     EXECUTE '
     INSERT INTO formalizacao (
       seq, ano, parlamentar, partido, emenda, emendas_agregadoras,
@@ -46,18 +67,7 @@ BEGIN
       "Ano",
       "Parlamentar",
       "Partido",
-      -- Converter notação científica (ex: 2,02429E+11) para formato 0000.000.00000
-      CASE
-        WHEN "Emenda" ~ ''[Ee][+]'' THEN
-          REGEXP_REPLACE(
-            LPAD(REPLACE("Emenda", '','', ''.'')::NUMERIC::BIGINT::TEXT, 12, ''0''),
-            ''(\d{4})(\d{3})(\d{5})'',
-            ''\1.\2.\3''
-          )
-        WHEN "Emenda" ~ ''^\d{12}$'' THEN
-          REGEXP_REPLACE("Emenda", ''(\d{4})(\d{3})(\d{5})'', ''\1.\2.\3'')
-        ELSE "Emenda"
-      END,
+      "Emenda",
       "Emendas Agregadoras",
       "Demanda",
       "DEMANDAS FORMALIZAÇÃO",
@@ -69,33 +79,43 @@ BEGIN
       "Conveniado",
       "Objeto",
       "Portfólio",
-      CASE WHEN "Valor" ~ ''^[0-9.,]+$'' THEN REPLACE(REPLACE("Valor", ''.'', ''''), '','', ''.'')::NUMERIC ELSE NULL END,
+      CASE 
+        WHEN TRIM(COALESCE("Valor", '''')) = '''' THEN NULL
+        WHEN REGEXP_REPLACE("Valor", ''[^0-9.,]'', '''', ''g'') ~ ''^[0-9.,]+$'' 
+        THEN REPLACE(REPLACE(REGEXP_REPLACE("Valor", ''[^0-9.,]'', '''', ''g''), ''.'', ''''), '','', ''.'')::NUMERIC 
+        ELSE NULL 
+      END,
       "Posição Anterior",
       "Situação Demandas - SemPapel",
       "Área - estágio",
       "Recurso",
       "Tecnico",
-      "Data da Liberação",
+      _safe_to_date("Data da Liberação"),
       "Área - Estágio Situação da Demanda",
       "Situação - Análise Demanda",
-      "Data - Análise Demanda",
+      _safe_to_date("Data - Análise Demanda"),
       "Motivo do Retorno da Diligência",
-      "Data do Retorno da Diligência",
+      _safe_to_date("Data do Retorno da Diligência"),
       "Conferencista",
-      "Data recebimento demanda",
-      "Data do Retorno",
+      _safe_to_date("Data recebimento demanda"),
+      _safe_to_date("Data do Retorno"),
       "Observação - Motivo do Retorno",
-      "Data liberação da Assinatura - Conferencista",
-      "Data liberação de Assinatura",
+      _safe_to_date("Data liberação da Assinatura - Conferencista"),
+      _safe_to_date("Data liberação de Assinatura"),
       "Falta assinatura",
       "Assinatura",
-      "Publicação",
-      "Vigência",
-      "Encaminhado em",
-      "Concluída em"
+      NULLIF(TRIM("Publicação"), ''''),
+      NULLIF(TRIM("Vigência"), ''''),
+      _safe_to_date("Encaminhado em"),
+      _safe_to_date("Concluída em")
     FROM formalizacao_import';
-    RAISE NOTICE '✅ PASSO 2.0: formalizacao_import copiado para formalizacao';
+
+    -- Contar quantos foram copiados
+    EXECUTE 'SELECT COUNT(*) FROM formalizacao' INTO STRICT cnt;
+    RAISE NOTICE '✅ PASSO 2.0: % registros copiados de formalizacao_import para formalizacao', cnt;
+    
     DROP TABLE IF EXISTS formalizacao_import;
+    DROP FUNCTION IF EXISTS _safe_to_date(TEXT);
   ELSE
     RAISE NOTICE '⏭️ PASSO 2.0: tabela formalizacao_import não existe, pulando';
   END IF;

@@ -647,8 +647,8 @@ export default function App() {
   const [hideEmptyFields, setHideEmptyFields] = useState<{ [key: string]: boolean }>({});
   // Estado para rastrear qual filtro tem "Mostrar Somente Vazias" ativado
   const [showOnlyEmptyFields, setShowOnlyEmptyFields] = useState<{ [key: string]: boolean }>({});
-  // Estado para ocultar demandas concluídas (padrão true para usuário comum)
-  const [hideConcluidas, setHideConcluidas] = useState(true);
+  // Estado para ocultar demandas concluídas (padrão false para mostrar TODOS os registros)
+  const [hideConcluidas, setHideConcluidas] = useState(false);
   // Estado para larguras de colunas (redimensionamento estilo Excel)
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
   const resizingColRef = useRef<string | null>(null);
@@ -1407,10 +1407,18 @@ export default function App() {
               const results = await Promise.all(promises);
               results.sort((a, b) => a.offset - b.offset);
               
+              let allEmpty = true;
               for (const r of results) {
-                if (r.data.length === 0) { keepGoing = false; break; }
-                dataFetched = dataFetched.concat(r.data);
-                if (r.data.length < batchSize) { keepGoing = false; break; }
+                if (r.data.length > 0) {
+                  allEmpty = false;
+                  dataFetched = dataFetched.concat(r.data);
+                }
+              }
+              // Só para quando TODAS as waves retornam vazio (fim dos dados)
+              // ou quando alguma wave retorna menos que batchSize (última página)
+              const lastResult = results[results.length - 1];
+              if (allEmpty || (lastResult && lastResult.data.length > 0 && lastResult.data.length < batchSize)) {
+                keepGoing = false;
               }
               
               setRefreshProgress(p => p ? { ...p, loaded: dataFetched.length, total: Math.max(p.total, dataFetched.length + batchSize) } : null);
@@ -2737,6 +2745,11 @@ export default function App() {
                         </label>
                         <span className="text-[10px] text-gray-500">
                           {formalizacaoSearchResult.total.toLocaleString('pt-BR')} registros
+                          {hideConcluidas && allDataCacheRef.current && allDataCacheRef.current.length > formalizacaoSearchResult.total && (
+                            <span className="text-gray-400 ml-1">
+                              (de {allDataCacheRef.current.length.toLocaleString('pt-BR')} total)
+                            </span>
+                          )}
                         </span>
                         {totalPaginas > 1 && (
                           <>

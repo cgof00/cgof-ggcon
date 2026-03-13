@@ -48,6 +48,44 @@ async function startServer() {
 const app = express();
   const PORT = 4000;
 
+  // ⚡ Colunas que são DATE no banco (precisam de conversão DD/MM/YYYY → YYYY-MM-DD)
+  const DATE_COLUMNS = new Set([
+    'data_liberacao', 'data_analise_demanda', 'data_retorno_diligencia',
+    'data_recebimento_demanda', 'data_retorno',
+    'data_liberacao_assinatura_conferencista', 'data_liberacao_assinatura',
+    'encaminhado_em', 'concluida_em'
+  ]);
+
+  // Converte DD/MM/YYYY → YYYY-MM-DD (formato ISO para PostgreSQL)
+  function convertDateBR(val: string): string | null {
+    if (!val || !val.trim()) return null;
+    const trimmed = val.trim();
+    // DD/MM/YYYY
+    const m = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      const [, dia, mes, ano] = m;
+      const d = dia.padStart(2, '0');
+      const mm = mes.padStart(2, '0');
+      if (parseInt(mm) >= 1 && parseInt(mm) <= 12 && parseInt(d) >= 1 && parseInt(d) <= 31) {
+        return `${ano}-${mm}-${d}`;
+      }
+    }
+    // Já no formato YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    // DD/MM/YY
+    const m2 = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+    if (m2) {
+      const [, dia, mes, anoCurto] = m2;
+      const anoFull = parseInt(anoCurto) < 50 ? '20' + anoCurto : '19' + anoCurto;
+      const d = dia.padStart(2, '0');
+      const mm = mes.padStart(2, '0');
+      if (parseInt(mm) >= 1 && parseInt(mm) <= 12 && parseInt(d) >= 1 && parseInt(d) <= 31) {
+        return `${anoFull}-${mm}-${d}`;
+      }
+    }
+    return null; // Formato não reconhecido → NULL (não quebra o INSERT)
+  }
+
   // ⚡ Cache em memória para dados (muito mais rápido)
   let formalizacaoCache: any[] | null = null;
   let formalizacaoCacheTimestamp = 0;
@@ -792,6 +830,34 @@ const app = express();
   });
 
   // ⚡ Função OTIMIZADA para buscar TODOS os registros (com cache + paralelismo)
+  // Helper: fetch uma página com retry automático
+  async function fetchPageWithRetry(pageNum: number, pageSize: number, maxRetries: number = 3): Promise<{ data: any[], pageNum: number }> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const { data, error } = await supabase!
+          .from("formalizacao")
+          .select("*")
+          .order("id", { ascending: true })
+          .range(pageNum * pageSize, (pageNum + 1) * pageSize - 1);
+        
+        if (error) {
+          console.error(`❌ Página ${pageNum} tentativa ${attempt}/${maxRetries}: ${error.message}`);
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+            continue;
+          }
+        }
+        return { data: data || [], pageNum };
+      } catch (err: any) {
+        console.error(`❌ Página ${pageNum} tentativa ${attempt}/${maxRetries}: ${err.message}`);
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+        }
+      }
+    }
+    return { data: [], pageNum };
+  }
+
   async function getAllFormalizacoes(forceRefresh: boolean = false) {
     if (!supabase) return [];
     
@@ -830,8 +896,6 @@ const app = express();
       const pageSize = 1000;
       let allData: any[] = [];
 
-      // ⚡ STRATEGY: Pedir contagem primeiro para saber quantas páginas são
-      // Usar select('id') em vez de select('*') para evitar limite de 1000
       const { count, error: countError } = await supabase
         .from("formalizacao")
         .select("id", { count: "exact", head: true });
@@ -844,46 +908,38 @@ const app = express();
       const totalPages = Math.ceil(count / pageSize);
       console.log(`📊 Total de registros: ${count} (${totalPages} páginas de ${pageSize})`);
 
-      // ⚡ Fazer REQUISIÇÕES PARALELAS (não sequenciais!)
-      // Limitar a 5 simultâneas para não sobrecarregar
-      const simultaneousRequests = 5;
+      // ⚡ Requests paralelas com retry — 3 simultâneas (menos agressivo)
+      const simultaneousRequests = 3;
       const pageNumbers = Array.from({ length: totalPages }, (_, i) => i);
 
       for (let i = 0; i < pageNumbers.length; i += simultaneousRequests) {
         const batchPageNumbers = pageNumbers.slice(i, i + simultaneousRequests);
-        const batchPromises = batchPageNumbers.map(pageNum =>
-          supabase
-            .from("formalizacao")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .range(pageNum * pageSize, (pageNum + 1) * pageSize - 1)
-            .then(({ data, error }) => ({
-              data: data || [],
-              error,
-              pageNum
-            }))
+        const batchResults = await Promise.all(
+          batchPageNumbers.map(pageNum => fetchPageWithRetry(pageNum, pageSize))
         );
 
-        const batchResults = await Promise.all(batchPromises);
-        batchResults.forEach(({ data, error, pageNum }) => {
-          if (error) {
-            console.error(`❌ Erro página ${pageNum}:`, error.message);
-          } else if (data && data.length > 0) {
+        for (const { data, pageNum } of batchResults) {
+          if (data.length > 0) {
             allData = allData.concat(data);
-            console.log(`📦 Página ${pageNum + 1}/${totalPages}: ${data.length} registros (total: ${allData.length})`);
+          } else {
+            console.warn(`⚠️ Página ${pageNum} retornou 0 registros (esperava até ${pageSize})`);
           }
-        });
+        }
+        console.log(`📦 Progresso: ${allData.length}/${count} registros`);
 
-        // Pequeno delay entre lotes
         if (i + simultaneousRequests < pageNumbers.length) {
-          await new Promise(resolve => setTimeout(resolve, 50));
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
 
       const duration = Date.now() - startTime;
-      console.log(`✅ CONCLUÍDO: ${allData.length} registros em ${duration}ms`);
+      
+      // ⚠️ Verificar se pegamos tudo
+      if (allData.length < count) {
+        console.warn(`⚠️ ATENÇÃO: esperados ${count} mas obtidos ${allData.length} (${count - allData.length} faltando)`);
+      }
+      console.log(`✅ CONCLUÍDO: ${allData.length}/${count} registros em ${duration}ms`);
 
-      // ✅ Armazenar em cache
       formalizacaoCache = allData;
       formalizacaoCacheTimestamp = now;
 
@@ -1119,41 +1175,34 @@ const app = express();
 
   app.get("/api/formalizacao", authMiddleware, async (req: any, res) => {
     try {
-      console.log('\n📥 GET /api/formalizacao - User:', req.user.email, 'Role:', req.user.role);
-
+      const limit = parseInt(req.query.limit as string) || 0;
+      const offset = parseInt(req.query.offset as string) || 0;
       
+      console.log(`\n📥 GET /api/formalizacao - User: ${req.user.email}, Role: ${req.user.role}, limit: ${limit}, offset: ${offset}`);
+
       if (!supabase) {
         console.log('⚠ Supabase não disponível, retornando array vazio');
         return res.json([]);
       }
 
-      console.log('Tentando buscar de formalizacao no Supabase (COM PAGINAÇÃO INTERNA)...');
-      let data = await getAllFormalizacoes();
+      let allData = await getAllFormalizacoes();
       
       // Se usuário é padrão, filtrar apenas demandas onde ele é técnico
       if (req.user.role === 'usuario') {
-        data = data.filter(f => f.usuario_atribuido_id === req.user.userId);
-        console.log(`🔒 Usuário comum - Filtrado para: ${data.length} registros onde usuario_atribuido_id = ${req.user.userId}`);
+        allData = allData.filter(f => f.usuario_atribuido_id === req.user.userId);
+        console.log(`🔒 Usuário comum - Filtrado para: ${allData.length} registros`);
       }
       
-      // DEBUG: Verificar quantidade de registros com dados
-      if (data.length > 0) {
-        const withParl = data.filter(r => r.parlamentar && r.parlamentar.trim() !== '').length;
-        const withConv = data.filter(r => r.conveniado && r.conveniado.trim() !== '').length;
-        const withObj = data.filter(r => r.objeto && r.objeto.trim() !== '').length;
-        console.log(`📊 Dados retornados: ${data.length} total`);
-        console.log(`   - Com parlamentar preenchido: ${withParl} (${((withParl/data.length)*100).toFixed(1)}%)`);
-        console.log(`   - Com conveniado preenchido: ${withConv} (${((withConv/data.length)*100).toFixed(1)}%)`);
-        console.log(`   - Com objeto preenchido: ${withObj} (${((withObj/data.length)*100).toFixed(1)}%)`);
-        if (data.length > 0) {
-          const sample = data[0];
-          console.log(`   - Amostra: ${sample.parlamentar ? '✓ parlamentar' : '✗ parlamentar'}, ${sample.conveniado ? '✓ conveniado' : '✗ conveniado'}, ${sample.objeto ? '✓ objeto' : '✗ objeto'}`);
-        }
+      // Aplicar limit/offset se fornecidos (para paginação do frontend)
+      let data = allData;
+      if (limit > 0) {
+        data = allData.slice(offset, offset + limit);
+        console.log(`📄 Paginação: offset=${offset}, limit=${limit} → ${data.length} registros (total: ${allData.length})`);
+      } else {
+        console.log(`✓ Retornando TODOS: ${data.length} registros`);
       }
-      
-      console.log(`✓ Retornando: ${data.length} registros`);
-      // Cache headers para dados
-      res.set('Cache-Control', 'public, max-age=300'); // Cache por 5 minutos
+
+      res.set('Cache-Control', 'public, max-age=300');
       res.set('Content-Type', 'application/json');
       return res.json(data);
     } catch (error) {
@@ -2288,6 +2337,10 @@ const app = express();
               const cleanVal = String(val || '0').replace(/\s/g, '').replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
               const parsed = parseFloat(cleanVal);
               filtered[dbKey] = isNaN(parsed) ? 0 : parsed;
+            } else if (DATE_COLUMNS.has(dbKey)) {
+              // ✅ Converter datas DD/MM/YYYY → YYYY-MM-DD para o PostgreSQL
+              const converted = convertDateBR(String(val));
+              if (converted) filtered[dbKey] = converted;
             } else {
               filtered[dbKey] = String(val).trim();
             }
@@ -2416,6 +2469,10 @@ const app = express();
             const cleanVal = String(val).replace(/\s/g, '').replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
             const parsed = parseFloat(cleanVal);
             filtered[key] = isNaN(parsed) ? 0 : parsed;
+          } else if (DATE_COLUMNS.has(key)) {
+            // ✅ Converter datas DD/MM/YYYY → YYYY-MM-DD para o PostgreSQL
+            const converted = convertDateBR(String(val));
+            if (converted) filtered[key] = converted;
           } else {
             filtered[key] = String(val).trim();
           }
