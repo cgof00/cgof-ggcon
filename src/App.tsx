@@ -92,6 +92,54 @@ function mapCsvRowToEmendas(row: Record<string, string>): Record<string, any> | 
   return mapped;
 }
 
+// ===== CSV Formalização mapping =====
+const CSV_TO_FORMALIZACAO_MAP: Record<string, string> = {
+  'Seq': 'seq', 'Ano': 'ano', 'Parlamentar': 'parlamentar', 'Partido': 'partido',
+  'Emenda': 'emenda', 'Emendas Agregadoras': 'emendas_agregadoras', 'Demanda': 'demanda',
+  'DEMANDAS FORMALIZAÇÃO': 'demandas_formalizacao', 'DEMANDAS FORMALIZACAO': 'demandas_formalizacao',
+  'N° de Convênio': 'numero_convenio', 'N° de Convenio': 'numero_convenio',
+  'Classificação Emenda/Demanda': 'classificacao_emenda_demanda', 'Classificacao Emenda/Demanda': 'classificacao_emenda_demanda',
+  'Tipo de Formalização': 'tipo_formalizacao', 'Tipo de Formalizacao': 'tipo_formalizacao',
+  'Regional': 'regional', 'Município': 'municipio', 'Municipio': 'municipio',
+  'Conveniado': 'conveniado', 'Objeto': 'objeto',
+  'Portfólio': 'portfolio', 'Portfolio': 'portfolio', 'Portfólio ': 'portfolio',
+  'Valor': 'valor',
+  'Posição Anterior': 'posicao_anterior', 'Posicao Anterior': 'posicao_anterior',
+  'Situação Demandas - SemPapel': 'situacao_demandas_sempapel', 'Situacao Demandas - SemPapel': 'situacao_demandas_sempapel',
+  'Área - estágio': 'area_estagio', 'Area - estagio': 'area_estagio',
+  'Recurso': 'recurso', 'Tecnico': 'tecnico',
+  'Data da Liberação': 'data_liberacao', 'Data da Liberacao': 'data_liberacao',
+  'Área - Estágio Situação da Demanda': 'area_estagio_situacao_demanda', 'Area - Estagio Situacao da Demanda': 'area_estagio_situacao_demanda',
+  'Situação - Análise Demanda': 'situacao_analise_demanda', 'Situacao - Analise Demanda': 'situacao_analise_demanda',
+  'Data - Análise Demanda': 'data_analise_demanda', 'Data - Analise Demanda': 'data_analise_demanda',
+  'Motivo do Retorno da Diligência': 'motivo_retorno_diligencia', 'Motivo do Retorno da Diligencia': 'motivo_retorno_diligencia',
+  'Data do Retorno da Diligência': 'data_retorno_diligencia', 'Data do Retorno da Diligencia': 'data_retorno_diligencia',
+  'Conferencista': 'conferencista',
+  'Data recebimento demanda': 'data_recebimento_demanda',
+  'Data do Retorno': 'data_retorno',
+  'Observação - Motivo do Retorno': 'observacao_motivo_retorno', 'Observacao - Motivo do Retorno': 'observacao_motivo_retorno',
+  'Data liberação da Assinatura - Conferencista': 'data_liberacao_assinatura_conferencista',
+  'Data liberacao da Assinatura - Conferencista': 'data_liberacao_assinatura_conferencista',
+  'Data liberação de Assinatura': 'data_liberacao_assinatura', 'Data liberacao de Assinatura': 'data_liberacao_assinatura',
+  'Falta assinatura': 'falta_assinatura',
+  'Assinatura': 'assinatura',
+  'Publicação': 'publicacao', 'Publicacao': 'publicacao',
+  'Vigência': 'vigencia', 'Vigencia': 'vigencia',
+  'Encaminhado em': 'encaminhado_em',
+  'Concluída em': 'concluida_em', 'Concluida em': 'concluida_em',
+};
+function mapCsvRowToFormalizacao(row: Record<string, string>): Record<string, any> | null {
+  const mapped: Record<string, any> = {};
+  for (const [csvHeader, dbColumn] of Object.entries(CSV_TO_FORMALIZACAO_MAP)) {
+    const val = row[csvHeader];
+    if (val === undefined || val === null || val === '') continue;
+    if (dbColumn === 'valor') mapped[dbColumn] = parseBRNumber(val);
+    else mapped[dbColumn] = String(val).trim();
+  }
+  if (Object.keys(mapped).length === 0) return null;
+  return mapped;
+}
+
 // 🎯 Componente MultiSelectFilter com busca
 interface MultiSelectFilterProps {
   label: string;
@@ -518,6 +566,21 @@ export default function App() {
   const [importTotal, setImportTotal] = useState(0);
   const [importMessage, setImportMessage] = useState('');
   const [importError, setImportError] = useState('');
+  // Formalização import states
+  const [isImportFormalizacaoOpen, setIsImportFormalizacaoOpen] = useState(false);
+  const [importFormStatus, setImportFormStatus] = useState<'idle' | 'parsing' | 'uploading' | 'done' | 'error'>('idle');
+  const [importFormProgress, setImportFormProgress] = useState(0);
+  const [importFormMessage, setImportFormMessage] = useState('');
+  const [importFormError, setImportFormError] = useState('');
+  const [importFormMode, setImportFormMode] = useState<'replace' | 'append'>('replace');
+  const fileInputFormRef = useRef<HTMLInputElement>(null);
+  // Atualizar campos formalização states
+  const [isUpdateCamposOpen, setIsUpdateCamposOpen] = useState(false);
+  const [updateCamposStatus, setUpdateCamposStatus] = useState<'idle' | 'parsing' | 'uploading' | 'done' | 'error'>('idle');
+  const [updateCamposProgress, setUpdateCamposProgress] = useState(0);
+  const [updateCamposMessage, setUpdateCamposMessage] = useState('');
+  const [updateCamposError, setUpdateCamposError] = useState('');
+  const fileInputUpdateCamposRef = useRef<HTMLInputElement>(null);
   const [isSupabaseGuideOpen, setIsSupabaseGuideOpen] = useState(false);
   const [editingFormalizacao, setEditingFormalizacao] = useState<Formalizacao | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -1257,6 +1320,151 @@ export default function App() {
           await processRows(results.data as Record<string, string>[]);
         },
         error: (err) => { setImportStatus('error'); setImportError(`Erro ao ler CSV: ${err.message}`); }
+      });
+    }
+  };
+
+  // ===== Importação de Formalização (CSV/Excel) =====
+  const handleImportFormalizacaoCSV = async (file: File) => {
+    setImportFormStatus('parsing');
+    setImportFormProgress(0);
+    setImportFormMessage('Lendo arquivo...'); setImportFormError('');
+    const tk = localStorage.getItem('auth_token');
+    if (!tk) { setImportFormStatus('error'); setImportFormError('Token de autenticação não encontrado'); return; }
+
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const isExcel = ['xls', 'xlsx', 'xml'].includes(ext);
+
+    const processRows = async (rows: Record<string, string>[]) => {
+      const mapped = rows.map(mapCsvRowToFormalizacao).filter((r): r is Record<string, any> => r !== null);
+      if (mapped.length === 0) { setImportFormStatus('error'); setImportFormError('Nenhum registro válido encontrado no arquivo.'); return; }
+
+      setImportFormStatus('uploading');
+      setImportFormMessage(`Enviando ${mapped.length} registros (modo: ${importFormMode === 'replace' ? 'substituir tudo' : 'adicionar novos'})...`);
+
+      const BATCH = 200;
+      const totalBatches = Math.ceil(mapped.length / BATCH);
+      let uploaded = 0;
+
+      for (let i = 0; i < mapped.length; i += BATCH) {
+        const chunk = mapped.slice(i, i + BATCH);
+        const bn = Math.floor(i / BATCH) + 1;
+        setImportFormMessage(`Lote ${bn}/${totalBatches} (${Math.min(i + BATCH, mapped.length)}/${mapped.length})...`);
+        try {
+          const resp = await fetch('/api/admin/import-formalizacao', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ records: chunk, mode: i === 0 ? importFormMode : 'append' }),
+          });
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' }));
+            setImportFormStatus('error'); setImportFormError(`Erro no lote ${bn}: ${err.error || resp.statusText}`);
+            return;
+          }
+          uploaded += chunk.length;
+          setImportFormProgress(Math.round((uploaded / mapped.length) * 100));
+        } catch (e: any) { setImportFormStatus('error'); setImportFormError(`Erro de rede no lote ${bn}: ${e.message}`); return; }
+      }
+
+      setImportFormProgress(100); setImportFormStatus('done');
+      setImportFormMessage(`Importação concluída! ${mapped.length} registros de formalização importados.`);
+      // Recarregar dados
+      silentRefreshData();
+    };
+
+    if (isExcel) {
+      try {
+        setImportFormMessage(`Lendo arquivo ${ext.toUpperCase()}...`);
+        const rows = await parseExcelFile(file);
+        await processRows(rows);
+      } catch (e: any) { setImportFormStatus('error'); setImportFormError(e.message); }
+    } else {
+      Papa.parse(file, {
+        header: true, delimiter: ';', skipEmptyLines: true, encoding: 'UTF-8',
+        complete: async (results) => { await processRows(results.data as Record<string, string>[]); },
+        error: (err) => { setImportFormStatus('error'); setImportFormError(`Erro ao ler CSV: ${err.message}`); }
+      });
+    }
+  };
+
+  // ===== Atualizar Tipo de Formalização e Recurso via planilha =====
+  const UPDATE_CAMPOS_MAP: Record<string, string> = {
+    'Emenda': 'emenda',
+    'Tipo de formalização': 'tipo_formalizacao', 'Tipo de Formalização': 'tipo_formalizacao',
+    'Tipo de formalizacao': 'tipo_formalizacao', 'Tipo de Formalizacao': 'tipo_formalizacao',
+    'Recurso': 'recurso',
+  };
+  const handleUpdateCamposCSV = async (file: File) => {
+    setUpdateCamposStatus('parsing');
+    setUpdateCamposProgress(0);
+    setUpdateCamposMessage('Lendo arquivo...'); setUpdateCamposError('');
+    const tk = localStorage.getItem('auth_token');
+    if (!tk) { setUpdateCamposStatus('error'); setUpdateCamposError('Token de autenticação não encontrado'); return; }
+
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const isExcel = ['xls', 'xlsx', 'xml'].includes(ext);
+
+    const processRows = async (rows: Record<string, string>[]) => {
+      // Mapear colunas do CSV para nomes do banco
+      const mapped = rows.map(row => {
+        const rec: Record<string, any> = {};
+        for (const [csvHeader, dbColumn] of Object.entries(UPDATE_CAMPOS_MAP)) {
+          const val = row[csvHeader];
+          if (val !== undefined && val !== null && String(val).trim() !== '') {
+            rec[dbColumn] = String(val).trim();
+          }
+        }
+        return rec;
+      }).filter(r => r.emenda); // Precisa ter emenda como chave
+
+      if (mapped.length === 0) { setUpdateCamposStatus('error'); setUpdateCamposError('Nenhum registro com coluna "Emenda" encontrado.'); return; }
+
+      setUpdateCamposStatus('uploading');
+      setUpdateCamposMessage(`Atualizando ${mapped.length} registros...`);
+
+      const BATCH = 100;
+      const totalBatches = Math.ceil(mapped.length / BATCH);
+      let totalUpdated = 0;
+      let totalNotFound = 0;
+
+      for (let i = 0; i < mapped.length; i += BATCH) {
+        const chunk = mapped.slice(i, i + BATCH);
+        const bn = Math.floor(i / BATCH) + 1;
+        setUpdateCamposMessage(`Lote ${bn}/${totalBatches} (${Math.min(i + BATCH, mapped.length)}/${mapped.length})...`);
+        try {
+          const resp = await fetch('/api/admin/update-formalizacao-campos', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ records: chunk }),
+          });
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' }));
+            setUpdateCamposStatus('error'); setUpdateCamposError(`Erro no lote ${bn}: ${err.error || resp.statusText}`);
+            return;
+          }
+          const result = await resp.json();
+          totalUpdated += result.updated || 0;
+          totalNotFound += result.notFound || 0;
+          setUpdateCamposProgress(Math.round(((i + chunk.length) / mapped.length) * 100));
+        } catch (e: any) { setUpdateCamposStatus('error'); setUpdateCamposError(`Erro de rede no lote ${bn}: ${e.message}`); return; }
+      }
+
+      setUpdateCamposProgress(100); setUpdateCamposStatus('done');
+      setUpdateCamposMessage(`Concluído! ${totalUpdated} registros atualizados | ${totalNotFound} emendas não encontradas.`);
+      silentRefreshData();
+    };
+
+    if (isExcel) {
+      try {
+        setUpdateCamposMessage(`Lendo arquivo ${ext.toUpperCase()}...`);
+        const rows = await parseExcelFile(file);
+        await processRows(rows);
+      } catch (e: any) { setUpdateCamposStatus('error'); setUpdateCamposError(e.message); }
+    } else {
+      Papa.parse(file, {
+        header: true, delimiter: ';', skipEmptyLines: true, encoding: 'UTF-8',
+        complete: async (results) => { await processRows(results.data as Record<string, string>[]); },
+        error: (err) => { setUpdateCamposStatus('error'); setUpdateCamposError(`Erro ao ler arquivo: ${err.message}`); }
       });
     }
   };
@@ -2163,10 +2371,24 @@ export default function App() {
                     </button>
                     <button
                       onClick={() => setIsImportOpen(true)}
-                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 last:rounded-b-xl font-bold transition-colors"
+                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 font-bold transition-colors"
                     >
                       <Upload className="w-4 h-4" />
                       Importar CSV Emendas
+                    </button>
+                    <button
+                      onClick={() => setIsImportFormalizacaoOpen(true)}
+                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 font-bold transition-colors"
+                    >
+                      <DbIcon className="w-4 h-4" />
+                      Importar Formalização
+                    </button>
+                    <button
+                      onClick={() => setIsUpdateCamposOpen(true)}
+                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 last:rounded-b-xl font-bold transition-colors"
+                    >
+                      <PenLine className="w-4 h-4" />
+                      Atualizar Tipo/Recurso
                     </button>
                   </div>
                 )}
@@ -3570,6 +3792,150 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   <span className={`flex items-center gap-1 ${importStatus === 'syncing' ? 'text-violet-600 font-semibold' : importStatus === 'done' ? 'text-green-600' : ''}`}>
                     {importStatus === 'done' ? <CheckCircle2 className="w-3.5 h-3.5" /> : importStatus === 'syncing' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block" />} Sync
                   </span>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Import Formalização Modal */}
+      <AnimatePresence>
+        {isImportFormalizacaoOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { if (importFormStatus === 'idle' || importFormStatus === 'done' || importFormStatus === 'error') setIsImportFormalizacaoOpen(false); }} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><DbIcon className="w-5 h-5 text-blue-600" /> Importar Formalização</h2>
+                <button onClick={() => { if (importFormStatus === 'idle' || importFormStatus === 'done' || importFormStatus === 'error') { setIsImportFormalizacaoOpen(false); setImportFormStatus('idle'); setImportFormProgress(0); setImportFormMessage(''); setImportFormError(''); } }} className="p-1.5 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
+              </div>
+
+              <p className="text-sm text-slate-500 mb-4">Selecione o arquivo de formalização (<strong>CSV</strong>, <strong>XLS</strong>, <strong>XLSX</strong> ou <strong>XML</strong>). O sistema mapeará as colunas automaticamente.</p>
+
+              {/* Modo de importação */}
+              {importFormStatus === 'idle' && (
+                <div className="flex gap-3 mb-4">
+                  <button onClick={() => setImportFormMode('replace')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold border-2 transition-colors ${importFormMode === 'replace' ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                    <Trash2 className="w-4 h-4 inline mr-1" /> Substituir tudo
+                  </button>
+                  <button onClick={() => setImportFormMode('append')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold border-2 transition-colors ${importFormMode === 'append' ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                    <Plus className="w-4 h-4 inline mr-1" /> Adicionar novos
+                  </button>
+                </div>
+              )}
+
+              {importFormMode === 'replace' && importFormStatus === 'idle' && (
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800">Modo <strong>Substituir</strong>: todos os registros atuais de formalização serão apagados e substituídos pelo conteúdo do arquivo.</p>
+                </div>
+              )}
+
+              <input ref={fileInputFormRef} type="file" accept=".csv,.xls,.xlsx,.xml" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFormalizacaoCSV(f); e.target.value = ''; }} />
+
+              <div className="flex items-center gap-3 mb-4">
+                <button onClick={() => fileInputFormRef.current?.click()} disabled={importFormStatus === 'uploading' || importFormStatus === 'parsing'} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
+                  <Upload className="w-4 h-4" /> Selecionar Arquivo
+                </button>
+                {importFormStatus === 'done' && (
+                  <button onClick={() => { setImportFormStatus('idle'); setImportFormProgress(0); setImportFormMessage(''); setImportFormError(''); }} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg px-4 py-2.5 transition-colors">
+                    <RefreshCw className="w-4 h-4" /> Nova importação
+                  </button>
+                )}
+              </div>
+
+              {importFormStatus !== 'idle' && (
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600 font-medium">{importFormMessage}</span>
+                    {importFormProgress > 0 && <span className="text-slate-500 font-bold">{importFormProgress}%</span>}
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${importFormProgress}%` }} transition={{ duration: 0.3 }} className={`h-full rounded-full ${importFormStatus === 'error' ? 'bg-red-500' : importFormStatus === 'done' ? 'bg-green-500' : 'bg-blue-500'}`} />
+                  </div>
+                </div>
+              )}
+
+              {importFormStatus === 'done' && (
+                <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                  <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-green-800">{importFormMessage}</p>
+                </div>
+              )}
+              {importFormStatus === 'error' && (
+                <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                  <XCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-red-800">{importFormError}</p>
+                    <button onClick={() => { setImportFormStatus('idle'); setImportFormProgress(0); setImportFormMessage(''); setImportFormError(''); }} className="mt-1 text-xs text-red-600 hover:text-red-800 underline">Tentar novamente</button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Update Tipo/Recurso Modal */}
+      <AnimatePresence>
+        {isUpdateCamposOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { if (updateCamposStatus === 'idle' || updateCamposStatus === 'done' || updateCamposStatus === 'error') setIsUpdateCamposOpen(false); }} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><PenLine className="w-5 h-5 text-emerald-600" /> Atualizar Tipo/Recurso</h2>
+                <button onClick={() => { if (updateCamposStatus === 'idle' || updateCamposStatus === 'done' || updateCamposStatus === 'error') { setIsUpdateCamposOpen(false); setUpdateCamposStatus('idle'); setUpdateCamposProgress(0); setUpdateCamposMessage(''); setUpdateCamposError(''); } }} className="p-1.5 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
+              </div>
+
+              <p className="text-sm text-slate-500 mb-3">Envie uma planilha com as colunas <strong>Emenda</strong>, <strong>Tipo de formalização</strong> e <strong>Recurso</strong>. O sistema usará a coluna "Emenda" como referência para atualizar os campos correspondentes na tabela de formalização.</p>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-4">
+                <p className="text-xs font-bold text-slate-700 mb-1">Colunas esperadas:</p>
+                <div className="flex gap-2 flex-wrap">
+                  <span className="bg-slate-200 text-slate-700 text-xs font-mono px-2 py-0.5 rounded">Emenda</span>
+                  <span className="bg-emerald-100 text-emerald-700 text-xs font-mono px-2 py-0.5 rounded">Tipo de formalização</span>
+                  <span className="bg-emerald-100 text-emerald-700 text-xs font-mono px-2 py-0.5 rounded">Recurso</span>
+                </div>
+              </div>
+
+              <input ref={fileInputUpdateCamposRef} type="file" accept=".csv,.xls,.xlsx,.xml" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpdateCamposCSV(f); e.target.value = ''; }} />
+
+              <div className="flex items-center gap-3 mb-4">
+                <button onClick={() => fileInputUpdateCamposRef.current?.click()} disabled={updateCamposStatus === 'uploading' || updateCamposStatus === 'parsing'} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 text-white text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
+                  <Upload className="w-4 h-4" /> Selecionar Arquivo
+                </button>
+                {updateCamposStatus === 'done' && (
+                  <button onClick={() => { setUpdateCamposStatus('idle'); setUpdateCamposProgress(0); setUpdateCamposMessage(''); setUpdateCamposError(''); }} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg px-4 py-2.5 transition-colors">
+                    <RefreshCw className="w-4 h-4" /> Nova atualização
+                  </button>
+                )}
+              </div>
+
+              {updateCamposStatus !== 'idle' && (
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600 font-medium">{updateCamposMessage}</span>
+                    {updateCamposProgress > 0 && <span className="text-slate-500 font-bold">{updateCamposProgress}%</span>}
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${updateCamposProgress}%` }} transition={{ duration: 0.3 }} className={`h-full rounded-full ${updateCamposStatus === 'error' ? 'bg-red-500' : updateCamposStatus === 'done' ? 'bg-green-500' : 'bg-emerald-500'}`} />
+                  </div>
+                </div>
+              )}
+
+              {updateCamposStatus === 'done' && (
+                <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                  <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-green-800">{updateCamposMessage}</p>
+                </div>
+              )}
+              {updateCamposStatus === 'error' && (
+                <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                  <XCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-red-800">{updateCamposError}</p>
+                    <button onClick={() => { setUpdateCamposStatus('idle'); setUpdateCamposProgress(0); setUpdateCamposMessage(''); setUpdateCamposError(''); }} className="mt-1 text-xs text-red-600 hover:text-red-800 underline">Tentar novamente</button>
+                  </div>
                 </div>
               )}
             </motion.div>

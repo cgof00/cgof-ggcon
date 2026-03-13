@@ -2382,6 +2382,172 @@ const app = express();
     }
   });
 
+  // ============================================================
+  // Importar Formalização via CSV (substituir toda a tabela)
+  // Recebe registros já mapeados do frontend, apaga tudo e reinsere
+  // ============================================================
+  app.post("/api/admin/import-formalizacao", authMiddleware, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin') return res.status(403).json({ error: 'Apenas administradores podem importar formalização' });
+      if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+      const { records, mode } = req.body;
+      if (!Array.isArray(records) || records.length === 0) return res.status(400).json({ error: "Dados inválidos ou vazios" });
+
+      const validColumns = [
+        "seq", "ano", "parlamentar", "partido", "emenda", "emendas_agregadoras", "demanda",
+        "demandas_formalizacao", "numero_convenio", "classificacao_emenda_demanda", "tipo_formalizacao",
+        "regional", "municipio", "conveniado", "objeto", "portfolio", "valor",
+        "posicao_anterior", "situacao_demandas_sempapel", "area_estagio", "recurso", "tecnico",
+        "data_liberacao", "area_estagio_situacao_demanda", "situacao_analise_demanda", "data_analise_demanda",
+        "motivo_retorno_diligencia", "data_retorno_diligencia", "conferencista",
+        "data_recebimento_demanda", "data_retorno", "observacao_motivo_retorno", "data_liberacao_assinatura_conferencista",
+        "data_liberacao_assinatura", "falta_assinatura", "assinatura", "publicacao",
+        "vigencia", "encaminhado_em", "concluida_em"
+      ];
+
+      // Filtrar e validar campos
+      const filteredRecords = records.map((item: any) => {
+        const filtered: any = {};
+        for (const [key, val] of Object.entries(item)) {
+          if (!validColumns.includes(key)) continue;
+          if (val === undefined || val === null || val === '') continue;
+          if (key === 'valor') {
+            const cleanVal = String(val).replace(/\s/g, '').replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+            const parsed = parseFloat(cleanVal);
+            filtered[key] = isNaN(parsed) ? 0 : parsed;
+          } else {
+            filtered[key] = String(val).trim();
+          }
+        }
+        return filtered;
+      }).filter((r: any) => Object.keys(r).length > 0);
+
+      console.log(`📥 Import Formalização: ${filteredRecords.length} registros | Modo: ${mode || 'append'}`);
+
+      if (mode === 'replace') {
+        // Apagar todos os registros existentes
+        console.log('🗑️ Apagando formalizações existentes...');
+        // Supabase não tem TRUNCATE via API, apagar em batches
+        let deletedTotal = 0;
+        while (true) {
+          const { data: toDelete, error: fetchErr } = await supabase
+            .from("formalizacao")
+            .select("id")
+            .limit(1000);
+          if (fetchErr) throw fetchErr;
+          if (!toDelete || toDelete.length === 0) break;
+          const ids = toDelete.map((r: any) => r.id);
+          const { error: delErr } = await supabase
+            .from("formalizacao")
+            .delete()
+            .in("id", ids);
+          if (delErr) throw delErr;
+          deletedTotal += ids.length;
+          console.log(`   🗑️ ${deletedTotal} registros apagados...`);
+        }
+        console.log(`✅ ${deletedTotal} registros antigos removidos`);
+      }
+
+      // Inserir novos registros em batches
+      let totalInserted = 0;
+      const errors: string[] = [];
+      for (let i = 0; i < filteredRecords.length; i += 100) {
+        const chunk = filteredRecords.slice(i, i + 100);
+        const { data, error } = await supabase.from("formalizacao").insert(chunk).select("id");
+        if (error) {
+          console.error(`❌ Erro chunk ${Math.floor(i/100)+1}:`, error.message);
+          errors.push(`Lote ${Math.floor(i/100)+1}: ${error.message}`);
+        } else {
+          totalInserted += data?.length || 0;
+        }
+      }
+
+      // Limpar cache
+      formalizacaoCache = null;
+      formalizacaoCacheTimestamp = 0;
+
+      console.log(`✅ Import Formalização concluído: ${totalInserted} inseridos`);
+
+      return res.json({
+        count: totalInserted,
+        total: filteredRecords.length,
+        errors: errors.length > 0 ? errors : undefined,
+        message: mode === 'replace' 
+          ? `Tabela substituída: ${totalInserted} registros importados`
+          : `${totalInserted} novos registros adicionados`
+      });
+    } catch (error: any) {
+      console.error('❌ Erro import formalização:', error);
+      return res.status(500).json({ error: "Erro ao importar formalização", details: error.message });
+    }
+  });
+
+  // ============================================================
+  // Atualizar colunas tipo_formalizacao e recurso via planilha
+  // Usa a coluna "emenda" como chave de referência
+  // ============================================================
+  app.post("/api/admin/update-formalizacao-campos", authMiddleware, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin') return res.status(403).json({ error: 'Apenas administradores' });
+      if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
+
+      const { records } = req.body;
+      if (!Array.isArray(records) || records.length === 0) return res.status(400).json({ error: "Dados inválidos ou vazios" });
+
+      console.log(`📥 Update Campos Formalização: ${records.length} registros recebidos`);
+
+      let updated = 0;
+      let notFound = 0;
+      const errors: string[] = [];
+
+      for (const record of records) {
+        const emenda = record.emenda ? String(record.emenda).trim() : '';
+        if (!emenda) { notFound++; continue; }
+
+        const updateData: any = {};
+        if (record.tipo_formalizacao !== undefined && record.tipo_formalizacao !== null && String(record.tipo_formalizacao).trim() !== '') {
+          updateData.tipo_formalizacao = String(record.tipo_formalizacao).trim();
+        }
+        if (record.recurso !== undefined && record.recurso !== null && String(record.recurso).trim() !== '') {
+          updateData.recurso = String(record.recurso).trim();
+        }
+        if (Object.keys(updateData).length === 0) { notFound++; continue; }
+
+        const { data, error } = await supabase
+          .from("formalizacao")
+          .update(updateData)
+          .eq("emenda", emenda)
+          .select("id");
+
+        if (error) {
+          errors.push(`Emenda ${emenda}: ${error.message}`);
+        } else if (data && data.length > 0) {
+          updated += data.length;
+        } else {
+          notFound++;
+        }
+      }
+
+      // Limpar cache
+      formalizacaoCache = null;
+      formalizacaoCacheTimestamp = 0;
+
+      console.log(`✅ Update Campos: ${updated} atualizados | ${notFound} não encontrados`);
+
+      return res.json({
+        updated,
+        notFound,
+        total: records.length,
+        errors: errors.length > 0 ? errors : undefined,
+        message: `${updated} registros atualizados | ${notFound} não encontrados`
+      });
+    } catch (error: any) {
+      console.error('❌ Erro update campos formalização:', error);
+      return res.status(500).json({ error: "Erro ao atualizar campos", details: error.message });
+    }
+  });
+
   app.put("/api/emendas/:id", async (req, res) => {
     try {
       const { id } = req.params;
