@@ -19,7 +19,7 @@ export const onRequest: PagesFunction = async (context) => {
   }
 
   // Ler body para opções
-  let requestBody: any = { onlyNew: true }; // default: apenas novas
+  let requestBody: any = { onlyNew: false }; // default: FALSO = fazer AMBAS (atualizar + inserir)
   try {
     const bodyText = await request.text();
     if (bodyText) {
@@ -29,7 +29,7 @@ export const onRequest: PagesFunction = async (context) => {
     console.warn('Erro ao parsear body, usando default:', e);
   }
 
-  const onlyNew = requestBody.onlyNew !== false; // default true
+  const onlyNew = requestBody.onlyNew === true; // Apenas TRUE ativa onlyNew (mais seguro)
   console.log(`🔄 Sincronizando (onlyNew=${onlyNew})...`);
 
   const headers = {
