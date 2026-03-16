@@ -16,6 +16,7 @@ as $$
 declare
   updated_norm_rows int := 0;
   updated_last5_rows int := 0;
+  updated_last5_noyear_rows int := 0;
   updated_total int := 0;
   not_found int := 0;
   skipped_year int := 0;
@@ -140,12 +141,55 @@ begin
     returning f.id
   ),
 
+  -- 3) Fallback por last5 SEM ano no input
+  --    Útil quando a emenda na planilha não permite extrair ano, mas ainda queremos
+  --    atualizar somente o destino 2023–2026. Só aplica com unicidade em ambos.
+  input_last5_unique_anyyear as (
+    select
+      emenda_last5,
+      max(tipo_formalizacao) as tipo_formalizacao,
+      max(recurso) as recurso
+    from input_unmatched_norm
+    where emenda_last5 is not null and emenda_last5 <> ''
+    group by emenda_last5
+    having count(*) = 1
+  ),
+  formalizacao_last5_unique_in_years as (
+    select
+      right(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g'), 5) as emenda_last5,
+      min(f.id) as id
+    from formalizacao f
+    where (
+      case
+        when length(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g')) >= 4
+          then substring(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') from 1 for 4)::int
+        else null
+      end
+    ) = any(years)
+    group by 1
+    having count(*) = 1
+  ),
+  updated_last5_noyear as (
+    update formalizacao f
+    set
+      tipo_formalizacao = coalesce(i.tipo_formalizacao, f.tipo_formalizacao),
+      recurso = coalesce(i.recurso, f.recurso)
+    from input_last5_unique_anyyear i
+    join formalizacao_last5_unique_in_years u
+      on u.emenda_last5 = i.emenda_last5
+    where f.id = u.id
+      and not exists (select 1 from updated_norm un where un.id = f.id)
+      and not exists (select 1 from updated_last5 ul where ul.id = f.id)
+    returning f.id
+  ),
+
   counts as (
     select
       (select count(*) from input) as total_input,
       (select count(*) from input_filtered) as filtered_input,
       (select count(*) from updated_norm) as updated_norm_count,
       (select count(*) from updated_last5) as updated_last5_count,
+      (select count(*) from updated_last5_noyear) as updated_last5_noyear_count,
       (
         -- emendas do input (já filtradas por anos) que não acharam match nem por norm nem por last5 seguro
         select count(*)
@@ -161,6 +205,13 @@ begin
           join formalizacao_year_last5_unique fu
             on fu.ano = iu.ano and fu.emenda_last5 = iu.emenda_last5
           where iu.ano = i.ano and iu.emenda_last5 = i.emenda_last5
+        )
+        and not exists (
+          select 1
+          from input_last5_unique_anyyear ia
+          join formalizacao_last5_unique_in_years fa
+            on fa.emenda_last5 = ia.emenda_last5
+          where ia.emenda_last5 = i.emenda_last5
         )
       ) as not_found_count,
       (
@@ -194,7 +245,8 @@ begin
     filtered_input,
     updated_norm_count,
     updated_last5_count,
-    (updated_norm_count + updated_last5_count) as updated_total_count,
+    updated_last5_noyear_count,
+    (updated_norm_count + updated_last5_count + updated_last5_noyear_count) as updated_total_count,
     not_found_count,
     skipped_year_count,
     ambiguous_input_last5_count,
@@ -204,6 +256,7 @@ begin
     filtered_rows,
     updated_norm_rows,
     updated_last5_rows,
+    updated_last5_noyear_rows,
     updated_total,
     not_found,
     skipped_year,
@@ -215,6 +268,7 @@ begin
     'updated', updated_total,
     'updatedNorm', updated_norm_rows,
     'updatedLast5', updated_last5_rows,
+    'updatedLast5NoYear', updated_last5_noyear_rows,
     'notFound', not_found,
     'skippedYear', skipped_year,
     'ambiguousInputLast5', ambiguous_input_last5,
