@@ -1,0 +1,83 @@
+# ⚡ AÇÃO NECESSÁRIA: Executar Script SQL
+
+## 🎯 Resumo Rápido
+
+Implementamos o **filtro de anos na importação de emendas**. Quando você clicar no botão "Importar Emendas":
+
+1. Arquivo é importado (sem restricao)
+2. Modal aparece pedindo para selecionar anos
+3. Apenas os anos selecionados sincronizam com formalizacao
+
+**Status:** Código pronto ✅ | **Faltando:** Executar SQL ⏳
+
+---
+
+## 🚀 AÇÃO AGORA: Execute este Script
+
+### 1. Acesse Supabase
+```
+https://app.supabase.com
+├─ Seu projeto
+├─ SQL Editor
+└─ New Query
+```
+
+### 2. Copie e Cole
+```
+Copie TODO o conteúdo do arquivo:
+  → sql/FUNCOES_RPC_PARAMETRIZADAS.sql
+```
+
+### 3. Clique RUN
+```
+Seu SQL Editor vai mostrar novo código criado
+Status: ✅ se não houver erro
+```
+
+### 4. Pronto!
+Agora seu sistema já tem o filtro de anos ativo.
+
+---
+
+## 📊 Arquivos Modificados
+
+| Arquivo | Ação | O Quê |
+|---------|------|-------|
+| `sql/FUNCOES_RPC_PARAMETRIZADAS.sql` | ✨ NOVO | Funções RPC com parâmetro de anos |
+| `functions/api/admin/sync-emendas.ts` | 🔧 MODIFICADO | Aceita body com `years` |
+| `src/App.tsx` | 🔧 MODIFICADO | Modal de seleção de anos |
+
+---
+
+## 🧪 Teste Rápido Depois
+
+1. Na interface, clique **"Importar Emendas"**
+2. Selecione um CSV qualquer
+3. Deixe fazer upload (até 91%)
+4. **🆕 Modal deve aparecer** perguntando quais anos sincronizar
+5. Selecione: 2024, 2025, 2026 (default)
+6. Clique "Confirmar Sincronização"
+7. Observe sincronização com apenas esses anos
+
+Se Modal aparecer = ✅ **Sistema funcionando!**
+
+---
+
+## 📖 Documentação Completa
+
+Para entender como usar:
+→ [GUIA_IMPORTAR_COM_FILTRO_ANOS.md](GUIA_IMPORTAR_COM_FILTRO_ANOS.md)
+
+Para entender o que foi feito:
+→ [IMPLEMENTACAO_FILTRO_ANOS_RESUMO.md](IMPLEMENTACAO_FILTRO_ANOS_RESUMO.md)
+
+---
+
+## ✅ Checklist
+
+- [ ] Script SQL executado no Supabase
+- [ ] Sem erros na execução
+- [ ] Testei importação (modal apareceu)
+- [ ] Sincronização funcionou com filtro
+
+Pronto! 🎉

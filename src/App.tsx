@@ -1213,39 +1213,101 @@ export default function App() {
 
     // Função que processa as rows já parseadas
     const processRows = async (rows: Record<string, string>[]) => {
+      // 🔍 PASSO 1: Mapear e validar registros
       const mapped = rows.map(mapCsvRowToEmendas).filter((r): r is Record<string, any> => r !== null);
+      
+      // 🔍 PASSO 2: Deduplicar registros dentro do arquivo
       const deduped = new Map<string, Record<string, any>>();
-      for (const rec of mapped) deduped.set(String(rec.codigo_num), rec);
+      for (const rec of mapped) {
+        const key = String(rec.codigo_num).trim();
+        deduped.set(key, rec); // Última ocorrência sobrescreve a anterior
+      }
       const records = Array.from(deduped.values());
-      if (records.length === 0) { setImportStatus('error'); setImportError('Nenhum registro válido encontrado no arquivo.'); return; }
+      const duplicadasNoArquivo = mapped.length - records.length;
+      
+      if (records.length === 0) { 
+        setImportStatus('error'); 
+        setImportError('Nenhum registro válido encontrado no arquivo.'); 
+        return; 
+      }
+      
+      console.log(`📊 Análise do arquivo: ${rows.length} linhas → ${mapped.length} mapeadas → ${records.length} únicas (${duplicadasNoArquivo} duplicadas removidas)`);
+      
       const totalBatches = Math.ceil(records.length / BATCH_SIZE);
-      setImportTotal(records.length); setImportStatus('uploading');
-      setImportMessage(`Enviando ${records.length} registros em ${totalBatches} lotes...`);
+      setImportTotal(records.length); 
+      setImportStatus('uploading');
+      setImportMessage(`Enviando ${records.length} registros únicos em ${totalBatches} lotes (${duplicadasNoArquivo} duplicatas removidas)...`);
+      
       let uploaded = 0;
+      const batchResults: any[] = [];
+      
       for (let i = 0; i < records.length; i += BATCH_SIZE) {
         const batch = records.slice(i, i + BATCH_SIZE);
         const bn = Math.floor(i / BATCH_SIZE) + 1;
-        setImportMessage(`Lote ${bn}/${totalBatches} (${Math.min(i + BATCH_SIZE, records.length)}/${records.length})...`);
+        setImportMessage(`Lote ${bn}/${totalBatches} enviando ${batch.length} registros...`);
+        
         try {
           const resp = await fetch('/api/admin/import-emendas', {
-            method: 'POST', headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
+            method: 'POST', 
+            headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ records: batch }),
           });
-          if (!resp.ok) { const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' })); setImportStatus('error'); setImportError(`Erro no lote ${bn}: ${err.error || resp.statusText}`); return; }
+          
+          if (!resp.ok) { 
+            const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' })); 
+            setImportStatus('error'); 
+            setImportError(`Erro no lote ${bn}: ${err.error || resp.statusText}`); 
+            return; 
+          }
+          
+          const result = await resp.json();
+          batchResults.push(result);
           uploaded += batch.length;
           setImportProgress(Math.round((uploaded / records.length) * 90));
-        } catch (e: any) { setImportStatus('error'); setImportError(`Erro de rede no lote ${bn}: ${e.message}`); return; }
+        } catch (e: any) { 
+          setImportStatus('error'); 
+          setImportError(`Erro de rede no lote ${bn}: ${e.message}`); 
+          return; 
+        }
       }
-      setImportStatus('syncing'); setImportProgress(92);
-      setImportMessage('Sincronizando emendas com formalizações...');
+      
+      setImportStatus('syncing'); 
+      setImportProgress(92);
+      setImportMessage('🔄 Sincronizando emendas com formalizações (apenas NOVAS)...');
+      
       try {
         const syncResp = await fetch('/api/admin/sync-emendas', {
-          method: 'POST', headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
+          method: 'POST', 
+          headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ onlyNew: true }),  // 🎯 NOVO: síncrona apenas novas
         });
-        if (!syncResp.ok) { const err = await syncResp.json().catch(() => ({ error: 'Erro desconhecido' })); setImportStatus('error'); setImportError(`Erro na sincronização: ${err.error || syncResp.statusText}`); return; }
-        setImportProgress(100); setImportStatus('done');
-        setImportMessage(`Importação concluída! ${records.length} emendas importadas e sincronizadas.`);
-      } catch (e: any) { setImportStatus('error'); setImportError(`Erro de rede: ${e.message}`); }
+        
+        if (!syncResp.ok) { 
+          const err = await syncResp.json().catch(() => ({ error: 'Erro desconhecido' })); 
+          setImportStatus('error'); 
+          setImportError(`Erro na sincronização: ${err.error || syncResp.statusText}`); 
+          return; 
+        }
+        
+        const syncResult = await syncResp.json();
+        setImportProgress(100); 
+        setImportStatus('done');
+        
+        const totalDuplicated = batchResults.reduce((sum: number, r: any) => sum + (r.deduped || 0), 0);
+        const totalImported = batchResults.reduce((sum: number, r: any) => sum + (r.imported || 0), 0);
+        
+        setImportMessage(
+          `✅ Importação Concluída!\n` +
+          `• ${totalImported} emendas processadas (UPSERT)\n` +
+          `• ${totalDuplicated} registros duplicados ignorados no CSV\n` +
+          `\n🔄 Sincronização (apenas NOVAS):\n` +
+          `• ${syncResult.result?.updated || 0} formalizações atualizadas\n` +
+          `• ${syncResult.result?.inserted || 0} novas formalizações inseridas`
+        );
+      } catch (e: any) { 
+        setImportStatus('error');  
+        setImportError(`Erro de rede: ${e.message}`); 
+      }
     };
 
     if (isExcel) {
@@ -3684,6 +3746,8 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
             </motion.div>
           </div>
         )}
+      </AnimatePresence>
+
       </AnimatePresence>
 
       {/* Update Tipo/Recurso Modal */}

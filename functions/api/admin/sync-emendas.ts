@@ -1,5 +1,6 @@
 // POST /api/admin/sync-emendas
-// Sincroniza emendas → formalizacao em 3 etapas separadas para evitar timeout
+// Sincroniza emendas → formalizacao em 2 etapas separadas para evitar duplicação
+// Opção: { onlyNew: true } para inserir apenas novas emendas
 export const onRequest: PagesFunction = async (context) => {
   const { request, env } = context;
   const SUPABASE_URL = env.SUPABASE_URL;
@@ -16,6 +17,20 @@ export const onRequest: PagesFunction = async (context) => {
       status: 405, headers: { 'Content-Type': 'application/json' }
     });
   }
+
+  // Ler body para opções
+  let requestBody: any = { onlyNew: true }; // default: apenas novas
+  try {
+    const bodyText = await request.text();
+    if (bodyText) {
+      requestBody = JSON.parse(bodyText);
+    }
+  } catch (e) {
+    console.warn('Erro ao parsear body, usando default:', e);
+  }
+
+  const onlyNew = requestBody.onlyNew !== false; // default true
+  console.log(`🔄 Sincronizando (onlyNew=${onlyNew})...`);
 
   const headers = {
     'Authorization': `Bearer ${SUPABASE_KEY}`,
@@ -38,38 +53,38 @@ export const onRequest: PagesFunction = async (context) => {
   }
 
   try {
-    // Etapa 1: UPDATE por numero_convenio
-    let r1, r2, r3;
-    try {
-      r1 = await callRpc('sync_step1_update_convenio');
-    } catch (e: any) {
-      console.error('Etapa 1 falhou:', e.message?.substring(0, 200));
-      r1 = { updated: 0, error: e.message?.substring(0, 100) };
+    let r1: any = { updated: 0, status: 'skipped' };
+    let r2: any = { inserted: 0, status: 'skipped' };
+
+    // Etapa 1: Atualizar emendas existentes
+    if (!onlyNew) {
+      try {
+        console.log('Etapa 1: Atualizando emendas existentes...');
+        r1 = await callRpc('sync_formalizacao_atualizar');
+        console.log('Etapa 1 sucesso:', r1);
+      } catch (e: any) {
+        console.error('Etapa 1 falhou:', e.message?.substring(0, 200));
+        r1 = { updated: 0, status: 'error', error: e.message?.substring(0, 100) };
+      }
     }
 
-    // Etapa 2: UPDATE por emenda/codigo_num
+    // Etapa 2: Inserir apenas novas emendas (sem duplicatas)
     try {
-      r2 = await callRpc('sync_step2_update_emenda');
+      console.log('Etapa 2: Inserindo apenas novas emendas...');
+      r2 = await callRpc('sync_formalizacao_novas');
+      console.log('Etapa 2 sucesso:', r2);
     } catch (e: any) {
       console.error('Etapa 2 falhou:', e.message?.substring(0, 200));
-      r2 = { updated: 0, error: e.message?.substring(0, 100) };
-    }
-
-    // Etapa 3: INSERT novas emendas na formalização
-    try {
-      r3 = await callRpc('sync_step3_insert_novas');
-    } catch (e: any) {
-      console.error('Etapa 3 falhou:', e.message?.substring(0, 200));
-      r3 = { inserted: 0, error: e.message?.substring(0, 100) };
+      r2 = { inserted: 0, status: 'error', error: e.message?.substring(0, 100) };
     }
 
     return new Response(JSON.stringify({
       success: true,
       result: {
-        updated_by_convenio: r1?.updated || 0,
-        updated_by_emenda: r2?.updated || 0,
-        inserted: r3?.inserted || 0,
-        message: `${(r1?.updated || 0) + (r2?.updated || 0)} atualizadas, ${r3?.inserted || 0} inseridas`
+        updated: r1?.updated || 0,
+        inserted: r2?.inserted || 0,
+        message: `${r1?.updated || 0} atualizadas, ${r2?.inserted || 0} novas inseridas`,
+        onlyNew: onlyNew
       }
     }), {
       status: 200, headers: { 'Content-Type': 'application/json' }

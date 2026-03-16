@@ -1,0 +1,96 @@
+⚡ AÇÃO IMEDIATA - 3 PASSOS
+=====================================
+
+🔴 PASSO 1: LIMPAR DUPLICATAS (5 min)
+─────────────────────────────────────
+
+No Supabase:
+1. Acesse: https://app.supabase.com → Seu projeto → SQL Editor
+2. Clique: "New Query"
+3. Copie TODO o arquivo:
+   → sql/LIMPAR_DUPLICATAS_EMERGENCIA.sql
+4. Cole no editor
+5. Execute CADA QUERY na sequência:
+   ① Query de contagem (para ver quanto tem)
+   ② Query de limpeza (DELETE)
+   ③ Query de verificação (confirmar)
+
+Resultado esperado:
+✅ formalizacao: 67848 → 38000 (aproximadamente)
+✅ Sem mais duplicatas
+
+
+🟡 PASSO 2: CRIAR FUNÇÕES NOVAS (5 min)
+────────────────────────────────────────
+
+No Supabase SQL Editor:
+1. Clique: "New Query"
+2. Copie TODO:
+   → sql/SYNC_SEGURA_V2.sql
+3. Cole no editor
+4. Clique: RUN
+
+Resultado esperado:
+✅ 3 funções criadas:
+   - sync_formalizacao_atualizar()
+   - sync_formalizacao_novas()
+
+
+🟢 PASSO 3: TESTAR SISTEMA (10 min)
+───────────────────────────────────
+
+Na interface:
+1. Clique: "Importar Emendas"
+2. Selecione um CSV pequeno (5-10 emendas)
+3. Veja o progresso:
+   ✓ Leitura
+   ✓ Upload
+   ✓ Sync
+4. ✅ Deve mostrar:
+   "X emendas processadas
+    Y novas sincronizadas
+    Z duplicatas ignoradas"
+
+Resultado esperado:
+✅ Sistema importa sem ERROR
+✅ Sem crescimento de duplicatas
+✅ Mensagem de sucesso aparece
+
+
+📊 VERIFICAÇÃO
+──────────────
+
+Para confirmar que funcionou:
+
+No Supabase SQL Editor:
+SELECT COUNT(*) FROM formalizacao;
+→ Deve ter ~38k-40k (não 67k+)
+
+SELECT COUNT(*) FROM emendas;
+→ Pode ter qualquer número
+
+
+❌ SE DER ERRO
+──────────────
+
+1. Erro ao limpar: Pode haver constraint
+   → Solução: Verificar se há relacionamentos
+
+2. Erro ao criar funções: Syntax error
+   → Solução: Verificar se copiou corretamente
+
+3. Importação falha: RPC não existe
+   → Solução: Confirmar que SYNC_SEGURA_V2.sql foi executado
+
+
+✅ PRONTO!
+──────────
+
+Depois desses 3 passos, o sistema está:
+✓ Sem duplicatas
+✓ Importação segura
+✓ Sync automático
+✓ Pronto para usar
+
+Tempo total: ~20 minutos
+Dificuldade: SIMPLES (só copiar e colar SQL)
