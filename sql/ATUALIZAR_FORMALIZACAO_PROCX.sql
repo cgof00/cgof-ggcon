@@ -144,6 +144,12 @@ LIMIT 10;
 -- 3. Atualiza dados cruzando tabelas (PROCX via 5 dígitos)
 -- ============================================================
 
+-- ⚠️ ATENÇÃO
+-- Os passos abaixo (DELETE duplicatas / UNIQUE constraint) podem causar impacto permanente.
+-- Se seu objetivo é APENAS atualizar tipo_formalizacao/recurso, prefira o script:
+--   ATUALIZAR_FORMALIZACAO_TIPO_RECURSO_2023_2026_LAST5.sql
+-- e NÃO execute os passos de remoção/constraint sem validação prévia.
+
 BEGIN;
 
 -- ============================================================
