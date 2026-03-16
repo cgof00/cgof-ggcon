@@ -42,7 +42,7 @@ export const onRequest: PagesFunction = async (context) => {
   try {
     console.log('🔄 Sincronizando incrementalmente (comparação total, anos 2023-2026)...');
     
-    const result = await callRpc('sync_incremental');
+    const result = await callRpc('sync_emendas_formalizacao');
     
     console.log('✅ Sincronização sucesso:', result);
 
