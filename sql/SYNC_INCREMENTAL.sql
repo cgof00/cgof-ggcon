@@ -20,10 +20,13 @@ DECLARE
   v_inserted INTEGER := 0;
   v_updated INTEGER := 0;
 BEGIN
-  -- PASSO 1: Obter último código de emenda já importado
-  SELECT COALESCE(emenda, '') INTO v_ultimo_codigo
-  FROM formalizacao
-  ORDER BY id DESC
+  -- PASSO 1: Obter a MAIOR emenda já importada (não depende da ordem física/id)
+  -- Normaliza removendo tudo que não é dígito e ordena numericamente.
+  SELECT COALESCE(f.emenda, '')
+  INTO v_ultimo_codigo
+  FROM formalizacao f
+  WHERE NULLIF(REGEXP_REPLACE(COALESCE(f.emenda, ''), '[^0-9]', '', 'g'), '') IS NOT NULL
+  ORDER BY (REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g'))::NUMERIC DESC, f.id DESC
   LIMIT 1;
 
   RAISE NOTICE 'Último código importado: %', COALESCE(v_ultimo_codigo, '[NENHUM]');
