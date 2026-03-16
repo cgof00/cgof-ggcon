@@ -60,3 +60,8 @@ exception when others then
   null;
 end;
 $$;
+
+-- ✅ Resultado (rode o arquivo inteiro para ver as contagens)
+select *
+from public.contar_recurso()
+order by table_name;

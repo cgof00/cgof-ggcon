@@ -1589,6 +1589,12 @@ export default function App() {
 
       // Função auxiliar para comparação
       const matchesAllFilters = (f: any) => {
+        const getAnoNorm = (val: any): string => {
+          const s = String(val ?? '').trim();
+          const m = s.match(/\d{4}/);
+          return m ? m[0] : '';
+        };
+
         const safeCompare = (fieldValue: any, filterValue: string): boolean => {
           if (!fieldValue) return false;
           const field = String(fieldValue).toLowerCase().trim();
@@ -1603,8 +1609,14 @@ export default function App() {
 
         // Verificar todos os filtros ativos
         if (Array.isArray(filtersToUse.ano) && filtersToUse.ano.length > 0) {
-          const anoField = String(f.ano || '').trim();
-          if (!filtersToUse.ano.includes(anoField)) return false;
+          const anoNorm = getAnoNorm(f.ano);
+          if (!anoNorm) return false;
+          const selected = filtersToUse.ano.map(getAnoNorm).filter(Boolean);
+          if (!selected.includes(anoNorm)) return false;
+        } else {
+          // 🔒 Padrão: ocultar anos antigos (sem filtro explícito de ano)
+          const anoNorm = getAnoNorm(f.ano);
+          if (anoNorm === '2019' || anoNorm === '2020' || anoNorm === '2021' || anoNorm === '2022') return false;
         }
 
         if (Array.isArray(filtersToUse.demandas_formalizacao) && filtersToUse.demandas_formalizacao.length > 0) {

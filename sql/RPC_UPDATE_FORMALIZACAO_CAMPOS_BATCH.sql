@@ -50,11 +50,6 @@ begin
       and emenda_norm <> ''
       and (tipo_formalizacao is not null or recurso is not null)
   ),
-  input_filtered as (
-    select *
-    from input_clean
-    where ano = any(years)
-  ),
   input_by_norm as (
     select
       emenda_norm,
@@ -62,7 +57,7 @@ begin
       ano,
       max(tipo_formalizacao) as tipo_formalizacao,
       max(recurso) as recurso
-    from input_filtered
+    from input_clean
     group by emenda_norm, emenda_last5, ano
   ),
 
@@ -73,7 +68,18 @@ begin
       tipo_formalizacao = coalesce(i.tipo_formalizacao, f.tipo_formalizacao),
       recurso = coalesce(i.recurso, f.recurso)
     from input_by_norm i
-    where regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') = i.emenda_norm
+    where
+      (
+        case
+          when f.ano is not null
+           and nullif(regexp_replace(f.ano::text, '\\D', '', 'g'), '') is not null
+            then regexp_replace(f.ano::text, '\\D', '', 'g')::int
+          when length(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g')) >= 4
+            then substring(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') from 1 for 4)::int
+          else null
+        end
+      ) = any(years)
+      and regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') = i.emenda_norm
     returning f.id
   ),
 
@@ -85,7 +91,18 @@ begin
     where not exists (
       select 1
       from formalizacao f
-      where regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') = i.emenda_norm
+      where
+        (
+          case
+            when f.ano is not null
+             and nullif(regexp_replace(f.ano::text, '\\D', '', 'g'), '') is not null
+              then regexp_replace(f.ano::text, '\\D', '', 'g')::int
+            when length(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g')) >= 4
+              then substring(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') from 1 for 4)::int
+            else null
+          end
+        ) = any(years)
+        and regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') = i.emenda_norm
     )
   ),
   input_year_last5_unique as (
@@ -96,6 +113,7 @@ begin
       max(recurso) as recurso
     from input_unmatched_norm
     where emenda_last5 is not null and emenda_last5 <> ''
+      and ano = any(years)
     group by ano, emenda_last5
     having count(*) = 1
   ),
@@ -103,14 +121,22 @@ begin
     select
       f.id,
       right(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g'), 5) as emenda_last5,
-      case
-        when length(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g')) >= 4
-          then substring(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') from 1 for 4)::int
-        else null
-      end as ano
+      (
+        case
+          when f.ano is not null
+           and nullif(regexp_replace(f.ano::text, '\\D', '', 'g'), '') is not null
+            then regexp_replace(f.ano::text, '\\D', '', 'g')::int
+          when length(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g')) >= 4
+            then substring(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') from 1 for 4)::int
+          else null
+        end
+      ) as ano
     from formalizacao f
     where (
       case
+        when f.ano is not null
+         and nullif(regexp_replace(f.ano::text, '\\D', '', 'g'), '') is not null
+          then regexp_replace(f.ano::text, '\\D', '', 'g')::int
         when length(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g')) >= 4
           then substring(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') from 1 for 4)::int
         else null
@@ -161,6 +187,9 @@ begin
     from formalizacao f
     where (
       case
+        when f.ano is not null
+         and nullif(regexp_replace(f.ano::text, '\\D', '', 'g'), '') is not null
+          then regexp_replace(f.ano::text, '\\D', '', 'g')::int
         when length(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g')) >= 4
           then substring(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') from 1 for 4)::int
         else null
@@ -186,18 +215,29 @@ begin
   counts as (
     select
       (select count(*) from input) as total_input,
-      (select count(*) from input_filtered) as filtered_input,
+      (select count(*) from input_clean) as filtered_input,
       (select count(*) from updated_norm) as updated_norm_count,
       (select count(*) from updated_last5) as updated_last5_count,
       (select count(*) from updated_last5_noyear) as updated_last5_noyear_count,
       (
-        -- emendas do input (já filtradas por anos) que não acharam match nem por norm nem por last5 seguro
+        -- emendas do input (válidas) que não acharam match nem por norm nem por last5 seguro
         select count(*)
         from input_by_norm i
         where not exists (
           select 1
           from formalizacao f
-          where regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') = i.emenda_norm
+          where
+            (
+              case
+                when f.ano is not null
+                 and nullif(regexp_replace(f.ano::text, '\\D', '', 'g'), '') is not null
+                  then regexp_replace(f.ano::text, '\\D', '', 'g')::int
+                when length(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g')) >= 4
+                  then substring(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') from 1 for 4)::int
+                else null
+              end
+            ) = any(years)
+            and regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') = i.emenda_norm
         )
         and not exists (
           select 1
@@ -217,7 +257,7 @@ begin
       (
         select count(*)
         from input_clean i
-        where i.ano is null or not (i.ano = any(years))
+        where i.ano is not null and not (i.ano = any(years))
       ) as skipped_year_count,
       (
         select count(*)
