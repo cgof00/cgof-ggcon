@@ -173,6 +173,10 @@ CREATE INDEX IF NOT EXISTS idx_emendas_codigo_num_digits
 -- Só preenche campos que estão vazios/nulos na formalização
 -- ============================================================
 
+-- ⚠️ NOVA REGRA (2023-2026): Atualização guiada por EMENDA/CODIGO_NUM.
+-- O passo 2A por convênio pode permanecer para preenchimentos históricos, mas
+-- a atualização incremental solicitada é restrita aos anos 2023-2026.
+
 UPDATE formalizacao f SET
   demanda = COALESCE(NULLIF(TRIM(f.demanda), ''), e.detalhes),
   classificacao_emenda_demanda = COALESCE(NULLIF(TRIM(f.classificacao_emenda_demanda), ''), e.natureza),
@@ -191,7 +195,11 @@ UPDATE formalizacao f SET
 FROM emendas e
 WHERE TRIM(f.numero_convenio) = TRIM(e.num_convenio)
   AND f.numero_convenio IS NOT NULL
-  AND TRIM(f.numero_convenio) != '';
+  AND TRIM(f.numero_convenio) != ''
+  AND (
+    NULLIF(SUBSTRING(REGEXP_REPLACE(COALESCE(f.ano, ''), '[^0-9]', '', 'g') FROM 1 FOR 4), '')::INT IN (2023,2024,2025,2026)
+    OR NULLIF(SUBSTRING(REGEXP_REPLACE(COALESCE(e.ano_refer, ''), '[^0-9]', '', 'g') FROM 1 FOR 4), '')::INT IN (2023,2024,2025,2026)
+  );
 
 -- Conferir quantos foram atualizados por numero_convenio
 DO $$
@@ -230,6 +238,11 @@ WHERE REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g') = REGEXP_REPLACE(e.codigo_num,
   AND f.emenda IS NOT NULL
   AND TRIM(f.emenda) != ''
   AND LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8
+  AND NULLIF(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g'), '') IS NOT NULL
+  AND (
+    NULLIF(SUBSTRING(REGEXP_REPLACE(COALESCE(f.ano, ''), '[^0-9]', '', 'g') FROM 1 FOR 4), '')::INT IN (2023,2024,2025,2026)
+    OR NULLIF(SUBSTRING(REGEXP_REPLACE(COALESCE(e.ano_refer, ''), '[^0-9]', '', 'g') FROM 1 FOR 4), '')::INT IN (2023,2024,2025,2026)
+  )
   -- Não atualizar as que já foram atualizadas pelo paso 2A
   AND (f.numero_convenio IS NULL OR TRIM(f.numero_convenio) = '' 
        OR NOT EXISTS (
@@ -274,16 +287,17 @@ SELECT
   e.portfolio,
   e.valor
 FROM emendas e
-WHERE NOT EXISTS (
-  SELECT 1 FROM formalizacao f
-  WHERE TRIM(f.numero_convenio) = TRIM(e.num_convenio)
-    AND e.num_convenio IS NOT NULL AND TRIM(e.num_convenio) != ''
-)
-AND NOT EXISTS (
+WHERE
+  -- Apenas anos 2023-2026
+  NULLIF(SUBSTRING(REGEXP_REPLACE(COALESCE(e.ano_refer, ''), '[^0-9]', '', 'g') FROM 1 FOR 4), '')::INT IN (2023,2024,2025,2026)
+  AND e.codigo_num IS NOT NULL
+  AND TRIM(e.codigo_num) != ''
+  AND NULLIF(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g'), '') IS NOT NULL
+  -- Dedupe apenas por código/emenda (normalizado)
+  AND NOT EXISTS (
   SELECT 1 FROM formalizacao f
   WHERE LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8
     AND REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g') = REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g')
-    AND e.codigo_num IS NOT NULL AND TRIM(e.codigo_num) != ''
 );
 
 -- ============================================================
@@ -311,58 +325,37 @@ SECURITY DEFINER
 SET statement_timeout = '300s'
 AS $$
 DECLARE
+  v_years_int INT[] := ARRAY[2023,2024,2025,2026];
   v_updated INTEGER := 0;
-  v_updated2 INTEGER := 0;
   v_inserted INTEGER := 0;
 BEGIN
-  -- Atualizar por numero_convenio
+  -- Atualizar (incremental) apenas anos 2023-2026, guiado por EMENDA/CODIGO_NUM (normalizado)
   WITH matched AS (
     UPDATE formalizacao f SET
-      demanda = COALESCE(NULLIF(TRIM(f.demanda), ''), e.detalhes),
-      classificacao_emenda_demanda = COALESCE(NULLIF(TRIM(f.classificacao_emenda_demanda), ''), e.natureza),
-      ano = COALESCE(NULLIF(TRIM(f.ano), ''), e.ano_refer),
-      emenda = COALESCE(NULLIF(TRIM(f.emenda), ''), e.codigo_num),
-      emendas_agregadoras = COALESCE(NULLIF(TRIM(f.emendas_agregadoras), ''), e.num_emenda),
-      situacao_demandas_sempapel = COALESCE(NULLIF(TRIM(f.situacao_demandas_sempapel), ''), e.situacao_d),
-      parlamentar = COALESCE(NULLIF(TRIM(f.parlamentar), ''), e.parlamentar),
-      partido = COALESCE(NULLIF(TRIM(f.partido), ''), e.partido),
-      conveniado = COALESCE(NULLIF(TRIM(f.conveniado), ''), e.beneficiario),
-      municipio = COALESCE(NULLIF(TRIM(f.municipio), ''), e.municipio),
-      objeto = COALESCE(NULLIF(TRIM(f.objeto), ''), e.objeto),
-      regional = COALESCE(NULLIF(TRIM(f.regional), ''), e.regional),
-      portfolio = COALESCE(NULLIF(TRIM(f.portfolio), ''), e.portfolio),
-      valor = COALESCE(f.valor, e.valor)
+      ano = COALESCE(NULLIF(TRIM(e.ano_refer), ''), f.ano),
+      parlamentar = COALESCE(NULLIF(TRIM(e.parlamentar), ''), f.parlamentar),
+      partido = COALESCE(NULLIF(TRIM(e.partido), ''), f.partido),
+      demanda = COALESCE(NULLIF(TRIM(e.detalhes), ''), f.demanda),
+      classificacao_emenda_demanda = COALESCE(NULLIF(TRIM(e.natureza), ''), f.classificacao_emenda_demanda),
+      emendas_agregadoras = COALESCE(NULLIF(TRIM(e.num_emenda), ''), f.emendas_agregadoras),
+      numero_convenio = COALESCE(NULLIF(TRIM(e.num_convenio), ''), f.numero_convenio),
+      regional = COALESCE(NULLIF(TRIM(e.regional), ''), f.regional),
+      municipio = COALESCE(NULLIF(TRIM(e.municipio), ''), f.municipio),
+      conveniado = COALESCE(NULLIF(TRIM(e.beneficiario), ''), f.conveniado),
+      objeto = COALESCE(NULLIF(TRIM(e.objeto), ''), f.objeto),
+      portfolio = COALESCE(NULLIF(TRIM(e.portfolio), ''), f.portfolio),
+      valor = COALESCE(e.valor, f.valor),
+      situacao_demandas_sempapel = COALESCE(NULLIF(TRIM(e.situacao_d), ''), f.situacao_demandas_sempapel)
     FROM emendas e
-    WHERE TRIM(f.numero_convenio) = TRIM(e.num_convenio)
-      AND f.numero_convenio IS NOT NULL AND TRIM(f.numero_convenio) != ''
+    WHERE NULLIF(REGEXP_REPLACE(COALESCE(f.emenda, ''), '[^0-9]', '', 'g'), '')
+            = NULLIF(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g'), '')
+      AND (
+        NULLIF(SUBSTRING(REGEXP_REPLACE(COALESCE(f.ano, ''), '[^0-9]', '', 'g') FROM 1 FOR 4), '')::INT = ANY (v_years_int)
+        OR NULLIF(SUBSTRING(REGEXP_REPLACE(COALESCE(e.ano_refer, ''), '[^0-9]', '', 'g') FROM 1 FOR 4), '')::INT = ANY (v_years_int)
+      )
     RETURNING f.id
   )
   SELECT COUNT(*) INTO v_updated FROM matched;
-
-  -- Atualizar por emenda/codigo_num
-  WITH matched2 AS (
-    UPDATE formalizacao f SET
-      demanda = COALESCE(NULLIF(TRIM(f.demanda), ''), e.detalhes),
-      classificacao_emenda_demanda = COALESCE(NULLIF(TRIM(f.classificacao_emenda_demanda), ''), e.natureza),
-      ano = COALESCE(NULLIF(TRIM(f.ano), ''), e.ano_refer),
-      emendas_agregadoras = COALESCE(NULLIF(TRIM(f.emendas_agregadoras), ''), e.num_emenda),
-      situacao_demandas_sempapel = COALESCE(NULLIF(TRIM(f.situacao_demandas_sempapel), ''), e.situacao_d),
-      parlamentar = COALESCE(NULLIF(TRIM(f.parlamentar), ''), e.parlamentar),
-      partido = COALESCE(NULLIF(TRIM(f.partido), ''), e.partido),
-      conveniado = COALESCE(NULLIF(TRIM(f.conveniado), ''), e.beneficiario),
-      municipio = COALESCE(NULLIF(TRIM(f.municipio), ''), e.municipio),
-      objeto = COALESCE(NULLIF(TRIM(f.objeto), ''), e.objeto),
-      regional = COALESCE(NULLIF(TRIM(f.regional), ''), e.regional),
-      portfolio = COALESCE(NULLIF(TRIM(f.portfolio), ''), e.portfolio),
-      numero_convenio = COALESCE(NULLIF(TRIM(f.numero_convenio), ''), e.num_convenio),
-      valor = COALESCE(f.valor, e.valor)
-    FROM emendas e
-    WHERE REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g') = REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g')
-      AND f.emenda IS NOT NULL AND TRIM(f.emenda) != ''
-      AND LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8
-    RETURNING f.id
-  )
-  SELECT COUNT(*) INTO v_updated2 FROM matched2;
 
   -- Inserir novas
   WITH new_records AS (
@@ -373,11 +366,12 @@ BEGIN
       e.natureza, e.num_convenio, e.regional, e.municipio, e.beneficiario,
       e.objeto, e.portfolio, e.valor
     FROM emendas e
-    WHERE NOT EXISTS (
-      SELECT 1 FROM formalizacao f WHERE TRIM(f.numero_convenio) = TRIM(e.num_convenio)
-        AND e.num_convenio IS NOT NULL AND TRIM(e.num_convenio) != ''
-    )
-    AND NOT EXISTS (
+    WHERE
+      NULLIF(SUBSTRING(REGEXP_REPLACE(COALESCE(e.ano_refer, ''), '[^0-9]', '', 'g') FROM 1 FOR 4), '')::INT = ANY (v_years_int)
+      AND e.codigo_num IS NOT NULL
+      AND TRIM(e.codigo_num) != ''
+      AND NULLIF(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g'), '') IS NOT NULL
+      AND NOT EXISTS (
       SELECT 1 FROM formalizacao f
       WHERE LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8
         AND REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g') = REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g')
@@ -387,11 +381,12 @@ BEGIN
   SELECT COUNT(*) INTO v_inserted FROM new_records;
 
   RETURN json_build_object(
-    'updated', v_updated + v_updated2,
-    'updated_by_convenio', v_updated,
-    'updated_by_emenda', v_updated2,
+    'updated', v_updated,
+    'updated_by_convenio', 0,
+    'updated_by_emenda', v_updated,
     'inserted', v_inserted,
-    'message', (v_updated + v_updated2) || ' atualizadas, ' || v_inserted || ' inseridas'
+    'years', v_years_int,
+    'message', v_updated || ' atualizadas (2023-2026), ' || v_inserted || ' inseridas (2023-2026)'
   );
 END;
 $$;
