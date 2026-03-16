@@ -1273,7 +1273,7 @@ export default function App() {
       
       setImportStatus('syncing'); 
       setImportProgress(92);
-      setImportMessage('🔄 Sincronizando novas emendas com formalização...');
+      setImportMessage('🔄 Sincronizando formalização (novas emendas + PROCX situação)...');
       
       try {
         const syncResp = await fetch('/api/admin/sync-emendas', {
@@ -1289,7 +1289,13 @@ export default function App() {
           return; 
         }
         
-        const syncResult = await syncResp.json();
+        const syncText = await syncResp.text();
+        let syncResult: any;
+        try {
+          syncResult = JSON.parse(syncText);
+        } catch {
+          throw new Error(`Resposta inválida do servidor na sincronização: ${syncText.substring(0, 160)}`);
+        }
         setImportProgress(100); 
         setImportStatus('done');
         
@@ -1300,8 +1306,8 @@ export default function App() {
           `✅ Importação Concluída!\n` +
           `• ${totalImported} emendas processadas (UPSERT)\n` +
           `• ${totalDuplicated} registros duplicados ignorados no CSV\n` +
-          `\n🔄 Sincronização (apenas NOVAS):\n` +
-          `• ${syncResult.result?.updated || 0} formalizações atualizadas\n` +
+          `\n🔄 Sincronização (incremental + PROCX situação):\n` +
+          `• ${syncResult.result?.updated || 0} situações atualizadas\n` +
           `• ${syncResult.result?.inserted || 0} novas formalizações inseridas`
         );
       } catch (e: any) { 

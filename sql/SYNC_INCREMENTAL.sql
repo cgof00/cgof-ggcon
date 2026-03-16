@@ -16,7 +16,9 @@ SET statement_timeout = '120s'
 AS $$
 DECLARE 
   v_ultimo_codigo VARCHAR := '';
+  v_ultimo_num NUMERIC := -1;
   v_inserted INTEGER := 0;
+  v_updated INTEGER := 0;
 BEGIN
   -- PASSO 1: Obter último código de emenda já importado
   SELECT COALESCE(emenda, '') INTO v_ultimo_codigo
@@ -26,7 +28,25 @@ BEGIN
 
   RAISE NOTICE 'Último código importado: %', COALESCE(v_ultimo_codigo, '[NENHUM]');
 
-  -- PASSO 2: Inserir TODAS as emendas novas (posteriores ao último código)
+  -- Normalizar para comparar de forma segura (remove pontos/traços e compara numericamente)
+  v_ultimo_num := COALESCE(NULLIF(REGEXP_REPLACE(COALESCE(v_ultimo_codigo, ''), '[^0-9]', '', 'g'), '')::NUMERIC, -1);
+
+  -- PASSO 2: "PROCX" (VLOOKUP) - Atualizar situação em TODA a formalização
+  WITH upd AS (
+    UPDATE formalizacao f
+    SET
+      situacao_demandas_sempapel = COALESCE(NULLIF(TRIM(e.situacao_d), ''), f.situacao_demandas_sempapel),
+      updated_at = NOW()
+    FROM emendas e
+    WHERE
+      NULLIF(REGEXP_REPLACE(COALESCE(f.emenda, ''), '[^0-9]', '', 'g'), '')
+        = NULLIF(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g'), '')
+      AND NULLIF(TRIM(COALESCE(e.situacao_d, '')), '') IS NOT NULL
+    RETURNING f.id
+  )
+  SELECT COUNT(*) INTO v_updated FROM upd;
+
+  -- PASSO 3: Inserir TODAS as emendas novas (posteriores ao último código)
   WITH novas_emendas AS (
     INSERT INTO formalizacao (
       ano, parlamentar, partido, emenda, demanda,
@@ -53,12 +73,28 @@ BEGIN
       TRIM(COALESCE(e.portfolio, '')),
       COALESCE(e.valor, 0)
     FROM emendas e
-    WHERE TRIM(COALESCE(e.codigo_num, '')) > v_ultimo_codigo
+    WHERE
+      -- Comparação numérica normalizada (só dígitos) para garantir ordem correta
+      COALESCE(NULLIF(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g'), '')::NUMERIC, -1) > v_ultimo_num
       -- Garantir que tem código válido
       AND e.codigo_num IS NOT NULL
       AND TRIM(e.codigo_num) != ''
+      -- Evitar duplicatas por emenda (normalizado)
+      AND NOT EXISTS (
+        SELECT 1 FROM formalizacao f
+        WHERE NULLIF(REGEXP_REPLACE(COALESCE(f.emenda, ''), '[^0-9]', '', 'g'), '')
+          = NULLIF(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g'), '')
+      )
+      -- Evitar duplicatas por convênio (se existir)
+      AND (
+        NULLIF(TRIM(COALESCE(e.num_convenio, '')), '') IS NULL
+        OR NOT EXISTS (
+          SELECT 1 FROM formalizacao f2
+          WHERE TRIM(COALESCE(f2.numero_convenio, '')) = TRIM(COALESCE(e.num_convenio, ''))
+        )
+      )
     -- Ordenar por código para inserir na sequência correta
-    ORDER BY e.codigo_num ASC
+    ORDER BY COALESCE(NULLIF(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g'), '')::NUMERIC, -1) ASC
     RETURNING id
   )
   SELECT COUNT(*) INTO v_inserted FROM novas_emendas;
@@ -69,11 +105,13 @@ BEGIN
   RETURN json_build_object(
     'status', 'success',
     'inserted', v_inserted,
+    'updated', v_updated,
     'ultimo_codigo', v_ultimo_codigo,
     'message', CASE 
-      WHEN v_inserted = 0 THEN 'Nenhuma emenda nova para sincronizar'
-      WHEN v_inserted = 1 THEN '1 nova emenda foi sincronizada'
-      ELSE v_inserted || ' novas emendas foram sincronizadas'
+      WHEN v_inserted = 0 AND v_updated = 0 THEN 'Nenhuma emenda nova e nenhuma atualização de situação'
+      WHEN v_inserted = 0 THEN v_updated || ' formalizações tiveram situação atualizada'
+      WHEN v_updated = 0 THEN v_inserted || ' novas emendas foram sincronizadas'
+      ELSE v_inserted || ' novas emendas + ' || v_updated || ' situações atualizadas'
     END
   );
 

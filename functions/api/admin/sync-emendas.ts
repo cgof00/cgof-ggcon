@@ -49,6 +49,7 @@ export const onRequest: PagesFunction = async (context) => {
       success: true,
       result: {
         inserted: result?.inserted || 0,
+        updated: result?.updated || 0,
         message: result?.message || 'Sincronização concluída'
       }
     }), {
