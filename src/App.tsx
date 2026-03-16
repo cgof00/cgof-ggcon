@@ -1273,13 +1273,13 @@ export default function App() {
       
       setImportStatus('syncing'); 
       setImportProgress(92);
-      setImportMessage('🔄 Sincronizando emendas com formalizações (NOVAS + ATUALIZAÇÕES)...');
+      setImportMessage('🔄 Sincronizando novas emendas com formalização...');
       
       try {
         const syncResp = await fetch('/api/admin/sync-emendas', {
           method: 'POST', 
           headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ onlyNew: false }),  // 🎯 CORRIGIDO: false para fazer AMBAS (atualizar + inserir)
+          body: JSON.stringify({})  // 🎯 Sem parâmetros - usa função simples incremental
         });
         
         if (!syncResp.ok) { 
