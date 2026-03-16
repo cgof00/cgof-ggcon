@@ -101,14 +101,6 @@ BEGIN
         WHERE NULLIF(REGEXP_REPLACE(COALESCE(f.emenda, ''), '[^0-9]', '', 'g'), '')
           = NULLIF(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g'), '')
       )
-      -- Evitar duplicatas por convênio (se existir)
-      AND (
-        NULLIF(TRIM(COALESCE(e.num_convenio, '')), '') IS NULL
-        OR NOT EXISTS (
-          SELECT 1 FROM formalizacao f2
-          WHERE TRIM(COALESCE(f2.numero_convenio, '')) = TRIM(COALESCE(e.num_convenio, ''))
-        )
-      )
     -- Ordenar por código para inserir na sequência correta
     ORDER BY COALESCE(NULLIF(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g'), '')::NUMERIC, -1) ASC
     RETURNING id
