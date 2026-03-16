@@ -4,6 +4,7 @@ export const onRequest: PagesFunction = async (context) => {
   const { request, env } = context;
   const SUPABASE_URL = env.SUPABASE_URL;
   const SUPABASE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
+  const YEARS = [2023, 2024, 2025, 2026];
 
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     return new Response(JSON.stringify({ error: 'Variáveis de ambiente não configuradas' }), {
@@ -27,70 +28,51 @@ export const onRequest: PagesFunction = async (context) => {
       });
     }
 
-    let updated = 0;
-    let notFound = 0;
-    const errors: string[] = [];
-
-    for (const record of records) {
-      const emenda = record.emenda ? String(record.emenda).trim() : '';
-      if (!emenda) { notFound++; continue; }
-
-      const updateData: any = {};
-      if (record.tipo_formalizacao !== undefined && record.tipo_formalizacao !== null && String(record.tipo_formalizacao).trim() !== '') {
-        updateData.tipo_formalizacao = String(record.tipo_formalizacao).trim();
+    // Uma única subrequest para o Supabase via RPC (evita limite do Cloudflare de subrequests)
+    const rpcResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/update_formalizacao_campos_batch`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ records, years: YEARS }),
       }
-      if (record.recurso !== undefined && record.recurso !== null && String(record.recurso).trim() !== '') {
-        updateData.recurso = String(record.recurso).trim();
-      }
-      if (Object.keys(updateData).length === 0) { notFound++; continue; }
+    );
 
-      // PATCH via Supabase REST API com filtro por emenda
-      const encodedEmenda = encodeURIComponent(emenda);
-      const patchResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/formalizacao?emenda=eq.${encodedEmenda}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'apikey': SUPABASE_KEY,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=headers-only,count=exact'
-          },
-          body: JSON.stringify(updateData)
-        }
-      );
+    const text = await rpcResp.text();
+    let data: any = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = null; }
 
-      if (!patchResp.ok) {
-        const err = await patchResp.text();
-        errors.push(`Emenda ${emenda}: ${err.substring(0, 200)}`);
-        continue;
-      }
+    if (!rpcResp.ok) {
+      const message = (data && (data.message || data.error))
+        ? String(data.message || data.error)
+        : (text || rpcResp.statusText);
 
-      // Verificar quantos registros foram afetados pelo header content-range
-      const contentRange = patchResp.headers.get('content-range');
-      if (contentRange) {
-        // Formato: "*/N" onde N é o count
-        const match = contentRange.match(/\/(\d+)/);
-        const count = match ? parseInt(match[1], 10) : 0;
-        if (count > 0) {
-          updated += count;
-        } else {
-          notFound++;
-        }
-      } else {
-        // Se não retornou content-range, assume sucesso
-        updated++;
-      }
+      // Se a RPC ainda não foi criada no Supabase, orientar.
+      const hint = message.includes('update_formalizacao_campos_batch')
+        ? 'RPC não encontrada. Execute o SQL em sql/RPC_UPDATE_FORMALIZACAO_CAMPOS_BATCH.sql no Supabase e tente novamente.'
+        : undefined;
+
+      return new Response(JSON.stringify({ error: message, hint }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     return new Response(JSON.stringify({
-      updated,
-      notFound,
-      total: records.length,
-      errors: errors.length > 0 ? errors : undefined,
-      message: `${updated} registros atualizados | ${notFound} não encontrados`
+      updated: data?.updated || 0,
+      notFound: data?.notFound || 0,
+      skippedYear: data?.skippedYear || 0,
+      total: data?.total ?? records.length,
+      filtered: data?.filtered,
+      years: data?.years || YEARS,
+      message: `${data?.updated || 0} registros atualizados | ${data?.notFound || 0} emendas não encontradas | ${data?.skippedYear || 0} fora de ${YEARS.join(', ')}`,
     }), {
-      status: 200, headers: { 'Content-Type': 'application/json' }
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
     });
 
   } catch (e: any) {

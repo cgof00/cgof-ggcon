@@ -1389,6 +1389,13 @@ export default function App() {
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     const isExcel = ['xls', 'xlsx', 'xml'].includes(ext);
 
+    const isAllowedYear = (emendaValue: unknown) => {
+      const digits = String(emendaValue ?? '').replace(/\D/g, '');
+      if (digits.length < 4) return false;
+      const year = parseInt(digits.slice(0, 4), 10);
+      return [2023, 2024, 2025, 2026].includes(year);
+    };
+
     const processRows = async (rows: Record<string, any>[]) => {
       // Mapear colunas (tolerante a variações de cabeçalho: maiúsculas/minúsculas, acentos, underscore, etc.)
       const mapped = rows.map((row) => {
@@ -1406,9 +1413,15 @@ export default function App() {
         }
 
         return rec;
-      }).filter(r => r.emenda); // Precisa ter emenda como chave
+      })
+        .filter(r => r.emenda) // Precisa ter emenda como chave
+        .filter(r => isAllowedYear(r.emenda)); // Atualização somente 2023–2026
 
-      if (mapped.length === 0) { setUpdateCamposStatus('error'); setUpdateCamposError('Nenhum registro com coluna "Emenda" encontrado.'); return; }
+      if (mapped.length === 0) {
+        setUpdateCamposStatus('error');
+        setUpdateCamposError('Nenhum registro elegível (anos 2023–2026) com coluna "Emenda" encontrado.');
+        return;
+      }
 
       setUpdateCamposStatus('uploading');
       setUpdateCamposMessage(`Atualizando ${mapped.length} registros...`);
@@ -1429,8 +1442,12 @@ export default function App() {
             body: JSON.stringify({ records: chunk }),
           });
           if (!resp.ok) {
-            const err = await resp.json().catch(() => ({ error: 'Erro desconhecido' }));
-            setUpdateCamposStatus('error'); setUpdateCamposError(`Erro no lote ${bn}: ${err.error || resp.statusText}`);
+            const text = await resp.text();
+            let err: any = null;
+            try { err = text ? JSON.parse(text) : null; } catch { err = null; }
+            const msg = (err && (err.error || err.message)) ? (err.error || err.message) : (text || resp.statusText);
+            setUpdateCamposStatus('error');
+            setUpdateCamposError(`Erro no lote ${bn}: ${msg}`);
             return;
           }
           const result = await resp.json();
