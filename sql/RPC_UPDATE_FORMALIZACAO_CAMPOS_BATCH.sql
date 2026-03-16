@@ -76,7 +76,7 @@ begin
       (
         select count(*)
         from input_clean i
-        where i.ano is distinct from all(years)
+        where i.ano is null or not (i.ano = any(years))
       ) as skipped_year_count
   )
   select
