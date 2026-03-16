@@ -9,17 +9,15 @@
 -- Faça backup se necessário.
 -- ============================================================
 
--- 1A. Limpar emendas PRIMEIRO (pois formalizacao referencia emendas)
--- ⚠️ IMPORTANTE: Isso apaga TODOS os registros antigos da tabela emendas!
-TRUNCATE TABLE emendas RESTART IDENTITY CASCADE;
+-- 1A (OPCIONAL). Reset TOTAL também da tabela emendas
+-- ⚠️ Use SOMENTE se você realmente quer apagar tudo e reimportar emendas pela interface.
+-- TRUNCATE TABLE emendas RESTART IDENTITY CASCADE;
+-- SELECT 'emendas' as tabela, COUNT(*) as registros FROM emendas;
 
--- 1B. Verificar que está vazia
-SELECT 'emendas' as tabela, COUNT(*) as registros FROM emendas;
-
--- 1C. Limpar formalizacao
+-- 1B. Limpar formalizacao
 TRUNCATE TABLE formalizacao RESTART IDENTITY CASCADE;
 
--- 1D. Verificar que está vazia
+-- 1C. Verificar que está vazia
 SELECT 'formalizacao' as tabela, COUNT(*) as registros FROM formalizacao;
 
 -- ============================================================

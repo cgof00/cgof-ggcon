@@ -15,11 +15,11 @@ RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER
 SET statement_timeout = '120s'
 AS $$
 DECLARE 
-  v_years TEXT[] := ARRAY['2023','2024','2025','2026'];
+  v_years_int INT[] := ARRAY[2023,2024,2025,2026];
   v_inserted INTEGER := 0;
   v_updated INTEGER := 0;
 BEGIN
-  RAISE NOTICE 'Sync incremental por comparação total. Anos: %', array_to_string(v_years, ',');
+  RAISE NOTICE 'Sync incremental por comparação total. Anos: %', array_to_string(v_years_int, ',');
 
   -- PASSO 1: Atualizar (incremental) apenas anos 2023-2026
   -- Match por emenda normalizada (só dígitos)
@@ -52,8 +52,8 @@ BEGIN
       NULLIF(REGEXP_REPLACE(COALESCE(f.emenda, ''), '[^0-9]', '', 'g'), '')
         = NULLIF(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g'), '')
       AND (
-        TRIM(COALESCE(f.ano, '')) = ANY (v_years)
-        OR TRIM(COALESCE(e.ano_refer, '')) = ANY (v_years)
+        NULLIF(SUBSTRING(REGEXP_REPLACE(COALESCE(f.ano, ''), '[^0-9]', '', 'g') FROM 1 FOR 4), '')::INT = ANY (v_years_int)
+        OR NULLIF(SUBSTRING(REGEXP_REPLACE(COALESCE(e.ano_refer, ''), '[^0-9]', '', 'g') FROM 1 FOR 4), '')::INT = ANY (v_years_int)
       )
     RETURNING f.id
   )
@@ -94,7 +94,7 @@ BEGIN
       -- Garantir que o código tem pelo menos 1 dígito (normalização)
       AND NULLIF(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g'), '') IS NOT NULL
       -- Inserir apenas anos 2023-2026
-      AND TRIM(COALESCE(e.ano_refer, '')) = ANY (v_years)
+      AND NULLIF(SUBSTRING(REGEXP_REPLACE(COALESCE(e.ano_refer, ''), '[^0-9]', '', 'g') FROM 1 FOR 4), '')::INT = ANY (v_years_int)
       -- Evitar duplicatas por emenda (normalizado)
       AND NOT EXISTS (
         SELECT 1 FROM formalizacao f
@@ -114,7 +114,7 @@ BEGIN
     'status', 'success',
     'inserted', v_inserted,
     'updated', v_updated,
-    'years', v_years,
+    'years', v_years_int,
     'message', CASE 
       WHEN v_inserted = 0 AND v_updated = 0 THEN 'Nenhuma emenda nova e nenhuma atualização de situação'
       WHEN v_inserted = 0 THEN v_updated || ' formalizações (anos 2023-2026) atualizadas'
