@@ -1273,7 +1273,7 @@ export default function App() {
       
       setImportStatus('syncing'); 
       setImportProgress(92);
-      setImportMessage('🔄 Sincronizando formalização (novas emendas + PROCX situação)...');
+      setImportMessage('🔄 Sincronizando formalização (comparação total + atualização 2023-2026)...');
       
       try {
         const syncResp = await fetch('/api/admin/sync-emendas', {
@@ -1306,8 +1306,8 @@ export default function App() {
           `✅ Importação Concluída!\n` +
           `• ${totalImported} emendas processadas (UPSERT)\n` +
           `• ${totalDuplicated} registros duplicados ignorados no CSV\n` +
-          `\n🔄 Sincronização (incremental + PROCX situação):\n` +
-          `• ${syncResult.result?.updated || 0} situações atualizadas\n` +
+          `\n🔄 Sincronização (comparação total, anos 2023-2026):\n` +
+          `• ${syncResult.result?.updated || 0} registros atualizados\n` +
           `• ${syncResult.result?.inserted || 0} novas formalizações inseridas`
         );
       } catch (e: any) { 

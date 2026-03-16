@@ -1,6 +1,7 @@
 // POST /api/admin/sync-emendas
 // 🚀 SINCRONIZAÇÃO INCREMENTAL - Simples e Eficiente
-// Insere apenas novas emendas (posteriores à última importada)
+// Compara toda emendas.codigo_num vs formalizacao.emenda (normalizado),
+// insere apenas o que está faltando e atualiza apenas anos 2023-2026.
 export const onRequest: PagesFunction = async (context) => {
   const { request, env } = context;
   const SUPABASE_URL = env.SUPABASE_URL;
@@ -39,7 +40,7 @@ export const onRequest: PagesFunction = async (context) => {
   }
 
   try {
-    console.log('🔄 Sincronizando incrementalmente (novas emendas)...');
+    console.log('🔄 Sincronizando incrementalmente (comparação total, anos 2023-2026)...');
     
     const result = await callRpc('sync_incremental');
     
