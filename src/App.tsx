@@ -1345,12 +1345,40 @@ export default function App() {
   };
 
   // ===== Atualizar Tipo de Formalização e Recurso via planilha =====
-  const UPDATE_CAMPOS_MAP: Record<string, string> = {
-    'Emenda': 'emenda',
-    'Tipo de formalização': 'tipo_formalizacao', 'Tipo de Formalização': 'tipo_formalizacao',
-    'Tipo de formalizacao': 'tipo_formalizacao', 'Tipo de Formalizacao': 'tipo_formalizacao',
-    'Recurso': 'recurso',
+  const normalizeHeaderKey = (header: unknown) => {
+    const raw = String(header ?? '').trim();
+    return raw
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '');
   };
+
+  const UPDATE_CAMPOS_HEADER_TO_DB: Record<string, string> = {
+    // emenda
+    [normalizeHeaderKey('Emenda')]: 'emenda',
+    [normalizeHeaderKey('emenda')]: 'emenda',
+    [normalizeHeaderKey('Código/Nº Emenda')]: 'emenda',
+    [normalizeHeaderKey('Codigo/Nº Emenda')]: 'emenda',
+    [normalizeHeaderKey('Código Emenda')]: 'emenda',
+    [normalizeHeaderKey('Codigo Emenda')]: 'emenda',
+
+    // tipo formalização
+    [normalizeHeaderKey('Tipo de formalização')]: 'tipo_formalizacao',
+    [normalizeHeaderKey('Tipo de Formalização')]: 'tipo_formalizacao',
+    [normalizeHeaderKey('Tipo de formalizacao')]: 'tipo_formalizacao',
+    [normalizeHeaderKey('Tipo de Formalizacao')]: 'tipo_formalizacao',
+    [normalizeHeaderKey('tipo_formalizacao')]: 'tipo_formalizacao',
+    [normalizeHeaderKey('tipo formalizacao')]: 'tipo_formalizacao',
+
+    // recurso
+    [normalizeHeaderKey('Recurso')]: 'recurso',
+    [normalizeHeaderKey('recurso')]: 'recurso',
+    [normalizeHeaderKey('Com ou Sem Recurso')]: 'recurso',
+    [normalizeHeaderKey('Com/sem recurso')]: 'recurso',
+    [normalizeHeaderKey('Com sem recurso')]: 'recurso',
+  };
+
   const handleUpdateCamposCSV = async (file: File) => {
     setUpdateCamposStatus('parsing');
     setUpdateCamposProgress(0);
@@ -1361,16 +1389,22 @@ export default function App() {
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     const isExcel = ['xls', 'xlsx', 'xml'].includes(ext);
 
-    const processRows = async (rows: Record<string, string>[]) => {
-      // Mapear colunas do CSV para nomes do banco
-      const mapped = rows.map(row => {
+    const processRows = async (rows: Record<string, any>[]) => {
+      // Mapear colunas (tolerante a variações de cabeçalho: maiúsculas/minúsculas, acentos, underscore, etc.)
+      const mapped = rows.map((row) => {
         const rec: Record<string, any> = {};
-        for (const [csvHeader, dbColumn] of Object.entries(UPDATE_CAMPOS_MAP)) {
-          const val = row[csvHeader];
-          if (val !== undefined && val !== null && String(val).trim() !== '') {
-            rec[dbColumn] = String(val).trim();
-          }
+
+        for (const [rawHeader, rawValue] of Object.entries(row || {})) {
+          const dbColumn = UPDATE_CAMPOS_HEADER_TO_DB[normalizeHeaderKey(rawHeader)];
+          if (!dbColumn) continue;
+
+          const v = rawValue;
+          if (v === undefined || v === null) continue;
+          const s = String(v).trim();
+          if (s === '') continue;
+          rec[dbColumn] = s;
         }
+
         return rec;
       }).filter(r => r.emenda); // Precisa ter emenda como chave
 
