@@ -1310,6 +1310,14 @@ export default function App() {
           `• ${syncResult.result?.updated || 0} registros atualizados\n` +
           `• ${syncResult.result?.inserted || 0} novas formalizações inseridas`
         );
+
+        // Importação + sync alteram dados no banco; forçar recarga da Formalização
+        // para não ficar preso no cache/localStorage.
+        try {
+          await silentRefreshData();
+        } catch (e) {
+          console.warn('⚠️ Falha ao recarregar formalizações após sync:', e);
+        }
       } catch (e: any) { 
         setImportStatus('error');  
         setImportError(`Erro de rede: ${e.message}`); 
