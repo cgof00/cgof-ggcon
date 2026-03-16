@@ -3748,8 +3748,6 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
         )}
       </AnimatePresence>
 
-      </AnimatePresence>
-
       {/* Update Tipo/Recurso Modal */}
       <AnimatePresence>
         {isUpdateCamposOpen && (
