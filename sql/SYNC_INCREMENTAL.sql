@@ -89,7 +89,7 @@ BEGIN
     FROM emendas e
     WHERE
       -- Garantir que tem código válido
-      AND e.codigo_num IS NOT NULL
+      e.codigo_num IS NOT NULL
       AND TRIM(e.codigo_num) != ''
       -- Garantir que o código tem pelo menos 1 dígito (normalização)
       AND NULLIF(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g'), '') IS NOT NULL
