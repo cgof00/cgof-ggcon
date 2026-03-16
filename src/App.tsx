@@ -1446,8 +1446,9 @@ export default function App() {
             let err: any = null;
             try { err = text ? JSON.parse(text) : null; } catch { err = null; }
             const msg = (err && (err.error || err.message)) ? (err.error || err.message) : (text || resp.statusText);
+            const hint = err && err.hint ? String(err.hint) : '';
             setUpdateCamposStatus('error');
-            setUpdateCamposError(`Erro no lote ${bn}: ${msg}`);
+            setUpdateCamposError(`Erro no lote ${bn}: ${msg}${hint ? `\n\nDica: ${hint}` : ''}`);
             return;
           }
           const result = await resp.json();

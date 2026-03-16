@@ -53,7 +53,7 @@ export const onRequest: PagesFunction = async (context) => {
 
       // Se a RPC ainda não foi criada no Supabase, orientar.
       const hint = message.includes('update_formalizacao_campos_batch')
-        ? 'RPC não encontrada. Execute o SQL em sql/RPC_UPDATE_FORMALIZACAO_CAMPOS_BATCH.sql no Supabase e tente novamente.'
+        ? 'RPC não encontrada (ou schema cache desatualizado). No Supabase, execute o SQL em sql/RPC_UPDATE_FORMALIZACAO_CAMPOS_BATCH.sql e depois rode: select pg_notify(\'pgrst\', \'reload schema\'); (ou aguarde 1–2 min) e tente novamente.'
         : undefined;
 
       return new Response(JSON.stringify({ error: message, hint }), {

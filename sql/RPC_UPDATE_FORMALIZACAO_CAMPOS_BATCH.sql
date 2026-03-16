@@ -103,3 +103,24 @@ begin
   );
 end;
 $$;
+
+-- Overload sem parâmetro years (útil para chamadas que omitirem years)
+create or replace function public.update_formalizacao_campos_batch(
+  records jsonb
+)
+returns jsonb
+language sql
+as $$
+  select public.update_formalizacao_campos_batch(records, array[2023, 2024, 2025, 2026]);
+$$;
+
+-- (Opcional, mas recomendado) força o PostgREST/Supabase a recarregar o schema cache
+-- para que a função recém-criada seja encontrada imediatamente.
+do $$
+begin
+  perform pg_notify('pgrst', 'reload schema');
+exception when others then
+  -- ignorar se o canal não existir/sem permissão
+  null;
+end;
+$$;
