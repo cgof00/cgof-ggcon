@@ -4,7 +4,7 @@
 --
 -- Estratégia:
 -- 1) Match principal por emenda normalizada (apenas dígitos)
--- 2) Fallback por 5 últimos dígitos APENAS quando a chave é única na fonte (evita colisões)
+-- 2) Fallback por (ano + 5 últimos dígitos) APENAS quando a chave é única na fonte e única no destino (evita colisões)
 -- 3) Nunca sobrescreve com vazio/nulo (só preenche com valores não-vazios da fonte)
 
 begin;
@@ -65,14 +65,38 @@ updated_norm as (
   returning f.id
 ),
 source_last5_unique as (
-  -- Só chaves last5 que não colidem na fonte
+  -- Só chaves (ano,last5) que não colidem na fonte
   select
+    ano,
     emenda_last5,
     max(tipo_formalizacao) as tipo_formalizacao,
     max(recurso) as recurso
   from source_filtered
   where emenda_last5 is not null and emenda_last5 <> ''
-  group by emenda_last5
+  group by ano, emenda_last5
+  having count(*) = 1
+),
+formalizacao_last5_unique as (
+  -- Só chaves (ano,last5) que não colidem no destino
+  select
+    (
+      case
+        when length(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g')) >= 4
+          then substring(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') from 1 for 4)::int
+        else null
+      end
+    ) as ano,
+    right(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g'), 5) as emenda_last5,
+    min(f.id) as id
+  from formalizacao f, params p
+  where (
+      case
+        when length(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g')) >= 4
+          then substring(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') from 1 for 4)::int
+        else null
+      end
+    ) = any(p.years)
+  group by 1,2
   having count(*) = 1
 ),
 updated_last5 as (
@@ -81,7 +105,11 @@ updated_last5 as (
     tipo_formalizacao = coalesce(s.tipo_formalizacao, f.tipo_formalizacao),
     recurso = coalesce(s.recurso, f.recurso),
     updated_at = now()
-  from source_last5_unique s, params p
+  from source_last5_unique s
+  join formalizacao_last5_unique fu
+    on fu.ano = s.ano
+   and fu.emenda_last5 = s.emenda_last5
+  join params p on true
   where
     (
       case
@@ -90,7 +118,7 @@ updated_last5 as (
         else null
       end
     ) = any(p.years)
-    and right(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g'), 5) = s.emenda_last5
+    and f.id = fu.id
     -- evita re-updating linhas já atualizadas pelo match completo
     and not exists (select 1 from updated_norm u where u.id = f.id)
   returning f.id
@@ -99,7 +127,7 @@ select
   (select count(*) from source_filtered) as fonte_linhas_2023_2026,
   (select count(*) from source_by_norm) as fonte_emendas_unicas_norm,
   (select count(*) from updated_norm) as updated_por_norm,
-  (select count(*) from source_last5_unique) as fonte_chaves_last5_unicas,
+  (select count(*) from source_last5_unique) as fonte_chaves_ano_last5_unicas,
   (select count(*) from updated_last5) as updated_por_last5;
 
 commit;

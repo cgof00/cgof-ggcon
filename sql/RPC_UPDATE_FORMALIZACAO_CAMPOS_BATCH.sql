@@ -14,9 +14,13 @@ returns jsonb
 language plpgsql
 as $$
 declare
-  updated_rows int := 0;
+  updated_norm_rows int := 0;
+  updated_last5_rows int := 0;
+  updated_total int := 0;
   not_found int := 0;
   skipped_year int := 0;
+  ambiguous_input_last5 int := 0;
+  ambiguous_dest_last5 int := 0;
   input_rows int := 0;
   filtered_rows int := 0;
 begin
@@ -28,6 +32,7 @@ begin
     select
       nullif(btrim(elem->>'emenda'), '') as emenda_raw,
       regexp_replace(coalesce(elem->>'emenda', ''), '\\D', '', 'g') as emenda_norm,
+      right(regexp_replace(coalesce(elem->>'emenda', ''), '\\D', '', 'g'), 5) as emenda_last5,
       nullif(btrim(elem->>'tipo_formalizacao'), '') as tipo_formalizacao,
       nullif(btrim(elem->>'recurso'), '') as recurso,
       case
@@ -49,54 +54,171 @@ begin
     from input_clean
     where ano = any(years)
   ),
-  updated as (
+  input_by_norm as (
+    select
+      emenda_norm,
+      emenda_last5,
+      ano,
+      max(tipo_formalizacao) as tipo_formalizacao,
+      max(recurso) as recurso
+    from input_filtered
+    group by emenda_norm, emenda_last5, ano
+  ),
+
+  -- 1) UPDATE por emenda completa (normalizada)
+  updated_norm as (
     update formalizacao f
     set
       tipo_formalizacao = coalesce(i.tipo_formalizacao, f.tipo_formalizacao),
       recurso = coalesce(i.recurso, f.recurso)
-    from input_filtered i
+    from input_by_norm i
     where regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') = i.emenda_norm
-    returning 1
+    returning f.id
   ),
+
+  -- 2) Fallback por (ano + últimos 5 dígitos)
+  --    Só aplica quando a chave for única no input (para evitar conflito de 2 emendas com mesmo final)
+  input_unmatched_norm as (
+    select i.*
+    from input_by_norm i
+    where not exists (
+      select 1
+      from formalizacao f
+      where regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') = i.emenda_norm
+    )
+  ),
+  input_year_last5_unique as (
+    select
+      ano,
+      emenda_last5,
+      max(tipo_formalizacao) as tipo_formalizacao,
+      max(recurso) as recurso
+    from input_unmatched_norm
+    where emenda_last5 is not null and emenda_last5 <> ''
+    group by ano, emenda_last5
+    having count(*) = 1
+  ),
+  formalizacao_year_last5 as (
+    select
+      f.id,
+      right(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g'), 5) as emenda_last5,
+      case
+        when length(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g')) >= 4
+          then substring(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') from 1 for 4)::int
+        else null
+      end as ano
+    from formalizacao f
+    where (
+      case
+        when length(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g')) >= 4
+          then substring(regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') from 1 for 4)::int
+        else null
+      end
+    ) = any(years)
+  ),
+  formalizacao_year_last5_unique as (
+    select
+      ano,
+      emenda_last5,
+      min(id) as id
+    from formalizacao_year_last5
+    where emenda_last5 is not null and emenda_last5 <> ''
+    group by ano, emenda_last5
+    having count(*) = 1
+  ),
+  updated_last5 as (
+    update formalizacao f
+    set
+      tipo_formalizacao = coalesce(i.tipo_formalizacao, f.tipo_formalizacao),
+      recurso = coalesce(i.recurso, f.recurso)
+    from input_year_last5_unique i
+    join formalizacao_year_last5_unique u
+      on u.ano = i.ano
+     and u.emenda_last5 = i.emenda_last5
+    where f.id = u.id
+      and not exists (select 1 from updated_norm un where un.id = f.id)
+    returning f.id
+  ),
+
   counts as (
     select
       (select count(*) from input) as total_input,
-      (select count(*) from input_clean) as clean_input,
       (select count(*) from input_filtered) as filtered_input,
-      (select count(*) from updated) as updated_count,
+      (select count(*) from updated_norm) as updated_norm_count,
+      (select count(*) from updated_last5) as updated_last5_count,
       (
+        -- emendas do input (já filtradas por anos) que não acharam match nem por norm nem por last5 seguro
         select count(*)
-        from input_filtered i
+        from input_by_norm i
         where not exists (
           select 1
           from formalizacao f
           where regexp_replace(coalesce(f.emenda, ''), '\\D', '', 'g') = i.emenda_norm
+        )
+        and not exists (
+          select 1
+          from input_year_last5_unique iu
+          join formalizacao_year_last5_unique fu
+            on fu.ano = iu.ano and fu.emenda_last5 = iu.emenda_last5
+          where iu.ano = i.ano and iu.emenda_last5 = i.emenda_last5
         )
       ) as not_found_count,
       (
         select count(*)
         from input_clean i
         where i.ano is null or not (i.ano = any(years))
-      ) as skipped_year_count
+      ) as skipped_year_count,
+      (
+        select count(*)
+        from (
+          select ano, emenda_last5
+          from input_unmatched_norm
+          where emenda_last5 is not null and emenda_last5 <> ''
+          group by ano, emenda_last5
+          having count(*) > 1
+        ) x
+      ) as ambiguous_input_last5_count,
+      (
+        select count(*)
+        from (
+          select ano, emenda_last5
+          from formalizacao_year_last5
+          where emenda_last5 is not null and emenda_last5 <> ''
+          group by ano, emenda_last5
+          having count(*) > 1
+        ) x
+      ) as ambiguous_dest_last5_count
   )
   select
     total_input,
     filtered_input,
-    updated_count,
+    updated_norm_count,
+    updated_last5_count,
+    (updated_norm_count + updated_last5_count) as updated_total_count,
     not_found_count,
-    skipped_year_count
+    skipped_year_count,
+    ambiguous_input_last5_count,
+    ambiguous_dest_last5_count
   into
     input_rows,
     filtered_rows,
-    updated_rows,
+    updated_norm_rows,
+    updated_last5_rows,
+    updated_total,
     not_found,
-    skipped_year
+    skipped_year,
+    ambiguous_input_last5,
+    ambiguous_dest_last5
   from counts;
 
   return jsonb_build_object(
-    'updated', updated_rows,
+    'updated', updated_total,
+    'updatedNorm', updated_norm_rows,
+    'updatedLast5', updated_last5_rows,
     'notFound', not_found,
     'skippedYear', skipped_year,
+    'ambiguousInputLast5', ambiguous_input_last5,
+    'ambiguousDestLast5', ambiguous_dest_last5,
     'total', input_rows,
     'filtered', filtered_rows,
     'years', years
