@@ -4104,7 +4104,6 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   const conferencistaEditableFields = [
                     'area_estagio_situacao_demanda', 'situacao_analise_demanda', 'conferencista',
                     'data_liberacao_assinatura_conferencista', 'data_retorno', 'observacao_motivo_retorno',
-                    'data_recebimento_demanda',
                     'falta_assinatura', 'assinatura',
                     'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em'
                   ];
