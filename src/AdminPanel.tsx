@@ -221,8 +221,8 @@ export function AdminPanel() {
   const [totalRecords, setTotalRecords] = useState(0);
 
   const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({
-    quadroTecnico: false,
-    panoramaSituacao: false,
+    quadroTecnico: true,
+    panoramaSituacao: true,
     detalheSituacao: true,
     tempoTecnicos: true,
     evolucaoMensal: true,

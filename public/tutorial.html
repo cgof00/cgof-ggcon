@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tutorial do Sistema – CGOF/GGCON</title>
+  <style>
+    :root {
+      --azul: #1351B4;
+      --azul-escuro: #0C326F;
+      --azul-claro: #2670E8;
+      --verde: #1A7A4A;
+      --verde-claro: #E3F5EA;
+      --violeta: #6B4FA0;
+      --violeta-claro: #F0EAF9;
+      --amarelo: #B06D00;
+      --amarelo-claro: #FFF3DC;
+      --vermelho: #C62828;
+      --vermelho-claro: #FDE8E8;
+      --cinza: #4B5563;
+      --cinza-claro: #F3F4F6;
+      --borda: #E5E7EB;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #F0F4FB;
+      color: #1F2937;
+      line-height: 1.6;
+    }
+
+    /* ── CABEÇALHO ── */
+    header {
+      background: linear-gradient(135deg, var(--azul-escuro) 0%, var(--azul) 60%, var(--azul-claro) 100%);
+      color: #fff;
+      padding: 40px 24px 32px;
+      text-align: center;
+    }
+    header .logo-linha {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      opacity: 0.7;
+      margin-bottom: 8px;
+    }
+    header h1 {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+    header p {
+      font-size: 14px;
+      opacity: 0.8;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    /* ── NAVEGAÇÃO ── */
+    nav {
+      background: #fff;
+      border-bottom: 2px solid var(--borda);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      overflow-x: auto;
+    }
+    nav a {
+      padding: 14px 22px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--cinza);
+      text-decoration: none;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    nav a:hover { color: var(--azul); border-bottom-color: var(--azul); background: var(--cinza-claro); }
+    nav a.ativo { color: var(--azul-escuro); border-bottom-color: var(--azul-escuro); }
+
+    /* ── LAYOUT PRINCIPAL ── */
+    main {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 32px 20px 60px;
+    }
+
+    /* ── SEÇÃO ── */
+    section {
+      margin-bottom: 56px;
+    }
+    .secao-titulo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--borda);
+    }
+    .secao-icone {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .secao-titulo h2 {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--azul-escuro);
+    }
+    .secao-titulo .sub {
+      font-size: 12px;
+      color: var(--cinza);
+      font-weight: 400;
+      display: block;
+      margin-top: 1px;
+    }
+
+    /* ── BADGE DE PERFIL ── */
+    .badge-perfil {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .badge-tecnico { background: #DBEAFE; color: var(--azul-escuro); }
+    .badge-conferencista { background: var(--violeta-claro); color: var(--violeta); }
+    .badge-ambos { background: var(--cinza-claro); color: var(--cinza); }
+
+    /* ── PASSO A PASSO ── */
+    .passo {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      align-items: flex-start;
+    }
+    .passo-num {
+      min-width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--azul);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .passo-num.verde { background: var(--verde); }
+    .passo-num.violeta { background: var(--violeta); }
+    .passo-conteudo h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 4px;
+    }
+    .passo-conteudo p, .passo-conteudo li {
+      font-size: 13.5px;
+      color: var(--cinza);
+    }
+    .passo-conteudo ul { padding-left: 16px; margin-top: 4px; }
+    .passo-conteudo li { margin-bottom: 3px; }
+
+    /* ── CAIXA DE DESTAQUE ── */
+    .destaque {
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin: 16px 0;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .destaque-icone { font-size: 20px; margin-top: 1px; flex-shrink: 0; }
+    .destaque p, .destaque li { font-size: 13.5px; }
+    .destaque ul { padding-left: 16px; margin-top: 4px; }
+    .destaque li { margin-bottom: 4px; }
+    .info { background: #EFF6FF; border: 1px solid #BFDBFE; }
+    .info .destaque-icone::before { content: "ℹ️"; }
+    .aviso { background: var(--amarelo-claro); border: 1px solid #FDE68A; }
+    .aviso .destaque-icone::before { content: "⚠️"; }
+    .sucesso { background: var(--verde-claro); border: 1px solid #A7F3D0; }
+    .sucesso .destaque-icone::before { content: "✅"; }
+    .bloqueio { background: var(--vermelho-claro); border: 1px solid #FECACA; }
+    .bloqueio .destaque-icone::before { content: "🔒"; }
+
+    /* ── TABELA DE CAMPOS ── */
+    .card-campos {
+      background: #fff;
+      border: 1px solid var(--borda);
+      border-radius: 14px;
+      overflow: hidden;
+      margin: 16px 0;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .card-campos .cabecalho {
+      padding: 12px 18px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cab-azul { background: #EFF6FF; color: var(--azul-escuro); border-bottom: 1px solid #BFDBFE; }
+    .cab-violeta { background: var(--violeta-claro); color: var(--violeta); border-bottom: 1px solid #DDD6FE; }
+    .cab-verde { background: var(--verde-claro); color: var(--verde); border-bottom: 1px solid #A7F3D0; }
+    .cab-vermelho { background: var(--vermelho-claro); color: var(--vermelho); border-bottom: 1px solid #FECACA; }
+    .campo-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 18px;
+      border-bottom: 1px solid #F9FAFB;
+      font-size: 13px;
+    }
+    .campo-item:last-child { border-bottom: none; }
+    .campo-nome {
+      font-weight: 600;
+      color: #111;
+      min-width: 240px;
+      flex-shrink: 0;
+    }
+    .campo-desc { color: var(--cinza); flex: 1; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .tag-obrig { background: #FEF3C7; color: #92400E; }
+    .tag-lock { background: #FEE2E2; color: #991B1B; }
+    .tag-botao { background: #DCFCE7; color: #166534; }
+
+    /* ── LINHA DO TEMPO / FLUXO ── */
+    .fluxo {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: 20px 0;
+      position: relative;
+    }
+    .fluxo::before {
+      content: '';
+      position: absolute;
+      left: 18px;
+      top: 20px;
+      bottom: 20px;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--azul), var(--verde));
+      opacity: 0.3;
+    }
+    .fluxo-item {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 14px 0;
+    }
+    .fluxo-bolinha {
+      min-width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+      color: #fff;
+      flex-shrink: 0;
+      z-index: 1;
+    }
+    .fluxo-texto strong { font-size: 14px; color: #111; display: block; margin-bottom: 2px; }
+    .fluxo-texto span { font-size: 13px; color: var(--cinza); }
+
+    /* ── DICAS RÁPIDAS ── */
+    .dica-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .dica-card {
+      background: #fff;
+      border: 1px solid var(--borda);
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .dica-card .emoji { font-size: 24px; flex-shrink: 0; }
+    .dica-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .dica-card p { font-size: 12.5px; color: var(--cinza); }
+
+    /* ── GLOSSÁRIO ── */
+    .glossario-item {
+      padding: 14px 0;
+      border-bottom: 1px solid var(--borda);
+      display: flex;
+      gap: 16px;
+    }
+    .glossario-item:last-child { border-bottom: none; }
+    .glossario-termo {
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--azul-escuro);
+      min-width: 220px;
+      flex-shrink: 0;
+    }
+    .glossario-def { font-size: 13px; color: var(--cinza); }
+
+    /* ── RODAPÉ ── */
+    footer {
+      background: var(--azul-escuro);
+      color: rgba(255,255,255,0.6);
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+    }
+
+    /* ── RESPONSIVO ── */
+    @media (max-width: 600px) {
+      .campo-item { flex-direction: column; }
+      .campo-nome { min-width: auto; }
+      header h1 { font-size: 22px; }
+      .fluxo::before { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-linha">CGOF / GGCON — Gestão de Emendas e Convênios</div>
+  <h1>📘 Tutorial do Sistema</h1>
+  <p>Guia completo para Técnicos e Conferencistas — como visualizar, editar e atualizar suas demandas.</p>
+</header>
+
+<nav>
+  <a href="#acesso" class="ativo">🔑 Acesso</a>
+  <a href="#tecnico">👷 Técnico</a>
+  <a href="#conferencista">🔍 Conferencista</a>
+  <a href="#fluxo">🔄 Fluxo Geral</a>
+  <a href="#campos">📋 Campos</a>
+  <a href="#dicas">💡 Dicas</a>
+  <a href="#glossario">📖 Glossário</a>
+</nav>
+
+<main>
+
+  <!-- ═══════════════════════════════════════════
+       1. ACESSO AO SISTEMA
+  ═══════════════════════════════════════════ -->
+  <section id="acesso">
+    <div class="secao-titulo">
+      <div class="secao-icone" style="background:#EFF6FF;">🔑</div>
+      <div>
+        <h2>Acessando o Sistema</h2>
+        <span class="sub">Válido para técnicos e conferencistas</span>
+      </div>
+    </div>
+
+    <span class="badge-perfil badge-ambos">👥 Técnico e Conferencista</span>
+
+    <div class="passo">
+      <div class="passo-num">1</div>
+      <div class="passo-conteudo">
+        <h4>Abra o sistema no navegador</h4>
+        <p>Acesse o endereço fornecido pela gestão. Funciona em qualquer navegador moderno (Chrome, Edge, Firefox). Recomendamos usar em computador ou tablet para melhor experiência.</p>
+      </div>
+    </div>
+
+    <div class="passo">
+      <div class="passo-num">2</div>
+      <div class="passo-conteudo">
+        <h4>Faça login com seu e-mail e senha</h4>
+        <p>Use o e-mail e senha fornecidos pelo administrador do sistema. Se esquecer a senha, entre em contato com a gestão — apenas administradores podem redefini-la.</p>
+      </div>
+    </div>
+
+    <div class="passo">
+      <div class="passo-num">3</div>
+      <div class="passo-conteudo">
+        <h4>Você acessa a tela principal automaticamente</h4>
+        <p>Ao entrar, o sistema já filtra e exibe <strong>somente as suas demandas</strong>. Você não vê demandas de outros técnicos.</p>
+      </div>
+    </div>
+
+    <div class="destaque info">
+      <div class="destaque-icone"></div>
+      <p>A tela principal mostra uma tabela com todas as suas demandas. Use a <strong>barra de pesquisa</strong> no topo para encontrar uma demanda específica pelo número, parlamentar, município ou conveniado.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       2. TUTORIAL DO TÉCNICO
+  ═══════════════════════════════════════════ -->
+  <section id="tecnico">
+    <div class="secao-titulo">
+      <div class="secao-icone" style="background:#DBEAFE;">👷</div>
+      <div>
+        <h2>Tutorial — Técnico</h2>
+        <span class="sub">Passo a passo completo para análise e atualização de demandas</span>
+      </div>
+    </div>
+
+    <span class="badge-perfil badge-tecnico">👷 Perfil: Técnico</span>
+
+    <h3 style="font-size:16px;font-weight:700;color:#111;margin:20px 0 12px;">📌 Passo 1 — Visualizando suas demandas</h3>
+
+    <div class="passo">
+      <div class="passo-num">1</div>
+      <div class="passo-conteudo">
+        <h4>A tabela mostra apenas as suas demandas</h4>
+        <p>Ao fazer login, o sistema já aplica automaticamente o filtro pelo seu nome. Você verá apenas os registros onde o campo <em>Técnico</em> contém o seu nome cadastrado.</p>
+      </div>
+    </div>
+
+    <div class="passo">
+      <div class="passo-num">2</div>
+      <div class="passo-conteudo">
+        <h4>Identifique as colunas principais da tabela</h4>
+        <ul>
+          <li><strong>Demanda / Emenda:</strong> número identificador da demanda</li>
+          <li><strong>Parlamentar:</strong> nome do parlamentar da emenda</li>
+          <li><strong>Conveniado / Beneficiário:</strong> prefeitura ou entidade</li>
+          <li><strong>Município:</strong> cidade da demanda</li>
+          <li><strong>Situação:</strong> onde a demanda está no processo</li>
+          <li><strong>Técnico:</strong> confirma que está atribuída a você</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="passo">
+      <div class="passo-num">3</div>
+      <div class="passo-conteudo">
+        <h4>Clique em qualquer linha para abrir o detalhe da demanda</h4>
+        <p>Ao clicar em uma linha da tabela, abre-se um painel lateral ou modal com todas as informações completas dessa demanda — incluindo dados do parlamentar, conveniado, valores, histórico de datas e muito mais.</p>
+      </div>
+    </div>
+
+    <div class="destaque info">
+      <div class="destaque-icone"></div>
+      <p>Na tela de detalhe você pode <strong>ver todas as informações</strong> da demanda, mesmo os campos que você não pode editar. Isso é útil para consultar dados como número de convênio, valor, objeto etc.</p>
+    </div>
+
+    <h3 style="font-size:16px;font-weight:700;color:#111;margin:28px 0 12px;">✏️ Passo 2 — Editando uma demanda</h3>
+
+    <div class="passo">
+      <div class="passo-num">1</div>
+      <div class="passo-conteudo">
+        <h4>Localize o ícone de lápis ✏️ no canto superior direito do detalhe</h4>
+        <p>Com a demanda aberta, procure o botão com ícone de <strong>lápis (✏️)</strong> no canto superior da janela de detalhe. Clique nele para entrar no modo de edição.</p>
+      </div>
+    </div>
+
+    <div class="passo">
+      <div class="passo-num">2</div>
+      <div class="passo-conteudo">
+        <h4>A janela "Editar Demanda" será aberta</h4>
+        <p>Você verá um formulário dividido em seções. Os campos <strong>bloqueados</strong> (acinzentados) são somente leitura para você. Os campos <strong>ativos</strong> (brancos) podem ser preenchidos ou alterados.</p>
+      </div>
+    </div>
+
+    <div class="passo">
+      <div class="passo-num">3</div>
+      <div class="passo-conteudo">
+        <h4>Na parte superior há informações da emenda (somente leitura)</h4>
+        <p>Você verá: <em>Nome do Parlamentar</em>, <em>Emenda</em> e <em>Demanda</em>. Esses dados são fixos e não podem ser alterados por você.</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:700;color:#111;margin:24px 0 10px;">📝 Campos que o Técnico pode editar</h3>
+
+    <div class="card-campos">
+      <div class="cabecalho cab-azul">⭐ SEÇÃO PRINCIPAL — Área / Estágio / Situação da Demanda</div>
+      <div class="campo-item">
+        <div class="campo-nome">Situação da Demanda <span class="tag tag-obrig">Importante</span></div>
+        <div class="campo-desc">
+          <b>Dropdown com todas as etapas do processo.</b> Sempre mantenha este campo atualizado com a situação real da demanda. As opções disponíveis são:
+          <ul style="margin-top:6px;">
+            <li>DEMANDA COM O TÉCNICO</li>
+            <li>EM ANÁLISE DA DOCUMENTAÇÃO</li>
+            <li>EM ANÁLISE DO PLANO DE TRABALHO</li>
+            <li>AGUARDANDO DOCUMENTAÇÃO</li>
+            <li>DEMANDA EM DILIGÊNCIA</li>
+            <li>DEMANDA EM DILIGÊNCIA DOCUMENTO – DRS</li>
+            <li>DEMANDA EM DILIGÊNCIA PLANO DE TRABALHO – CRS</li>
+            <li>COMITÊ GESTOR</li>
+            <li>OUTRAS PENDÊNCIAS</li>
+            <li>EM FORMALIZAÇÃO</li>
+            <li>EM CONFERÊNCIA</li>
+            <li>CONFERÊNCIA COM PENDÊNCIA</li>
+            <li>EM ASSINATURA</li>
+            <li>EMPENHO CANCELADO</li>
+            <li>LAUDAS</li>
+            <li>PUBLICAÇÃO NO DOE</li>
+            <li>PROCESSO SIAFEM</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-campos">
+      <div class="cabecalho cab-azul">📋 SEÇÃO 2 — Análise da Demanda (Técnico)</div>
+      <div class="campo-item">
+        <div class="campo-nome">Situação – Análise Demanda</div>
+        <div class="campo-desc">Campo de texto livre para descrever a situação atual da análise. Ex.: "Documentação recebida - aguardando análise financeira".</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Data – Análise Demanda <span class="tag tag-botao">Botão Especial</span></div>
+        <div class="campo-desc">
+          Não é um campo de data comum. Você verá um botão verde <strong>"Demanda Analisada"</strong>. Clique nele para registrar automaticamente a <b>data de hoje</b> como data de análise. 
+          <br><br><em>⚠️ Após clicar e salvar, essa data não pode mais ser alterada por você — apenas o administrador pode desfazer.</em>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-campos">
+      <div class="cabecalho cab-azul">📤 SEÇÃO 3 — Diligência</div>
+      <div class="campo-item">
+        <div class="campo-nome">Motivo do Retorno da Diligência</div>
+        <div class="campo-desc">Se a demanda foi devolvida em diligência, descreva aqui o motivo. Ex.: "Falta o Plano de Trabalho assinado pelo responsável técnico".</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Data do Retorno da Diligência</div>
+        <div class="campo-desc">Data em que a demanda foi devolvida para diligência. Selecione a data no calendário.</div>
+      </div>
+    </div>
+
+    <div class="card-campos">
+      <div class="cabecalho cab-verde">✅ SEÇÃO 5 — Assinaturas (quando disponível)</div>
+      <div class="campo-item">
+        <div class="campo-nome">Data Liberação de Assinatura <span class="tag tag-lock">Bloqueio após 1º uso</span></div>
+        <div class="campo-desc">Data em que você liberou a demanda para assinatura. <strong>Atenção:</strong> após salvo pela primeira vez, este campo fica bloqueado — apenas administrador pode alterar.</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Falta Assinatura</div>
+        <div class="campo-desc">Marque os cargos que ainda não assinaram a demanda. Quando a assinatura for preenchida, essas marcações são limpas automaticamente.</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Assinatura <span class="tag tag-lock">Bloqueio após 1º uso</span></div>
+        <div class="campo-desc">Data em que a demanda foi efetivamente assinada. Ao preencher, os checkboxes de "Falta Assinatura" são automaticamente desmarcados.</div>
+      </div>
+    </div>
+
+    <div class="card-campos">
+      <div class="cabecalho cab-verde">📅 SEÇÃO 6 — Publicação e Finalização (quando disponível)</div>
+      <div class="campo-item">
+        <div class="campo-nome">Publicação <span class="tag tag-lock">Bloqueio após 1º uso</span></div>
+        <div class="campo-desc">Data de publicação no Diário Oficial. Após preenchido e salvo, fica bloqueado.</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Vigência <span class="tag tag-lock">Bloqueio após 1º uso</span></div>
+        <div class="campo-desc">Data de vigência do convênio.</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Encaminhado em <span class="tag tag-lock">Bloqueio após 1º uso</span></div>
+        <div class="campo-desc">Data em que a demanda foi encaminhada.</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Concluída em <span class="tag tag-lock">Bloqueio após 1º uso</span></div>
+        <div class="campo-desc">Data de conclusão da demanda. Ao preencher este campo, a demanda passa a constar como concluída no painel.</div>
+      </div>
+    </div>
+
+    <div class="destaque bloqueio">
+      <div class="destaque-icone"></div>
+      <div>
+        <strong>Campos com bloqueio após 1º preenchimento:</strong>
+        <p>Os campos de <em>Data Liberação Assinatura, Assinatura, Publicação, Vigência, Encaminhado em</em> e <em>Concluída em</em> só podem ser preenchidos <strong>uma vez</strong>. Após salvar, ficam bloqueados para edição. Se precisar corrigir, entre em contato com o administrador.</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:16px;font-weight:700;color:#111;margin:28px 0 12px;">💾 Passo 3 — Salvando a demanda</h3>
+
+    <div class="passo">
+      <div class="passo-num">1</div>
+      <div class="passo-conteudo">
+        <h4>Revise todos os campos preenchidos</h4>
+        <p>Antes de salvar, confirme que a <strong>Situação da Demanda</strong> (dropdown) está correta — é o campo mais importante para o acompanhamento feito pela gestão.</p>
+      </div>
+    </div>
+
+    <div class="passo">
+      <div class="passo-num">2</div>
+      <div class="passo-conteudo">
+        <h4>Clique no botão azul "Atualizar Registro"</h4>
+        <p>O botão fica na parte inferior do formulário. Clique uma única vez e aguarde a confirmação. Após salvar, o sistema fecha o formulário automaticamente e atualiza a tabela.</p>
+      </div>
+    </div>
+
+    <div class="destaque sucesso">
+      <div class="destaque-icone"></div>
+      <p>Uma mensagem verde de confirmação aparecerá no topo da tela. Isso confirma que os dados foram salvos com sucesso no sistema.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       3. TUTORIAL DO CONFERENCISTA
+  ═══════════════════════════════════════════ -->
+  <section id="conferencista">
+    <div class="secao-titulo">
+      <div class="secao-icone" style="background:var(--violeta-claro);">🔍</div>
+      <div>
+        <h2>Tutorial — Conferencista</h2>
+        <span class="sub">Passo a passo para revisão, conferência e liberação de demandas</span>
+      </div>
+    </div>
+
+    <span class="badge-perfil badge-conferencista">🔍 Perfil: Conferencista</span>
+
+    <div class="destaque info">
+      <div class="destaque-icone"></div>
+      <p>O <strong>conferencista</strong> é responsável por revisar a documentação analisada pelo técnico, confirmar a conferência e liberar a demanda para assinatura. Você acessa as demandas atribuídas ao seu nome no campo <em>Conferencista</em>.</p>
+    </div>
+
+    <h3 style="font-size:16px;font-weight:700;color:#111;margin:20px 0 12px;">📌 Passo 1 — Acessando suas demandas como Conferencista</h3>
+
+    <div class="passo">
+      <div class="passo-num verde">1</div>
+      <div class="passo-conteudo">
+        <h4>O sistema filtra as demandas pelo seu nome</h4>
+        <p>Ao fazer login, a tabela exibe somente as demandas onde o campo <em>Conferencista</em> contém o seu nome cadastrado. Se uma demanda ainda não tiver conferencista atribuído, ela não aparecerá para você até que a gestão faça a atribuição.</p>
+      </div>
+    </div>
+
+    <div class="passo">
+      <div class="passo-num verde">2</div>
+      <div class="passo-conteudo">
+        <h4>Identifique demandas que precisam de ação</h4>
+        <p>Fique atento à coluna <strong>Situação</strong>. As demandas que chegam para você geralmente estão como:</p>
+        <ul>
+          <li><strong>EM CONFERÊNCIA</strong> — aguardando sua revisão</li>
+          <li><strong>CONFERÊNCIA COM PENDÊNCIA</strong> — foi devolvida com pendência ao técnico e voltou para você</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="passo">
+      <div class="passo-num verde">3</div>
+      <div class="passo-conteudo">
+        <h4>Clique na linha para ver o detalhe completo</h4>
+        <p>Abra a demanda clicando em qualquer lugar da linha. Analise toda a documentação registrada pelo técnico antes de editar.</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:16px;font-weight:700;color:#111;margin:28px 0 12px;">✏️ Passo 2 — Editando como Conferencista</h3>
+
+    <div class="passo">
+      <div class="passo-num verde">1</div>
+      <div class="passo-conteudo">
+        <h4>Clique no lápis ✏️ para editar</h4>
+        <p>Assim como o técnico, você encontra o botão de edição (ícone de lápis) no canto superior da janela de detalhe da demanda.</p>
+      </div>
+    </div>
+
+    <div class="card-campos">
+      <div class="cabecalho cab-violeta">⭐ SEÇÃO PRINCIPAL — Situação da Demanda</div>
+      <div class="campo-item">
+        <div class="campo-nome">Situação da Demanda <span class="tag tag-obrig">Essencial</span></div>
+        <div class="campo-desc">
+          Atualize conforme a situação após sua conferência:
+          <ul style="margin-top:6px;">
+            <li><strong>EM CONFERÊNCIA</strong> — demanda recebida e em análise por você</li>
+            <li><strong>CONFERÊNCIA COM PENDÊNCIA</strong> — se encontrar pendências, use esta situação e registre a observação</li>
+            <li><strong>EM ASSINATURA</strong> — após liberar a conferência, atualize para esta situação</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-campos">
+      <div class="cabecalho cab-violeta">📋 SEÇÃO 2 — Análise (Conferencista pode alterar)</div>
+      <div class="campo-item">
+        <div class="campo-nome">Situação – Análise Demanda</div>
+        <div class="campo-desc">Campo de texto para registrar sua análise. Ex.: "Documentação conferida e aprovada com ressalva no Plano de Trabalho".</div>
+      </div>
+    </div>
+
+    <div class="card-campos">
+      <div class="cabecalho cab-violeta">🔍 SEÇÃO 4 — Campos Exclusivos do Conferencista</div>
+      <div class="campo-item">
+        <div class="campo-nome">Conferencista</div>
+        <div class="campo-desc">Seu próprio nome já deve estar preenchido neste campo. Em geral não precisa alterar — a gestão faz essa atribuição.</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Data Recebimento Demanda</div>
+        <div class="campo-desc">Registre a data em que você recebeu a demanda para conferência. Importante para controle de tempo de análise.</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Data do Retorno</div>
+        <div class="campo-desc">Data em que você retornou a demanda (ao técnico ou para o próximo passo). Use este campo quando devolver com pendência ou quando concluir a conferência.</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Observação – Motivo do Retorno</div>
+        <div class="campo-desc">Descreva detalhadamente o motivo do retorno quando houver pendência. <strong>Seja específico</strong> — isso orienta o técnico sobre o que precisa ser corrigido. Ex.: "Falta assinatura do responsável técnico na página 3 do Plano de Trabalho".</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Data Liberação da Assinatura – Conferencista <span class="tag tag-botao">Botão Especial</span></div>
+        <div class="campo-desc">
+          Você verá um botão roxo <strong>"Liberação Conferência"</strong>. Clique nele <strong>somente quando a conferência estiver aprovada</strong> — ele registra automaticamente a data de hoje.
+          <br><br><em>⚠️ Após salvar, esta data fica bloqueada.</em>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-campos">
+      <div class="cabecalho cab-verde">✅ SEÇÃO 5 e 6 — Assinaturas e Publicação (quando necessário)</div>
+      <div class="campo-item">
+        <div class="campo-nome">Falta Assinatura</div>
+        <div class="campo-desc">Marque os cargos que ainda não assinaram, caso você tenha acesso a essa informação.</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Assinatura, Publicação, Vigência, Encaminhado em, Concluída em <span class="tag tag-lock">Bloqueio após 1º uso</span></div>
+        <div class="campo-desc">Mesmas regras do técnico: esses campos só podem ser preenchidos uma vez. Após salvar, ficam bloqueados.</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:16px;font-weight:700;color:#111;margin:28px 0 12px;">💾 Passo 3 — Salvando como Conferencista</h3>
+
+    <div class="passo">
+      <div class="passo-num verde">1</div>
+      <div class="passo-conteudo">
+        <h4>Verifique a Situação e as observações antes de salvar</h4>
+        <p>Confirme que a Situação da Demanda reflete corretamente o que você fez: <em>EM CONFERÊNCIA, CONFERÊNCIA COM PENDÊNCIA</em> ou <em>EM ASSINATURA</em>.</p>
+      </div>
+    </div>
+
+    <div class="passo">
+      <div class="passo-num verde">2</div>
+      <div class="passo-conteudo">
+        <h4>Clique em "Atualizar Registro"</h4>
+        <p>O botão azul na parte inferior do formulário. Aguarde a mensagem de confirmação.</p>
+      </div>
+    </div>
+
+    <div class="destaque aviso">
+      <div class="destaque-icone"></div>
+      <p><strong>Fluxo correto para demanda com pendência:</strong> mude a Situação para <em>CONFERÊNCIA COM PENDÊNCIA</em>, preencha detalhadamente a <em>Observação – Motivo do Retorno</em> e a <em>Data do Retorno</em>, depois salve. O técnico verá essas informações e saberá o que corrigir.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       4. FLUXO GERAL DO PROCESSO
+  ═══════════════════════════════════════════ -->
+  <section id="fluxo">
+    <div class="secao-titulo">
+      <div class="secao-icone" style="background:#ECFDF5;">🔄</div>
+      <div>
+        <h2>Fluxo Geral do Processo</h2>
+        <span class="sub">Entenda como a demanda percorre as etapas do sistema</span>
+      </div>
+    </div>
+
+    <div class="fluxo">
+      <div class="fluxo-item">
+        <div class="fluxo-bolinha" style="background:#6B7280;">📥</div>
+        <div class="fluxo-texto">
+          <strong>Demanda recebida pela gestão</strong>
+          <span>A gestão cadastra a emenda e atribui um técnico. A demanda entra no sistema com situação "DEMANDA COM O TÉCNICO".</span>
+        </div>
+      </div>
+      <div class="fluxo-item">
+        <div class="fluxo-bolinha" style="background:var(--azul);">1️⃣</div>
+        <div class="fluxo-texto">
+          <strong>Técnico analisa a documentação</strong>
+          <span>O técnico acessa a demanda, revisa documentos, altera a situação (ex: "EM ANÁLISE DA DOCUMENTAÇÃO") e registra a data de análise clicando em "Demanda Analisada".</span>
+        </div>
+      </div>
+      <div class="fluxo-item">
+        <div class="fluxo-bolinha" style="background:#B45309;">⚠️</div>
+        <div class="fluxo-texto">
+          <strong>Se houver pendência — Diligência</strong>
+          <span>O técnico muda a situação para "DEMANDA EM DILIGÊNCIA", preenche o motivo e data de retorno. A demanda fica aguardando o conveniado corrigir.</span>
+        </div>
+      </div>
+      <div class="fluxo-item">
+        <div class="fluxo-bolinha" style="background:var(--violeta);">2️⃣</div>
+        <div class="fluxo-texto">
+          <strong>Demanda vai para conferência</strong>
+          <span>Técnico muda para "EM CONFERÊNCIA" e o conferencista recebe a demanda. O conferencista revisa toda a documentação.</span>
+        </div>
+      </div>
+      <div class="fluxo-item">
+        <div class="fluxo-bolinha" style="background:#7C3AED;">🔙</div>
+        <div class="fluxo-texto">
+          <strong>Se conferencista encontrar pendência</strong>
+          <span>Muda para "CONFERÊNCIA COM PENDÊNCIA", preenche a observação detalhada e retorna ao técnico para correção.</span>
+        </div>
+      </div>
+      <div class="fluxo-item">
+        <div class="fluxo-bolinha" style="background:var(--verde);">3️⃣</div>
+        <div class="fluxo-texto">
+          <strong>Liberação da assinatura</strong>
+          <span>Conferencista clica em "Liberação Conferência" e muda a situação para "EM ASSINATURA". Técnico ou gestão pode preencher "Falta Assinatura".</span>
+        </div>
+      </div>
+      <div class="fluxo-item">
+        <div class="fluxo-bolinha" style="background:#0891B2;">4️⃣</div>
+        <div class="fluxo-texto">
+          <strong>Assinatura e publicação</strong>
+          <span>Após coleta de todas as assinaturas, preenche-se a data de Assinatura. Posteriormente, a data de Publicação no DOE.</span>
+        </div>
+      </div>
+      <div class="fluxo-item">
+        <div class="fluxo-bolinha" style="background:var(--verde);">✅</div>
+        <div class="fluxo-texto">
+          <strong>Demanda concluída</strong>
+          <span>A data "Concluída em" é preenchida. A demanda sai da fila de pendentes e passa a constar no painel como concluída.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       5. RESUMO DE CAMPOS POR PERFIL
+  ═══════════════════════════════════════════ -->
+  <section id="campos">
+    <div class="secao-titulo">
+      <div class="secao-icone" style="background:#FEF3C7;">📋</div>
+      <div>
+        <h2>Resumo — Quem pode editar o quê</h2>
+        <span class="sub">Referência rápida de permissões por campo</span>
+      </div>
+    </div>
+
+    <div class="card-campos">
+      <div class="cabecalho" style="background:#F9FAFB;border-bottom:1px solid var(--borda);color:#374151;">
+        📊 Legenda: ✅ Pode editar &nbsp;|&nbsp; 🔒 Bloqueado após 1º uso &nbsp;|&nbsp; ❌ Somente leitura
+      </div>
+      <div class="campo-item" style="background:#F9FAFB;font-weight:700;font-size:12px;color:#6B7280;">
+        <div class="campo-nome">Campo</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">Técnico</div>
+        <div style="text-align:center;flex:1;">Conferencista</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Situação da Demanda (dropdown)</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">✅</div>
+        <div style="text-align:center;flex:1;">✅</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Situação – Análise Demanda</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">✅</div>
+        <div style="text-align:center;flex:1;">✅</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Data – Análise Demanda</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">✅ (botão)</div>
+        <div style="text-align:center;flex:1;">❌</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Motivo do Retorno da Diligência</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">✅</div>
+        <div style="text-align:center;flex:1;">❌</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Data do Retorno da Diligência</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">✅</div>
+        <div style="text-align:center;flex:1;">❌</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Conferencista</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">❌</div>
+        <div style="text-align:center;flex:1;">✅</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Data Recebimento Demanda</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">❌</div>
+        <div style="text-align:center;flex:1;">✅</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Data do Retorno (conferência)</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">❌</div>
+        <div style="text-align:center;flex:1;">✅</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Observação – Motivo do Retorno</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">❌</div>
+        <div style="text-align:center;flex:1;">✅</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Data Liberação Assinatura – Conferencista</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">❌</div>
+        <div style="text-align:center;flex:1;">✅ (botão) 🔒</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Data Liberação de Assinatura</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">✅ 🔒</div>
+        <div style="text-align:center;flex:1;">❌</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Falta Assinatura (checkboxes)</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">✅</div>
+        <div style="text-align:center;flex:1;">✅</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Assinatura (data)</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">✅ 🔒</div>
+        <div style="text-align:center;flex:1;">✅ 🔒</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Publicação</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">✅ 🔒</div>
+        <div style="text-align:center;flex:1;">✅ 🔒</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Vigência</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">✅ 🔒</div>
+        <div style="text-align:center;flex:1;">✅ 🔒</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Encaminhado em</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">✅ 🔒</div>
+        <div style="text-align:center;flex:1;">✅ 🔒</div>
+      </div>
+      <div class="campo-item">
+        <div class="campo-nome">Concluída em</div>
+        <div style="min-width:120px;flex-shrink:0;text-align:center;">✅ 🔒</div>
+        <div style="text-align:center;flex:1;">✅ 🔒</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       6. DICAS RÁPIDAS
+  ═══════════════════════════════════════════ -->
+  <section id="dicas">
+    <div class="secao-titulo">
+      <div class="secao-icone" style="background:#FFFBEB;">💡</div>
+      <div>
+        <h2>Dicas e Boas Práticas</h2>
+        <span class="sub">Para técnicos e conferencistas</span>
+      </div>
+    </div>
+
+    <div class="dica-grid">
+      <div class="dica-card">
+        <div class="emoji">🎯</div>
+        <div>
+          <h4>Mantenha a Situação sempre atualizada</h4>
+          <p>O campo "Situação da Demanda" é o principal indicador de acompanhamento. A gestão usa esse dado para monitorar o progresso de todas as demandas em tempo real.</p>
+        </div>
+      </div>
+      <div class="dica-card">
+        <div class="emoji">📅</div>
+        <div>
+          <h4>Use os botões de data especiais</h4>
+          <p>Os botões "Demanda Analisada" e "Liberação Conferência" registram automaticamente a data de hoje com um clique. Isso evita erros de digitação de data.</p>
+        </div>
+      </div>
+      <div class="dica-card">
+        <div class="emoji">🔍</div>
+        <div>
+          <h4>Use a busca para encontrar demandas rapidamente</h4>
+          <p>A barra de pesquisa no topo da tabela permite buscar por número de demanda, nome do parlamentar, município ou conveniado. Digite qualquer parte do texto.</p>
+        </div>
+      </div>
+      <div class="dica-card">
+        <div class="emoji">⚠️</div>
+        <div>
+          <h4>Cuidado com campos que bloqueiam</h4>
+          <p>Datas de assinatura, publicação, vigência e conclusão só podem ser preenchidas uma vez. Verifique bem antes de salvar — se errar, apenas o administrador pode corrigir.</p>
+        </div>
+      </div>
+      <div class="dica-card">
+        <div class="emoji">📝</div>
+        <div>
+          <h4>Seja detalhado nas observações</h4>
+          <p>Quando devolver uma demanda por pendência, descreva exatamente o que falta. Quanto mais detalhado, mais rápido o conveniado ou técnico resolve a pendência.</p>
+        </div>
+      </div>
+      <div class="dica-card">
+        <div class="emoji">🌐</div>
+        <div>
+          <h4>O sistema funciona em tempo real</h4>
+          <p>Alterações feitas por você ficam visíveis imediatamente para toda a equipe e gestão. Não é necessário avisar por e-mail — o sistema centraliza o acompanhamento.</p>
+        </div>
+      </div>
+      <div class="dica-card">
+        <div class="emoji">🔒</div>
+        <div>
+          <h4>Você só vê suas próprias demandas</h4>
+          <p>O sistema garante privacidade: técnicos só veem demandas atribuídas a eles, e conferencistas só veem demandas onde seu nome consta como conferencista.</p>
+        </div>
+      </div>
+      <div class="dica-card">
+        <div class="emoji">💬</div>
+        <div>
+          <h4>Em caso de dúvida, contate o administrador</h4>
+          <p>Se o sistema não está mostrando suas demandas ou um campo está bloqueado incorretamente, entre em contato com a gestão — eles têm acesso total para corrigir.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       7. GLOSSÁRIO
+  ═══════════════════════════════════════════ -->
+  <section id="glossario">
+    <div class="secao-titulo">
+      <div class="secao-icone" style="background:#EDE9FE;">📖</div>
+      <div>
+        <h2>Glossário de Termos</h2>
+        <span class="sub">Definições dos principais termos do sistema</span>
+      </div>
+    </div>
+
+    <div class="glossario-item">
+      <div class="glossario-termo">Demanda</div>
+      <div class="glossario-def">Solicitação de convênio associada a uma emenda parlamentar. Cada linha da tabela é uma demanda.</div>
+    </div>
+    <div class="glossario-item">
+      <div class="glossario-termo">Emenda</div>
+      <div class="glossario-def">Código identificador da emenda parlamentar que originou a demanda (ex: 2024.017.xxxxx).</div>
+    </div>
+    <div class="glossario-item">
+      <div class="glossario-termo">Conveniado / Beneficiário</div>
+      <div class="glossario-def">Prefeitura ou entidade que receberá os recursos do convênio.</div>
+    </div>
+    <div class="glossario-item">
+      <div class="glossario-termo">Situação da Demanda</div>
+      <div class="glossario-def">Etapa atual da demanda no processo de formalização. É o campo mais importante para acompanhamento.</div>
+    </div>
+    <div class="glossario-item">
+      <div class="glossario-termo">Diligência</div>
+      <div class="glossario-def">Devolução da demanda ao conveniado ou técnico para correção de pendências — faltam documentos, assinaturas ou informações.</div>
+    </div>
+    <div class="glossario-item">
+      <div class="glossario-termo">Conferência</div>
+      <div class="glossario-def">Etapa de revisão realizada pelo conferencista após a análise técnica, antes da assinatura.</div>
+    </div>
+    <div class="glossario-item">
+      <div class="glossario-termo">Data Liberação – Conferencista</div>
+      <div class="glossario-def">Data em que o conferencista aprovou a conferência e liberou para assinatura. Registrada via botão "Liberação Conferência".</div>
+    </div>
+    <div class="glossario-item">
+      <div class="glossario-termo">Falta Assinatura</div>
+      <div class="glossario-def">Lista de cargos que ainda precisam assinar o instrumento de convênio.</div>
+    </div>
+    <div class="glossario-item">
+      <div class="glossario-termo">DOE</div>
+      <div class="glossario-def">Diário Oficial do Estado. A publicação no DOE oficializa o convênio.</div>
+    </div>
+    <div class="glossario-item">
+      <div class="glossario-termo">Vigência</div>
+      <div class="glossario-def">Período de duração do convênio, determinado a partir da data de publicação.</div>
+    </div>
+    <div class="glossario-item">
+      <div class="glossario-termo">Concluída em</div>
+      <div class="glossario-def">Data de conclusão do processo de formalização. Demandas com este campo preenchido são consideradas concluídas.</div>
+    </div>
+    <div class="glossario-item">
+      <div class="glossario-termo">SIAFEM</div>
+      <div class="glossario-def">Sistema Integrado de Administração Financeira do Estado de São Paulo. Demandas em "PROCESSO SIAFEM" estão na etapa de empenho financeiro.</div>
+    </div>
+    <div class="glossario-item">
+      <div class="glossario-termo">Campo bloqueado 🔒</div>
+      <div class="glossario-def">Campo que, após ser preenchido e salvo pela primeira vez, não pode mais ser alterado pelo técnico ou conferencista — apenas pelo administrador.</div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>CGOF / GGCON — Sistema de Gestão de Emendas e Convênios</p>
+  <p style="margin-top:4px;">Tutorial gerado em março de 2026 · Para suporte, contate o administrador do sistema</p>
+</footer>
+
+<script>
+  // Scroll suave para âncoras
+  document.querySelectorAll('nav a').forEach(link => {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      const id = this.getAttribute('href').replace('#', '');
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.querySelectorAll('nav a').forEach(a => a.classList.remove('ativo'));
+      this.classList.add('ativo');
+    });
+  });
+
+  // Atualizar link ativo ao rolar
+  const sections = document.querySelectorAll('section[id]');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(sec => {
+      if (window.scrollY >= sec.offsetTop - 100) current = sec.id;
+    });
+    document.querySelectorAll('nav a').forEach(a => {
+      a.classList.toggle('ativo', a.getAttribute('href') === '#' + current);
+    });
+  });
+</script>
+
+</body>
+</html>
