@@ -313,7 +313,7 @@ export function AdminPanel() {
     const source = filtered;
     if (!source.length) return null;
     const totalEmendas = source.filter((f: any) => f.emenda && String(f.emenda).trim() !== '').length;
-    const totalDemandas = source.filter((f: any) => f.demandas_formalizacao && String(f.demandas_formalizacao).trim() !== '').length;
+    const totalDemandas = source.filter((f: any) => f.demanda && String(f.demanda).trim() !== '').length;
     const concluidas = source.filter((f: any) => f.concluida_em && String(f.concluida_em).trim() !== '').length;
     const emAndamento = source.length - concluidas;
     const publicadas = source.filter((f: any) => f.publicacao && String(f.publicacao).trim() !== '').length;
