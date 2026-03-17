@@ -84,6 +84,159 @@ function HorizontalBar({ items, colorFrom, colorTo }: { items: { label: string; 
   );
 }
 
+// ─── Etapas simplificadas (linguagem leiga) ────────────────────────────────
+const ETAPAS_SIMPLES = [
+  { label: 'Com técnico / Ag. Documentação', desc: 'Demanda com o técnico ou aguardando documentação do convenente', keys: ['demandaComTecnico', 'agDoc'], color: 'bg-blue-500', textColor: 'text-blue-700', bgLight: 'bg-blue-50 border-blue-200' },
+  { label: 'Em Análise', desc: 'Documentação sendo analisada pelo técnico', keys: ['emAnalise'], color: 'bg-sky-500', textColor: 'text-sky-700', bgLight: 'bg-sky-50 border-sky-200' },
+  { label: 'Em Diligência', desc: 'Pendência comunicada ao convenente, aguardando resposta', keys: ['diligencia'], color: 'bg-red-500', textColor: 'text-red-700', bgLight: 'bg-red-50 border-red-200' },
+  { label: 'Em Formalização / Conferência', desc: 'Em processo de formalização ou conferência do convênio', keys: ['formalizacao', 'emConferencia', 'confPendencia', 'comiteGestor'], color: 'bg-violet-500', textColor: 'text-violet-700', bgLight: 'bg-violet-50 border-violet-200' },
+  { label: 'Em Assinatura / Publicação', desc: 'Aguardando assinaturas ou publicação no DOE', keys: ['emAssinatura', 'laudasPubli', 'outrasPend'], color: 'bg-emerald-500', textColor: 'text-emerald-700', bgLight: 'bg-emerald-50 border-emerald-200' },
+];
+
+function getStageBadgeClass(stage: string): string {
+  const upper = (stage || '').toUpperCase();
+  if (upper.includes('DILIGÊNCIA') || upper.includes('DILIGENCIA')) return 'bg-red-100 text-red-700';
+  if (upper.includes('ANÁLISE') || upper.includes('ANALISE')) return 'bg-sky-100 text-sky-700';
+  if (upper.includes('CONFERÊNCIA') || upper.includes('CONFERENCIA')) return 'bg-violet-100 text-violet-700';
+  if (upper.includes('ASSINATURA')) return 'bg-teal-100 text-teal-700';
+  if (upper.includes('FORMALIZ')) return 'bg-indigo-100 text-indigo-700';
+  if (upper.includes('AGUARDANDO')) return 'bg-amber-100 text-amber-700';
+  if (upper.includes('TÉCNICO') || upper.includes('TECNICO')) return 'bg-blue-100 text-blue-700';
+  return 'bg-slate-100 text-slate-600';
+}
+
+function TechnicianCard({ row, idx }: { row: any; idx: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const pctConcluido = row.recebidas > 0 ? Math.round((row.concluida / row.recebidas) * 100) : 0;
+  const etapas = ETAPAS_SIMPLES.map(e => ({
+    ...e,
+    count: e.keys.reduce((sum: number, k: string) => sum + (row[k] || 0), 0),
+  })).filter(e => e.count > 0);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: idx * 0.04 }}
+      className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm"
+    >
+      {/* Card Header */}
+      <div className="p-4 bg-gradient-to-r from-[#1351B4] to-[#0C326F]">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+              <Users className="w-5 h-5 text-white" />
+            </div>
+            <h4 className="text-white font-bold text-sm leading-tight">{row.tecnico}</h4>
+          </div>
+          <span className="bg-white/20 text-white text-xs px-2.5 py-1 rounded-full font-semibold">
+            {row.recebidas} recebidas
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="bg-white/10 rounded-xl p-2.5 text-center">
+            <p className="text-xl font-bold text-amber-300">{row.totalGGCON}</p>
+            <p className="text-[10px] text-white/70 font-medium">Em andamento</p>
+          </div>
+          <div className="bg-white/10 rounded-xl p-2.5 text-center">
+            <p className="text-xl font-bold text-green-300">{row.concluida}</p>
+            <p className="text-[10px] text-white/70 font-medium">Concluídas</p>
+          </div>
+          <div className="bg-white/10 rounded-xl p-2.5 text-center">
+            <p className="text-xl font-bold text-white">{pctConcluido}%</p>
+            <p className="text-[10px] text-white/70 font-medium">% concluído</p>
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center justify-between text-[10px] text-white/60 mb-1">
+            <span>Progresso geral</span>
+            <span>{pctConcluido}%</span>
+          </div>
+          <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${pctConcluido}%` }}
+              transition={{ duration: 0.8, delay: idx * 0.05 }}
+              className="h-full bg-green-400 rounded-full"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Stage Breakdown */}
+      {etapas.length > 0 && (
+        <div className="p-3 bg-white">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="w-full flex items-center justify-between mb-2 group"
+          >
+            <span className="text-xs font-semibold text-slate-600 group-hover:text-slate-800 transition-colors">
+              Onde estão as demandas em andamento
+            </span>
+            <span className={`text-[10px] font-medium flex items-center gap-1 ${expanded ? 'text-[#1351B4]' : 'text-slate-400'}`}>
+              {expanded ? 'Recolher' : 'Ver detalhes'} {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            </span>
+          </button>
+
+          {/* Compact pills (always visible) */}
+          <div className="flex flex-wrap gap-1.5 mb-1">
+            {etapas.map((etapa, ei) => (
+              <span key={ei} className={`${etapa.bgLight} ${etapa.textColor} border text-[10px] font-bold px-2 py-0.5 rounded-full`}>
+                {etapa.label}: {etapa.count}
+              </span>
+            ))}
+          </div>
+
+          {/* Expanded bars */}
+          <AnimatePresence initial={false}>
+            {expanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="space-y-2.5 mt-3 pt-3 border-t border-slate-100">
+                  {etapas.map((etapa, ei) => {
+                    const pct = row.totalGGCON > 0 ? (etapa.count / row.totalGGCON) * 100 : 0;
+                    return (
+                      <div key={ei}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-xs font-semibold ${etapa.textColor}`}>{etapa.label}</span>
+                          <span className={`text-xs font-bold ${etapa.textColor}`}>{etapa.count}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${pct}%` }}
+                            transition={{ duration: 0.6, delay: ei * 0.05 }}
+                            className={`h-full ${etapa.color} rounded-full`}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{etapa.desc}</p>
+                      </div>
+                    );
+                  })}
+                  {(row.transfVol > 0 || row.emendaLOA > 0) && (
+                    <div className="pt-2 border-t border-slate-100">
+                      <p className="text-[10px] text-slate-500 font-semibold mb-1.5">Tipo das concluídas:</p>
+                      <div className="flex gap-2 flex-wrap">
+                        {row.transfVol > 0 && <span className="bg-slate-100 text-slate-600 text-[10px] font-medium px-2 py-0.5 rounded-full">Transf. Voluntária: {row.transfVol}</span>}
+                        {row.emendaLOA > 0 && <span className="bg-slate-100 text-slate-600 text-[10px] font-medium px-2 py-0.5 rounded-full">Emenda LOA: {row.emendaLOA}</span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 export function AdminPanel() {
   const { user } = useAuth();
 
@@ -92,22 +245,20 @@ export function AdminPanel() {
   const [totalRecords, setTotalRecords] = useState(0);
 
   const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({
-    quadroTecnico: true,
-    situacao: true,
+    quadroTecnico: false,
     detalheSituacao: true,
     tempoTecnicos: true,
-    topMunicipios: true,
     evolucaoMensal: true,
     demandasRegional: true,
     conferencistas: true,
     atrasadas: true,
     publicacoesMes: true,
-    diligencias: true,
     taxaConclusao: true,
     tempoMedioAnalise: true,
   });
 
   const [expandedSituacoes, setExpandedSituacoes] = useState<Set<string>>(new Set());
+  const [expandedConfs, setExpandedConfs] = useState<Set<string>>(new Set());
 
   const [filtroTecnico, setFiltroTecnico] = useState('');
   const [filtroRegional, setFiltroRegional] = useState('');
@@ -309,16 +460,29 @@ export function AdminPanel() {
 
   // Demandas por Conferencista
   const demandasConferencista = useMemo(() => {
-    const confMap = new Map<string, { total: number; conferidas: number; pendentes: number }>();
+    const confMap = new Map<string, { total: number; conferidas: number; pendentes: number; motivosPendentes: Map<string, number> }>();
     filtered.forEach((f: any) => {
       const conf = f.conferencista || 'Sem Conferencista';
-      if (!confMap.has(conf)) confMap.set(conf, { total: 0, conferidas: 0, pendentes: 0 });
+      if (!confMap.has(conf)) confMap.set(conf, { total: 0, conferidas: 0, pendentes: 0, motivosPendentes: new Map() });
       const c = confMap.get(conf)!;
       c.total++;
-      if (f.data_liberacao_assinatura_conferencista && String(f.data_liberacao_assinatura_conferencista).trim() !== '') c.conferidas++;
-      else c.pendentes++;
+      if (f.data_liberacao_assinatura_conferencista && String(f.data_liberacao_assinatura_conferencista).trim() !== '') {
+        c.conferidas++;
+      } else {
+        c.pendentes++;
+        const stage = (f.area_estagio_situacao_demanda || '').trim() || 'Sem situação definida';
+        c.motivosPendentes.set(stage, (c.motivosPendentes.get(stage) || 0) + 1);
+      }
     });
-    return Array.from(confMap.entries()).map(([conferencista, data]) => ({ conferencista, ...data })).sort((a, b) => b.total - a.total);
+    return Array.from(confMap.entries()).map(([conferencista, data]) => ({
+      conferencista,
+      total: data.total,
+      conferidas: data.conferidas,
+      pendentes: data.pendentes,
+      motivosPendentes: Array.from(data.motivosPendentes.entries())
+        .map(([motivo, count]) => ({ motivo, count }))
+        .sort((a, b) => b.count - a.count),
+    })).sort((a, b) => b.total - a.total);
   }, [filtered]);
 
   // Demandas Atrasadas (>30 dias sem conclusão)
@@ -529,55 +693,45 @@ export function AdminPanel() {
             </motion.div>
           </div>
 
-          {/* ===== QUADRO DETALHADO POR TÉCNICO ===== */}
-          <CollapsibleCard id="quadroTecnico" title="Quadro de Demandas por Técnico" icon={BarChart3} count={quadroTecnico.rows.length} color="bg-gradient-to-r from-[#1351B4] to-[#0C326F] hover:from-[#0C326F] hover:to-[#1351B4]" collapsed={collapsedCards.quadroTecnico} toggle={() => toggle('quadroTecnico')}>
+          {/* ===== SITUAÇÃO DAS DEMANDAS POR TÉCNICO ===== */}
+          <CollapsibleCard id="quadroTecnico" title="Situação das Demandas por Técnico" icon={Users} count={quadroTecnico.rows.length} color="bg-gradient-to-r from-[#1351B4] to-[#0C326F] hover:from-[#0C326F] hover:to-[#1351B4]" collapsed={collapsedCards.quadroTecnico} toggle={() => toggle('quadroTecnico')}>
             {quadroTecnico.rows.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-800 text-white">
-                      <th className="text-left px-3 py-3 font-bold whitespace-nowrap sticky left-0 bg-slate-800 z-10 min-w-[140px]">Técnico</th>
-                      <th className="text-center px-2 py-3 font-bold whitespace-nowrap">Deman.<br/>Recebidas</th>
-                      {SITUACAO_CATEGORIAS.map(cat => (
-                        <th key={cat.key} className="text-center px-2 py-3 font-bold whitespace-nowrap">{cat.short}</th>
-                      ))}
-                      <th className="text-center px-2 py-3 font-bold whitespace-nowrap bg-slate-700">Total no<br/>GGCON</th>
-                      <th className="text-center px-2 py-3 font-bold whitespace-nowrap bg-slate-700">Concluída</th>
-                      <th className="text-center px-2 py-3 font-bold whitespace-nowrap bg-slate-700">Transf.<br/>Vol.</th>
-                      <th className="text-center px-2 py-3 font-bold whitespace-nowrap bg-slate-700">Emenda<br/>LOA</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {quadroTecnico.rows.map((row: any, idx: number) => (
-                      <tr key={idx} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
-                        <td className={`px-3 py-2.5 font-semibold text-slate-900 whitespace-nowrap sticky left-0 z-10 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>{row.tecnico}</td>
-                        <td className="px-2 py-2.5 text-center font-bold text-slate-800">{row.recebidas}</td>
-                        {SITUACAO_CATEGORIAS.map(cat => (
-                          <td key={cat.key} className="px-2 py-2.5 text-center">{cellValue(row[cat.key])}</td>
-                        ))}
-                        <td className="px-2 py-2.5 text-center font-bold text-slate-800 bg-slate-50">{row.totalGGCON}</td>
-                        <td className="px-2 py-2.5 text-center">{cellValue(row.concluida, 'dark')}</td>
-                        <td className="px-2 py-2.5 text-center">{cellValue(row.transfVol, 'dark')}</td>
-                        <td className="px-2 py-2.5 text-center">{cellValue(row.emendaLOA, 'dark')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  {quadroTecnico.totals && (
-                    <tfoot>
-                      <tr className="bg-slate-800 text-white font-bold">
-                        <td className="px-3 py-3 sticky left-0 bg-slate-800 z-10">Total</td>
-                        <td className="px-2 py-3 text-center">{quadroTecnico.totals.recebidas}</td>
-                        {SITUACAO_CATEGORIAS.map(cat => (
-                          <td key={cat.key} className="px-2 py-3 text-center">{quadroTecnico.totals[cat.key] > 0 ? quadroTecnico.totals[cat.key] : '—'}</td>
-                        ))}
-                        <td className="px-2 py-3 text-center bg-slate-700">{quadroTecnico.totals.totalGGCON}</td>
-                        <td className="px-2 py-3 text-center bg-slate-700">{quadroTecnico.totals.concluida}</td>
-                        <td className="px-2 py-3 text-center bg-slate-700">{quadroTecnico.totals.transfVol}</td>
-                        <td className="px-2 py-3 text-center bg-slate-700">{quadroTecnico.totals.emendaLOA}</td>
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
+              <div className="space-y-5">
+                {/* Totais gerais */}
+                {quadroTecnico.totals && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-[#0C326F]">{quadroTecnico.totals.recebidas}</p>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">Total Recebidas</p>
+                    </div>
+                    <div className="text-center border-l border-slate-200">
+                      <p className="text-2xl font-bold text-amber-600">{quadroTecnico.totals.totalGGCON}</p>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">Em Andamento</p>
+                    </div>
+                    <div className="text-center border-l border-slate-200">
+                      <p className="text-2xl font-bold text-green-600">{quadroTecnico.totals.concluida}</p>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">Concluídas</p>
+                    </div>
+                    <div className="text-center border-l border-slate-200">
+                      <p className="text-2xl font-bold text-violet-600">
+                        {quadroTecnico.totals.recebidas > 0 ? Math.round((quadroTecnico.totals.concluida / quadroTecnico.totals.recebidas) * 100) : 0}%
+                      </p>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">% Concluído</p>
+                    </div>
+                  </div>
+                )}
+                {/* Legenda de etapas */}
+                <div className="flex flex-wrap gap-2 px-1">
+                  {ETAPAS_SIMPLES.map((e, i) => (
+                    <span key={i} className={`${e.bgLight} ${e.textColor} border text-[10px] font-semibold px-2 py-0.5 rounded-full`}>{e.label}</span>
+                  ))}
+                </div>
+                {/* Cards por técnico */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {quadroTecnico.rows.map((row: any, idx: number) => (
+                    <TechnicianCard key={idx} row={row} idx={idx} />
+                  ))}
+                </div>
               </div>
             ) : <p className="text-slate-500 text-center py-8">Nenhum técnico atribuído</p>}
           </CollapsibleCard>
@@ -641,21 +795,6 @@ export function AdminPanel() {
                 </table>
               </div>
             ) : <p className="text-slate-500 text-center py-8">Sem dados de análise</p>}
-          </CollapsibleCard>
-
-          {/* ===== DISTRIBUIÇÃO DE SITUAÇÃO ===== */}
-          <CollapsibleCard id="situacao" title="Distribuição de Situação da Demanda" icon={PieChart} color="bg-gradient-to-r from-[#1351B4] to-[#0C326F] hover:from-[#0C326F] hover:to-[#1351B4]" collapsed={collapsedCards.situacao} toggle={() => toggle('situacao')}>
-            {displayData.distribuicaoSituacao.length > 0 ? (
-              <HorizontalBar
-                items={displayData.distribuicaoSituacao.map((i: any) => ({ label: i.situacao, value: i.count }))}
-                colorFrom="from-[#1351B4]" colorTo="to-[#0C326F]"
-              />
-            ) : (
-              <div className="text-center py-12">
-                <div className="bg-slate-50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4"><AlertCircle className="text-slate-400 w-8 h-8" /></div>
-                <p className="text-slate-500 font-medium">Nenhuma demanda com situação definida</p>
-              </div>
-            )}
           </CollapsibleCard>
 
           {/* ===== DETALHAMENTO POR SITUAÇÃO DA DEMANDA ===== */}
@@ -768,52 +907,93 @@ export function AdminPanel() {
             ) : <p className="text-slate-500 text-center py-8">Nenhuma demanda atrasada</p>}
           </CollapsibleCard>
 
-          {/* ===== DILIGÊNCIAS EM ABERTO ===== */}
-          <CollapsibleCard id="diligencias" title="Diligências em Aberto por Técnico" icon={Send} count={diligenciasAberto.total} color="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700" collapsed={collapsedCards.diligencias} toggle={() => toggle('diligencias')}>
-            {diligenciasAberto.porTecnico.length > 0 ? (
-              <HorizontalBar
-                items={diligenciasAberto.porTecnico.map(i => ({ label: i.tecnico, value: i.count }))}
-                colorFrom="from-orange-400" colorTo="to-orange-600"
-              />
-            ) : <p className="text-slate-500 text-center py-8">Nenhuma diligência em aberto</p>}
-          </CollapsibleCard>
-
           {/* ===== DEMANDAS POR CONFERENCISTA ===== */}
           <CollapsibleCard id="conferencistas" title="Demandas por Conferencista" icon={UserCheck} count={demandasConferencista.length} color="bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700" collapsed={collapsedCards.conferencistas} toggle={() => toggle('conferencistas')}>
             {demandasConferencista.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b-2 border-violet-200">
-                      <th className="text-left px-4 py-3 font-bold text-slate-700">Conferencista</th>
-                      <th className="text-center px-4 py-3 font-bold text-slate-700">Total</th>
-                      <th className="text-center px-4 py-3 font-bold text-slate-700">Conferidas</th>
-                      <th className="text-center px-4 py-3 font-bold text-slate-700">Pendentes</th>
-                      <th className="text-left px-4 py-3 font-bold text-slate-700 w-1/4">Progresso</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {demandasConferencista.map((item, idx) => {
-                      const pct = item.total > 0 ? Math.round((item.conferidas / item.total) * 100) : 0;
-                      return (
-                        <tr key={idx} className="border-b border-slate-100 hover:bg-violet-50/50">
-                          <td className="px-4 py-3 font-medium text-slate-900">{item.conferencista}</td>
-                          <td className="px-4 py-3 text-center font-bold text-slate-800">{item.total}</td>
-                          <td className="px-4 py-3 text-center">{cellValue(item.conferidas, 'green')}</td>
-                          <td className="px-4 py-3 text-center">{cellValue(item.pendentes)}</td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                                <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6, delay: idx * 0.05 }} className="h-full bg-gradient-to-r from-violet-400 to-violet-600 rounded-full" />
-                              </div>
-                              <span className="text-xs font-semibold text-slate-500 w-10">{pct}%</span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="space-y-4">
+                {demandasConferencista.map((item, idx) => {
+                  const pct = item.total > 0 ? Math.round((item.conferidas / item.total) * 100) : 0;
+                  const isExpanded = expandedConfs.has(item.conferencista);
+                  return (
+                    <div key={idx} className="border border-slate-200 rounded-xl overflow-hidden">
+                      {/* Cabeçalho do conferencista */}
+                      <div className="p-4 bg-white">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                            <UserCheck className="w-4 h-4 text-violet-500" />
+                            {item.conferencista}
+                          </h4>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3 mb-3">
+                          <div className="text-center bg-violet-50 rounded-lg p-2 border border-violet-100">
+                            <p className="text-xl font-bold text-violet-700">{item.total}</p>
+                            <p className="text-[10px] text-slate-500 font-medium">Total</p>
+                          </div>
+                          <div className="text-center bg-green-50 rounded-lg p-2 border border-green-100">
+                            <p className="text-xl font-bold text-green-700">{item.conferidas}</p>
+                            <p className="text-[10px] text-slate-500 font-medium">Conferidas ✓</p>
+                          </div>
+                          <div className="text-center bg-red-50 rounded-lg p-2 border border-red-100">
+                            <p className="text-xl font-bold text-red-600">{item.pendentes}</p>
+                            <p className="text-[10px] text-slate-500 font-medium">Pendentes</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                            <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6, delay: idx * 0.05 }} className="h-full bg-gradient-to-r from-violet-400 to-violet-600 rounded-full" />
+                          </div>
+                          <span className="text-xs font-bold text-slate-600 w-10 text-right">{pct}%</span>
+                        </div>
+                      </div>
+
+                      {/* Por que estão pendentes? (expandível) */}
+                      {item.pendentes > 0 && (
+                        <div className="border-t border-slate-100">
+                          <button
+                            onClick={() => setExpandedConfs(prev => {
+                              const next = new Set(prev);
+                              if (next.has(item.conferencista)) next.delete(item.conferencista); else next.add(item.conferencista);
+                              return next;
+                            })}
+                            className="w-full flex items-center justify-between px-4 py-2.5 bg-red-50 hover:bg-red-100/70 transition-colors"
+                          >
+                            <span className="text-xs font-semibold text-red-700 flex items-center gap-1.5">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              Por que estão pendentes? ({item.pendentes} demandas)
+                            </span>
+                            {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-red-400" /> : <ChevronRight className="w-3.5 h-3.5 text-red-400" />}
+                          </button>
+                          <AnimatePresence initial={false}>
+                            {isExpanded && (
+                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                                <div className="px-4 py-3 space-y-2.5 bg-white border-t border-red-100">
+                                  <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">Situação atual de cada demanda pendente:</p>
+                                  {item.motivosPendentes.map((motivo, mi) => {
+                                    const pctMot = item.pendentes > 0 ? (motivo.count / item.pendentes) * 100 : 0;
+                                    const badgeClass = getStageBadgeClass(motivo.motivo);
+                                    return (
+                                      <div key={mi}>
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeClass}`}>
+                                            {motivo.motivo}
+                                          </span>
+                                          <span className="text-xs font-bold text-slate-700 ml-2 flex-shrink-0">{motivo.count}</span>
+                                        </div>
+                                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                          <motion.div initial={{ width: 0 }} animate={{ width: `${pctMot}%` }} transition={{ duration: 0.5, delay: mi * 0.04 }} className="h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full" />
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : <p className="text-slate-500 text-center py-8">Sem conferencistas</p>}
           </CollapsibleCard>
@@ -856,32 +1036,6 @@ export function AdminPanel() {
                 </table>
               </div>
             ) : <p className="text-slate-500 text-center py-8">Sem dados de regional</p>}
-          </CollapsibleCard>
-
-          {/* ===== TOP MUNICÍPIOS ===== */}
-          <CollapsibleCard id="topMunicipios" title="Top 15 Municípios" icon={MapPin} color="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700" collapsed={collapsedCards.topMunicipios} toggle={() => toggle('topMunicipios')}>
-            {topMunicipios.length > 0 ? (
-              <div className="space-y-3">
-                {topMunicipios.map((item: any, idx: number) => {
-                  const maxCount = Math.max(...topMunicipios.map((i: any) => i.count));
-                  const pct = (item.count / maxCount) * 100;
-                  return (
-                    <div key={idx} className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-slate-700 flex-1 pr-4 flex items-center gap-2">
-                          <span className="text-xs text-slate-400 font-bold w-5 text-right">{idx + 1}.</span>
-                          {item.municipio}
-                        </span>
-                        <div className="bg-sky-100 text-sky-700 px-3 py-0.5 rounded-full font-bold text-xs min-w-10 text-center">{item.count}</div>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden ml-7">
-                        <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, delay: idx * 0.05, ease: 'easeOut' }} className="h-full bg-gradient-to-r from-sky-400 to-sky-600 rounded-full" />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : <p className="text-slate-500 text-center py-8">Nenhum município encontrado</p>}
           </CollapsibleCard>
 
           {/* ===== PUBLICAÇÕES POR MÊS ===== */}

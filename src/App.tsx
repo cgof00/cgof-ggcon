@@ -513,14 +513,14 @@ export default function App() {
   const [isFormalizacaoFormOpen, setIsFormalizacaoFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [importStatus, setImportStatus] = useState<'idle' | 'parsing' | 'uploading' | 'syncing' | 'done' | 'error'>('idle');
+  const [importStatus, setImportStatus] = useState<'idle' | 'parsing' | 'uploading' | 'backing-up' | 'syncing' | 'done' | 'error'>('idle');
   const [importProgress, setImportProgress] = useState(0);
   const [importTotal, setImportTotal] = useState(0);
   const [importMessage, setImportMessage] = useState('');
   const [importError, setImportError] = useState('');
   // Atualizar campos formalização states
   const [isUpdateCamposOpen, setIsUpdateCamposOpen] = useState(false);
-  const [updateCamposStatus, setUpdateCamposStatus] = useState<'idle' | 'parsing' | 'uploading' | 'done' | 'error'>('idle');
+  const [updateCamposStatus, setUpdateCamposStatus] = useState<'idle' | 'parsing' | 'uploading' | 'backing-up' | 'done' | 'error'>('idle');
   const [updateCamposProgress, setUpdateCamposProgress] = useState(0);
   const [updateCamposMessage, setUpdateCamposMessage] = useState('');
   const [updateCamposError, setUpdateCamposError] = useState('');
@@ -1271,6 +1271,30 @@ export default function App() {
         }
       }
       
+      // 💾 BACKUP antes de qualquer escrita na tabela formalizacao
+      setImportStatus('backing-up');
+      setImportProgress(91);
+      setImportMessage('💾 Criando backup da formalização...');
+      try {
+        const bkpResp = await fetch('/api/admin/backup-formalizacao', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        if (!bkpResp.ok) {
+          const bkpErr = await bkpResp.json().catch(() => ({ error: 'Erro desconhecido' }));
+          setImportStatus('error');
+          setImportError(`Erro ao criar backup: ${bkpErr.error || bkpResp.statusText}\n\nO processo foi interrompido para proteger os dados existentes.${bkpErr.hint ? `\n\nDica: ${bkpErr.hint}` : ''}`);
+          return;
+        }
+        const bkpResult = await bkpResp.json();
+        console.log(`✅ Backup criado: ${bkpResult.rows} registros em formalizacao_backup`);
+      } catch (e: any) {
+        setImportStatus('error');
+        setImportError(`Erro ao criar backup: ${e.message}\n\nO processo foi interrompido para proteger os dados existentes.`);
+        return;
+      }
+
       setImportStatus('syncing'); 
       setImportProgress(92);
       setImportMessage('🔄 Sincronizando formalização (comparação total + atualização 2023-2026)...');
@@ -1420,6 +1444,29 @@ export default function App() {
       if (mapped.length === 0) {
         setUpdateCamposStatus('error');
         setUpdateCamposError('Nenhum registro elegível (anos 2023–2026) com coluna "Emenda" encontrado.');
+        return;
+      }
+
+      // 💾 BACKUP antes de qualquer escrita na tabela formalizacao
+      setUpdateCamposStatus('backing-up');
+      setUpdateCamposMessage('💾 Criando backup da formalização...');
+      try {
+        const bkpResp = await fetch('/api/admin/backup-formalizacao', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        if (!bkpResp.ok) {
+          const bkpErr = await bkpResp.json().catch(() => ({ error: 'Erro desconhecido' }));
+          setUpdateCamposStatus('error');
+          setUpdateCamposError(`Erro ao criar backup: ${bkpErr.error || bkpResp.statusText}\n\nO processo foi interrompido para proteger os dados existentes.${bkpErr.hint ? `\n\nDica: ${bkpErr.hint}` : ''}`);
+          return;
+        }
+        const bkpResult = await bkpResp.json();
+        console.log(`✅ Backup criado: ${bkpResult.rows} registros em formalizacao_backup`);
+      } catch (e: any) {
+        setUpdateCamposStatus('error');
+        setUpdateCamposError(`Erro ao criar backup: ${e.message}\n\nO processo foi interrompido para proteger os dados existentes.`);
         return;
       }
 
@@ -3767,7 +3814,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
               <input ref={fileInputRef} type="file" accept=".csv,.xls,.xlsx,.xml" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportCSV(f); e.target.value = ''; }} />
 
               <div className="flex items-center gap-3 mb-4">
-                <button onClick={() => fileInputRef.current?.click()} disabled={importStatus === 'uploading' || importStatus === 'syncing' || importStatus === 'parsing'} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:bg-slate-400 text-white text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
+                <button onClick={() => fileInputRef.current?.click()} disabled={importStatus === 'uploading' || importStatus === 'backing-up' || importStatus === 'syncing' || importStatus === 'parsing'} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:bg-slate-400 text-white text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
                   <Upload className="w-4 h-4" /> Selecionar Arquivo
                 </button>
                 {importStatus === 'done' && (
@@ -3809,12 +3856,29 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
               )}
 
               {importStatus !== 'idle' && importStatus !== 'error' && (
-                <div className="flex items-center gap-5 text-xs text-slate-500">
+                <div className="flex items-center gap-4 text-xs text-slate-500">
                   <span className={`flex items-center gap-1 ${importStatus === 'parsing' ? 'text-violet-600 font-semibold' : importProgress > 0 ? 'text-green-600' : ''}`}>
                     {importProgress > 0 ? <CheckCircle2 className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5 animate-spin" />} Leitura
                   </span>
-                  <span className={`flex items-center gap-1 ${importStatus === 'uploading' ? 'text-violet-600 font-semibold' : importProgress >= 90 ? 'text-green-600' : ''}`}>
-                    {importProgress >= 90 ? <CheckCircle2 className="w-3.5 h-3.5" /> : importStatus === 'uploading' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block" />} Upload
+                  <span className={`flex items-center gap-1 ${
+                    importStatus === 'uploading' ? 'text-violet-600 font-semibold'
+                    : (importStatus === 'backing-up' || importStatus === 'syncing' || importStatus === 'done') ? 'text-green-600' : ''
+                  }`}>
+                    {(importStatus === 'backing-up' || importStatus === 'syncing' || importStatus === 'done')
+                      ? <CheckCircle2 className="w-3.5 h-3.5" />
+                      : importStatus === 'uploading'
+                        ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block" />} Upload
+                  </span>
+                  <span className={`flex items-center gap-1 ${
+                    importStatus === 'backing-up' ? 'text-amber-600 font-semibold'
+                    : (importStatus === 'syncing' || importStatus === 'done') ? 'text-green-600' : ''
+                  }`}>
+                    {(importStatus === 'syncing' || importStatus === 'done')
+                      ? <CheckCircle2 className="w-3.5 h-3.5" />
+                      : importStatus === 'backing-up'
+                        ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block" />} Backup
                   </span>
                   <span className={`flex items-center gap-1 ${importStatus === 'syncing' ? 'text-violet-600 font-semibold' : importStatus === 'done' ? 'text-green-600' : ''}`}>
                     {importStatus === 'done' ? <CheckCircle2 className="w-3.5 h-3.5" /> : importStatus === 'syncing' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block" />} Sync
@@ -3851,7 +3915,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
               <input ref={fileInputUpdateCamposRef} type="file" accept=".csv,.xls,.xlsx,.xml" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpdateCamposCSV(f); e.target.value = ''; }} />
 
               <div className="flex items-center gap-3 mb-4">
-                <button onClick={() => fileInputUpdateCamposRef.current?.click()} disabled={updateCamposStatus === 'uploading' || updateCamposStatus === 'parsing'} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 text-white text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
+                <button onClick={() => fileInputUpdateCamposRef.current?.click()} disabled={updateCamposStatus === 'uploading' || updateCamposStatus === 'backing-up' || updateCamposStatus === 'parsing'} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 text-white text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
                   <Upload className="w-4 h-4" /> Selecionar Arquivo
                 </button>
                 {updateCamposStatus === 'done' && (
