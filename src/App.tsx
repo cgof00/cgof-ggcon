@@ -4048,13 +4048,15 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   // Campos que o técnico pode editar
                   const tecnicoEditableFields = [
                     'area_estagio_situacao_demanda', 'situacao_analise_demanda', 'data_analise_demanda',
+                    'motivo_retorno_diligencia', 'data_retorno_diligencia',
                     'data_liberacao_assinatura', 'falta_assinatura', 'assinatura',
                     'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em'
                   ];
                   // Campos que o conferencista pode editar
                   const conferencistaEditableFields = [
                     'area_estagio_situacao_demanda', 'situacao_analise_demanda', 'conferencista',
-                    'data_liberacao_assinatura_conferencista', 'falta_assinatura', 'assinatura',
+                    'data_liberacao_assinatura_conferencista', 'data_retorno', 'observacao_motivo_retorno',
+                    'falta_assinatura', 'assinatura',
                     'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em'
                   ];
                   // Verifica se um campo está desabilitado para o usuário atual
@@ -4182,7 +4184,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">2</div>
                     <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
                       <FileSearch className="w-3.5 h-3.5" />
-                      Análise da Demanda
+                      Análise da Demanda (Técnico)
                     </h3>
                   </div>
                   <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
@@ -4241,10 +4243,6 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       <Input label="Motivo do Retorno da Diligência" name="motivo_retorno_diligencia" defaultValue={editingFormalizacao?.motivo_retorno_diligencia} disabled={isDisabled('motivo_retorno_diligencia')} />
                       <Input label="Data do Retorno da Diligência" name="data_retorno_diligencia" type="date" defaultValue={editingFormalizacao?.data_retorno_diligencia} disabled={isDisabled('data_retorno_diligencia', true)} />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                      <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={editingFormalizacao?.data_retorno} disabled={isDisabled('data_retorno', true)} />
-                    </div>
-                    <Input label="Observação - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} disabled={isDisabled('observacao_motivo_retorno')} className="col-span-full" />
                   </div>
                 </div>
 
@@ -4254,10 +4252,11 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">4</div>
                     <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
                       <FileText className="w-3.5 h-3.5" />
-                      Conferência
+                      Conferência (Conferencista)
                     </h3>
                   </div>
-                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+                  <div className="p-5 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
                     <div className="flex flex-col gap-1">
                       <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Conferencista</label>
                       <select
@@ -4273,7 +4272,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       </select>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data Liberação - Conferencista</label>
+                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data Liberação da Assinatura - Conferencista</label>
                       {isAdmin ? (
                         <Input label="" name="data_liberacao_assinatura_conferencista" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista} />
                       ) : isDisabled('data_liberacao_assinatura_conferencista') || isDateLocked('data_liberacao_assinatura_conferencista') ? (
@@ -4309,6 +4308,11 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         </>
                       )}
                     </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+                      <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={editingFormalizacao?.data_retorno} disabled={isDisabled('data_retorno', true)} />
+                    </div>
+                    <Input label="Observação - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} disabled={isDisabled('observacao_motivo_retorno')} />
                   </div>
                 </div>
 
