@@ -4129,14 +4129,24 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     return !!val && String(val).trim() !== '';
                   };
                   // Combina: campo desabilitado por papel OU bloqueado após 1º preenchimento
-                  const isDisabled = (fieldName: string, isDate = false): boolean => {
+                  const isDisabled = (fieldName: string, _isDate = false): boolean => {
                     if (isFieldDisabled(fieldName)) return true;
                     if (lockOnceFilledFields.has(fieldName) && isDateLocked(fieldName)) return true;
-                    if (isDate && isDateLocked(fieldName)) return true;
                     return false;
                   };
                   const disabledClass = (fieldName: string, isDate = false): string => {
                     return isDisabled(fieldName, isDate) ? 'opacity-50 cursor-not-allowed bg-gray-50' : '';
+                  };
+                  // Converte qualquer formato de data (DD/MM/YYYY ou YYYY-MM-DD) para YYYY-MM-DD (necessário para input[type="date"])
+                  const toInputDate = (val?: string): string => {
+                    if (!val) return '';
+                    const s = val.trim();
+                    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+                    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+                      const [d, m, y] = s.split('/');
+                      return `${y}-${m}-${d}`;
+                    }
+                    return '';
                   };
 
                   return (
@@ -4226,7 +4236,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         ))}
                       </select>
                     </div>
-                    <Input label="Data da Liberação" name="data_liberacao" type="date" defaultValue={editingFormalizacao?.data_liberacao} disabled={isDisabled('data_liberacao', true)} />
+                    <Input label="Data da Liberação" name="data_liberacao" type="date" defaultValue={toInputDate(editingFormalizacao?.data_liberacao)} disabled={isDisabled('data_liberacao')} />
                     <Input label="Área - Estágio" name="area_estagio" defaultValue={editingFormalizacao?.area_estagio} disabled={isDisabled('area_estagio')} />
                     <Input label="Recurso" name="recurso" defaultValue={editingFormalizacao?.recurso} disabled={isDisabled('recurso')} />
                   </div>
@@ -4295,7 +4305,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   <div className="p-5 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
                       <Input label="Motivo do Retorno da Diligência" name="motivo_retorno_diligencia" defaultValue={editingFormalizacao?.motivo_retorno_diligencia} disabled={isDisabled('motivo_retorno_diligencia')} />
-                      <Input label="Data do Retorno da Diligência" name="data_retorno_diligencia" type="date" defaultValue={editingFormalizacao?.data_retorno_diligencia} disabled={isDisabled('data_retorno_diligencia', true)} />
+                      <Input label="Data do Retorno da Diligência" name="data_retorno_diligencia" type="date" defaultValue={toInputDate(editingFormalizacao?.data_retorno_diligencia)} disabled={isDisabled('data_retorno_diligencia')} />
                     </div>
                   </div>
                 </div>
@@ -4364,8 +4374,8 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                      <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={editingFormalizacao?.data_retorno} disabled={isDisabled('data_retorno', true)} />
-                      <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={editingFormalizacao?.data_recebimento_demanda} disabled={isDisabled('data_recebimento_demanda', true)} />
+                      <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={toInputDate(editingFormalizacao?.data_retorno)} disabled={isDisabled('data_retorno')} />
+                      <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={toInputDate(editingFormalizacao?.data_recebimento_demanda)} disabled={isDisabled('data_recebimento_demanda')} />
                     </div>
                     <Input label="Observação - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} disabled={isDisabled('observacao_motivo_retorno')} />
                   </div>
@@ -4382,7 +4392,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   </div>
                   <div className="p-5 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                      <Input label="Data Liberação de Assinatura" name="data_liberacao_assinatura" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura} disabled={isDisabled('data_liberacao_assinatura', true)} />
+                      <Input label="Data Liberação de Assinatura" name="data_liberacao_assinatura" type="date" defaultValue={toInputDate(editingFormalizacao?.data_liberacao_assinatura)} disabled={isDisabled('data_liberacao_assinatura')} />
                       <div className="flex flex-col gap-1">
                         <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Falta Assinatura</label>
                         <div className={`bg-white border border-gray-200 rounded-lg p-3 space-y-2 ${isDisabled('falta_assinatura') ? 'opacity-50 pointer-events-none bg-gray-50' : ''}`}>
@@ -4421,8 +4431,8 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         <input
                           type="date"
                           name="assinatura"
-                          defaultValue={editingFormalizacao?.assinatura}
-                          disabled={isDisabled('assinatura', true)}
+                          defaultValue={toInputDate(editingFormalizacao?.assinatura)}
+                          disabled={isDisabled('assinatura')}
                           onChange={(e) => {
                             if (e.target.value && e.target.value.trim() !== '') {
                               // Desmarcar todos os checkboxes de falta_assinatura
@@ -4454,10 +4464,10 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     </h3>
                   </div>
                   <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
-                    <Input label="Publicação" name="publicacao" type="date" defaultValue={editingFormalizacao?.publicacao} disabled={isDisabled('publicacao', true)} />
-                    <Input label="Vigência" name="vigencia" type="date" defaultValue={editingFormalizacao?.vigencia} disabled={isDisabled('vigencia', true)} />
-                    <Input label="Encaminhado em" name="encaminhado_em" type="date" defaultValue={editingFormalizacao?.encaminhado_em} disabled={isDisabled('encaminhado_em', true)} />
-                    <Input label="Concluída em" name="concluida_em" type="date" defaultValue={editingFormalizacao?.concluida_em} disabled={isDisabled('concluida_em', true)} />
+                    <Input label="Publicação" name="publicacao" type="date" defaultValue={toInputDate(editingFormalizacao?.publicacao)} disabled={isDisabled('publicacao')} />
+                    <Input label="Vigência" name="vigencia" type="date" defaultValue={toInputDate(editingFormalizacao?.vigencia)} disabled={isDisabled('vigencia')} />
+                    <Input label="Encaminhado em" name="encaminhado_em" type="date" defaultValue={toInputDate(editingFormalizacao?.encaminhado_em)} disabled={isDisabled('encaminhado_em')} />
+                    <Input label="Concluída em" name="concluida_em" type="date" defaultValue={toInputDate(editingFormalizacao?.concluida_em)} disabled={isDisabled('concluida_em')} />
                   </div>
                 </div>
 
