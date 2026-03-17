@@ -105,132 +105,108 @@ function getStageBadgeClass(stage: string): string {
   return 'bg-slate-100 text-slate-600';
 }
 
+function getSituacaoCategoryColor(key: string): { text: string; badge: string; bar: string } {
+  const colorMap: Record<string, { text: string; badge: string; bar: string }> = {
+    demandaComTecnico: { text: 'text-blue-700', badge: 'bg-blue-100 text-blue-700', bar: 'bg-blue-500' },
+    emAnalise: { text: 'text-sky-700', badge: 'bg-sky-100 text-sky-700', bar: 'bg-sky-500' },
+    agDoc: { text: 'text-amber-700', badge: 'bg-amber-100 text-amber-700', bar: 'bg-amber-500' },
+    diligencia: { text: 'text-red-700', badge: 'bg-red-100 text-red-700', bar: 'bg-red-500' },
+    formalizacao: { text: 'text-indigo-700', badge: 'bg-indigo-100 text-indigo-700', bar: 'bg-indigo-500' },
+    emConferencia: { text: 'text-violet-700', badge: 'bg-violet-100 text-violet-700', bar: 'bg-violet-500' },
+    confPendencia: { text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700', bar: 'bg-purple-500' },
+    emAssinatura: { text: 'text-teal-700', badge: 'bg-teal-100 text-teal-700', bar: 'bg-teal-500' },
+    laudasPubli: { text: 'text-fuchsia-700', badge: 'bg-fuchsia-100 text-fuchsia-700', bar: 'bg-fuchsia-500' },
+    comiteGestor: { text: 'text-orange-700', badge: 'bg-orange-100 text-orange-700', bar: 'bg-orange-500' },
+    outrasPend: { text: 'text-slate-600', badge: 'bg-slate-100 text-slate-600', bar: 'bg-slate-400' },
+  };
+  return colorMap[key] || { text: 'text-slate-700', badge: 'bg-slate-100 text-slate-600', bar: 'bg-slate-400' };
+}
+
 function TechnicianCard({ row, idx }: { row: any; idx: number }) {
-  const [expanded, setExpanded] = useState(false);
   const pctConcluido = row.recebidas > 0 ? Math.round((row.concluida / row.recebidas) * 100) : 0;
-  const etapas = ETAPAS_SIMPLES.map(e => ({
-    ...e,
-    count: e.keys.reduce((sum: number, k: string) => sum + (row[k] || 0), 0),
-  })).filter(e => e.count > 0);
+  const activeSituacoes = SITUACAO_CATEGORIAS.filter(c => (row[c.key] || 0) > 0);
+  const diligCount = row.diligencia || 0;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: idx * 0.04 }}
-      className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm"
+      className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
     >
-      {/* Card Header */}
-      <div className="p-4 bg-gradient-to-r from-[#1351B4] to-[#0C326F]">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-              <Users className="w-5 h-5 text-white" />
-            </div>
-            <h4 className="text-white font-bold text-sm leading-tight">{row.tecnico}</h4>
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#1351B4] to-[#0C326F] px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white text-sm uppercase">
+            {(row.tecnico || '?').charAt(0)}
           </div>
-          <span className="bg-white/20 text-white text-xs px-2.5 py-1 rounded-full font-semibold">
-            {row.recebidas} recebidas
+          <span className="text-white font-bold text-sm truncate">{row.tecnico}</span>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
+          <span className="bg-white/20 text-white text-xs px-2.5 py-1 rounded-full font-semibold whitespace-nowrap">
+            {row.recebidas} total
           </span>
-        </div>
-        <div className="grid grid-cols-3 gap-2 mb-3">
-          <div className="bg-white/10 rounded-xl p-2.5 text-center">
-            <p className="text-xl font-bold text-amber-300">{row.totalGGCON}</p>
-            <p className="text-[10px] text-white/70 font-medium">Em andamento</p>
-          </div>
-          <div className="bg-white/10 rounded-xl p-2.5 text-center">
-            <p className="text-xl font-bold text-green-300">{row.concluida}</p>
-            <p className="text-[10px] text-white/70 font-medium">Concluídas</p>
-          </div>
-          <div className="bg-white/10 rounded-xl p-2.5 text-center">
-            <p className="text-xl font-bold text-white">{pctConcluido}%</p>
-            <p className="text-[10px] text-white/70 font-medium">% concluído</p>
-          </div>
-        </div>
-        <div>
-          <div className="flex items-center justify-between text-[10px] text-white/60 mb-1">
-            <span>Progresso geral</span>
-            <span>{pctConcluido}%</span>
-          </div>
-          <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${pctConcluido}%` }}
-              transition={{ duration: 0.8, delay: idx * 0.05 }}
-              className="h-full bg-green-400 rounded-full"
-            />
-          </div>
+          {diligCount > 0 && (
+            <span className="bg-red-500/80 text-white text-xs px-2.5 py-1 rounded-full font-semibold whitespace-nowrap">
+              {diligCount} dilig.
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Stage Breakdown */}
-      {etapas.length > 0 && (
-        <div className="p-3 bg-white">
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="w-full flex items-center justify-between mb-2 group"
-          >
-            <span className="text-xs font-semibold text-slate-600 group-hover:text-slate-800 transition-colors">
-              Onde estão as demandas em andamento
-            </span>
-            <span className={`text-[10px] font-medium flex items-center gap-1 ${expanded ? 'text-[#1351B4]' : 'text-slate-400'}`}>
-              {expanded ? 'Recolher' : 'Ver detalhes'} {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-            </span>
-          </button>
+      {/* KPI row */}
+      <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100">
+        <div className="px-3 py-2.5 text-center">
+          <p className="text-xl font-bold text-amber-600 leading-none">{row.totalGGCON}</p>
+          <p className="text-[10px] text-slate-400 font-medium mt-0.5">Em andamento</p>
+        </div>
+        <div className="px-3 py-2.5 text-center">
+          <p className="text-xl font-bold text-green-600 leading-none">{row.concluida}</p>
+          <p className="text-[10px] text-slate-400 font-medium mt-0.5">Concluídas</p>
+        </div>
+        <div className="px-3 py-2.5 text-center">
+          <p className={`text-xl font-bold leading-none ${pctConcluido >= 70 ? 'text-green-600' : pctConcluido >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
+            {pctConcluido}%
+          </p>
+          <p className="text-[10px] text-slate-400 font-medium mt-0.5">Concluído</p>
+        </div>
+      </div>
 
-          {/* Compact pills (always visible) */}
-          <div className="flex flex-wrap gap-1.5 mb-1">
-            {etapas.map((etapa, ei) => (
-              <span key={ei} className={`${etapa.bgLight} ${etapa.textColor} border text-[10px] font-bold px-2 py-0.5 rounded-full`}>
-                {etapa.label}: {etapa.count}
-              </span>
-            ))}
-          </div>
+      {/* Progress bar */}
+      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
+        <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${pctConcluido}%` }}
+            transition={{ duration: 0.8, delay: idx * 0.05 }}
+            className={`h-full rounded-full ${pctConcluido >= 70 ? 'bg-green-500' : pctConcluido >= 40 ? 'bg-amber-500' : 'bg-red-500'}`}
+          />
+        </div>
+      </div>
 
-          {/* Expanded bars */}
-          <AnimatePresence initial={false}>
-            {expanded && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="space-y-2.5 mt-3 pt-3 border-t border-slate-100">
-                  {etapas.map((etapa, ei) => {
-                    const pct = row.totalGGCON > 0 ? (etapa.count / row.totalGGCON) * 100 : 0;
-                    return (
-                      <div key={ei}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`text-xs font-semibold ${etapa.textColor}`}>{etapa.label}</span>
-                          <span className={`text-xs font-bold ${etapa.textColor}`}>{etapa.count}</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${pct}%` }}
-                            transition={{ duration: 0.6, delay: ei * 0.05 }}
-                            className={`h-full ${etapa.color} rounded-full`}
-                          />
-                        </div>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{etapa.desc}</p>
-                      </div>
-                    );
-                  })}
-                  {(row.transfVol > 0 || row.emendaLOA > 0) && (
-                    <div className="pt-2 border-t border-slate-100">
-                      <p className="text-[10px] text-slate-500 font-semibold mb-1.5">Tipo das concluídas:</p>
-                      <div className="flex gap-2 flex-wrap">
-                        {row.transfVol > 0 && <span className="bg-slate-100 text-slate-600 text-[10px] font-medium px-2 py-0.5 rounded-full">Transf. Voluntária: {row.transfVol}</span>}
-                        {row.emendaLOA > 0 && <span className="bg-slate-100 text-slate-600 text-[10px] font-medium px-2 py-0.5 rounded-full">Emenda LOA: {row.emendaLOA}</span>}
-                      </div>
-                    </div>
-                  )}
+      {/* Situações em andamento - lista com barras */}
+      {activeSituacoes.length > 0 && (
+        <div className="px-4 py-3 space-y-2">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Distribuição em andamento</p>
+          {activeSituacoes.map((cat, ci) => {
+            const count = row[cat.key] || 0;
+            const pctOfTotal = row.totalGGCON > 0 ? (count / row.totalGGCON) * 100 : 0;
+            const colors = getSituacaoCategoryColor(cat.key);
+            return (
+              <div key={ci} className="flex items-center gap-2">
+                <span className={`text-[11px] font-semibold ${colors.text} shrink-0 w-36`}>{cat.label}</span>
+                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${pctOfTotal}%` }}
+                    transition={{ duration: 0.6, delay: idx * 0.04 + ci * 0.03 }}
+                    className={`h-full rounded-full ${colors.bar}`}
+                  />
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                <span className={`text-xs font-bold w-6 text-right shrink-0 ${colors.text}`}>{count}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </motion.div>
@@ -246,6 +222,7 @@ export function AdminPanel() {
 
   const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({
     quadroTecnico: false,
+    panoramaSituacao: false,
     detalheSituacao: true,
     tempoTecnicos: true,
     evolucaoMensal: true,
@@ -262,6 +239,9 @@ export function AdminPanel() {
 
   const [filtroTecnico, setFiltroTecnico] = useState('');
   const [filtroRegional, setFiltroRegional] = useState('');
+  const [filtroConferencista, setFiltroConferencista] = useState('');
+  const [filtroSituacao, setFiltroSituacao] = useState('');
+  const [filtroAno, setFiltroAno] = useState('');
   const [filtroDataInicial, setFiltroDataInicial] = useState('');
   const [filtroDataFinal, setFiltroDataFinal] = useState('');
   const [filtrosAtivos, setFiltrosAtivos] = useState(false);
@@ -269,22 +249,63 @@ export function AdminPanel() {
   const toggle = (id: string) => setCollapsedCards(prev => ({ ...prev, [id]: !prev[id] }));
 
   const uniqueTecnicos = useMemo(() => {
-    return Array.from(new Set(rawFormalizacoes.map((f: any) => f.tecnico || 'Sem Técnico'))).sort();
+    return Array.from(new Set(rawFormalizacoes.map((f: any) => f.tecnico || '').filter(Boolean))).sort();
   }, [rawFormalizacoes]);
 
   const uniqueRegionais = useMemo(() => {
     return Array.from(new Set(rawFormalizacoes.map((f: any) => f.regional || '').filter(Boolean))).sort();
   }, [rawFormalizacoes]);
 
+  const uniqueConferencistas = useMemo(() => {
+    return Array.from(new Set(rawFormalizacoes.map((f: any) => f.conferencista || '').filter(Boolean))).sort();
+  }, [rawFormalizacoes]);
+
+  const uniqueSituacoes = useMemo(() => {
+    return Array.from(new Set(rawFormalizacoes.map((f: any) => f.area_estagio_situacao_demanda || '').filter(Boolean))).sort();
+  }, [rawFormalizacoes]);
+
+  const uniqueAnoOptions = useMemo(() => {
+    const anos = new Set<string>();
+    rawFormalizacoes.forEach((f: any) => {
+      const dateStr = f.data_recebimento_demanda || f.data_entrada || f.created_at || '';
+      if (!dateStr) return;
+      let ano = '';
+      if (String(dateStr).includes('/')) {
+        const p = String(dateStr).split('/');
+        if (p.length >= 3) ano = String(p[2]).substring(0, 4);
+      } else {
+        ano = String(dateStr).substring(0, 4);
+      }
+      if (ano && ano.length === 4 && !isNaN(Number(ano)) && Number(ano) > 2000) anos.add(ano);
+    });
+    return Array.from(anos).sort().reverse();
+  }, [rawFormalizacoes]);
+
   const filtered = useMemo(() => {
     if (!filtrosAtivos || !rawFormalizacoes.length) return rawFormalizacoes;
     let data = [...rawFormalizacoes];
-    if (filtroTecnico) data = data.filter((f: any) => (f.tecnico || 'Sem Técnico') === filtroTecnico);
+    if (filtroTecnico) data = data.filter((f: any) => (f.tecnico || '') === filtroTecnico);
     if (filtroRegional) data = data.filter((f: any) => (f.regional || '') === filtroRegional);
+    if (filtroConferencista) data = data.filter((f: any) => (f.conferencista || '') === filtroConferencista);
+    if (filtroSituacao) data = data.filter((f: any) => (f.area_estagio_situacao_demanda || '') === filtroSituacao);
+    if (filtroAno) {
+      data = data.filter((f: any) => {
+        const dateStr = String(f.data_recebimento_demanda || f.data_entrada || f.created_at || '');
+        if (!dateStr) return false;
+        let ano = '';
+        if (dateStr.includes('/')) {
+          const p = dateStr.split('/');
+          if (p.length >= 3) ano = String(p[2]).substring(0, 4);
+        } else {
+          ano = dateStr.substring(0, 4);
+        }
+        return ano === filtroAno;
+      });
+    }
     if (filtroDataInicial) data = data.filter((f: any) => (f.data_entrada || f.created_at || '') >= filtroDataInicial);
     if (filtroDataFinal) data = data.filter((f: any) => (f.data_entrada || f.created_at || '') <= filtroDataFinal);
     return data;
-  }, [rawFormalizacoes, filtrosAtivos, filtroTecnico, filtroRegional, filtroDataInicial, filtroDataFinal]);
+  }, [rawFormalizacoes, filtrosAtivos, filtroTecnico, filtroRegional, filtroConferencista, filtroSituacao, filtroAno, filtroDataInicial, filtroDataFinal]);
 
   // === METRICS ===
 
@@ -292,7 +313,7 @@ export function AdminPanel() {
     const source = filtered;
     if (!source.length) return null;
     const totalEmendas = source.filter((f: any) => f.emenda && String(f.emenda).trim() !== '').length;
-    const totalDemandas = source.filter((f: any) => f.demandas_formalizacao && String(f.demandas_formalizacao).trim() !== '').length;
+    const totalDemandas = source.length;
     const concluidas = source.filter((f: any) => f.concluida_em && String(f.concluida_em).trim() !== '').length;
     const emAndamento = source.length - concluidas;
     const publicadas = source.filter((f: any) => f.publicacao && String(f.publicacao).trim() !== '').length;
@@ -617,22 +638,55 @@ export function AdminPanel() {
         <div className="flex items-center gap-2 mb-4">
           <Filter className="w-5 h-5 text-[#1351B4]" />
           <h3 className="text-base font-bold text-slate-800">Filtros do Dashboard</h3>
-          {filtrosAtivos && <span className="ml-2 text-xs bg-[#1351B4] text-white px-2 py-0.5 rounded-full">Ativos</span>}
-          <span className="ml-auto text-xs text-slate-500 font-medium">{totalRecords.toLocaleString()} registros carregados</span>
+          {filtrosAtivos && (
+            <span className="ml-2 text-xs bg-[#1351B4] text-white px-2.5 py-0.5 rounded-full font-semibold">
+              {[filtroTecnico, filtroRegional, filtroConferencista, filtroSituacao, filtroAno, filtroDataInicial, filtroDataFinal].filter(Boolean).length} filtro(s) ativo(s)
+            </span>
+          )}
+          <span className="ml-auto text-xs text-slate-500 font-medium bg-slate-100 px-3 py-1 rounded-full">
+            {filtrosAtivos ? filtered.length.toLocaleString() + ' / ' : ''}{totalRecords.toLocaleString()} registros
+          </span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+
+        {/* Linha 1: Técnico, Regional, Conferencista, Ano */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Técnico</label>
             <select value={filtroTecnico} onChange={e => setFiltroTecnico(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none">
-              <option value="">Todos</option>
+              <option value="">Todos os técnicos</option>
               {uniqueTecnicos.map((t: string) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Regional</label>
             <select value={filtroRegional} onChange={e => setFiltroRegional(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none">
-              <option value="">Todas</option>
+              <option value="">Todas as regionais</option>
               {uniqueRegionais.map((r: string) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Conferencista</label>
+            <select value={filtroConferencista} onChange={e => setFiltroConferencista(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none">
+              <option value="">Todos os conferencistas</option>
+              {uniqueConferencistas.map((c: string) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Ano</label>
+            <select value={filtroAno} onChange={e => setFiltroAno(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none">
+              <option value="">Todos os anos</option>
+              {uniqueAnoOptions.map((a: string) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Linha 2: Situação (amplo), Data Inicial, Data Final */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+          <div className="lg:col-span-2">
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Situação da Demanda (Etapa/Área)</label>
+            <select value={filtroSituacao} onChange={e => setFiltroSituacao(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none">
+              <option value="">Todas as situações</option>
+              {uniqueSituacoes.map((s: string) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div>
@@ -649,11 +703,27 @@ export function AdminPanel() {
               <input type="date" value={filtroDataFinal} onChange={e => setFiltroDataFinal(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 text-sm text-slate-700 focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none" />
             </div>
           </div>
-          <div className="flex items-end gap-2">
-            <button onClick={() => setFiltrosAtivos(true)} className="flex-1 flex items-center justify-center gap-1.5 bg-[#1351B4] hover:bg-[#0C326F] text-white text-sm font-semibold rounded-lg px-4 py-2 transition-colors">
-              <Filter className="w-4 h-4" /> Aplicar
+        </div>
+
+        {/* Botões */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-slate-400">Selecione os filtros e clique em Aplicar para atualizar o painel</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setFiltrosAtivos(true)}
+              className="flex items-center justify-center gap-1.5 bg-[#1351B4] hover:bg-[#0C326F] text-white text-sm font-semibold rounded-lg px-5 py-2 transition-colors shadow-sm"
+            >
+              <Filter className="w-4 h-4" /> Aplicar Filtros
             </button>
-            <button onClick={() => { setFiltroTecnico(''); setFiltroRegional(''); setFiltroDataInicial(''); setFiltroDataFinal(''); setFiltrosAtivos(false); }} className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg px-4 py-2 transition-colors">
+            <button
+              onClick={() => {
+                setFiltroTecnico(''); setFiltroRegional(''); setFiltroConferencista('');
+                setFiltroSituacao(''); setFiltroAno('');
+                setFiltroDataInicial(''); setFiltroDataFinal('');
+                setFiltrosAtivos(false);
+              }}
+              className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
+            >
               <RefreshCw className="w-4 h-4" /> Limpar
             </button>
           </div>
@@ -670,28 +740,79 @@ export function AdminPanel() {
         <div className="space-y-5">
 
           {/* ===== CARDS RESUMO ===== */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-[#1351B4]/5 to-[#1351B4]/15 rounded-2xl p-5 border border-[#1351B4]/20 shadow-md">
-              <p className="text-xs font-semibold text-[#1351B4] uppercase tracking-wider mb-1">Total Emendas</p>
-              <p className="text-3xl font-bold text-[#0C326F]">{displayData.totalEmendas.toLocaleString()}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-[#1351B4]/5 to-[#1351B4]/15 rounded-2xl p-4 border border-[#1351B4]/20 shadow-md">
+              <p className="text-[10px] font-bold text-[#1351B4] uppercase tracking-wider mb-1">Total Registros</p>
+              <p className="text-3xl font-bold text-[#0C326F]">{filtered.length.toLocaleString()}</p>
+              <p className="text-[10px] text-slate-400 mt-1">demandas no painel</p>
             </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-gradient-to-br from-[#0C326F]/5 to-[#0C326F]/15 rounded-2xl p-5 border border-[#0C326F]/20 shadow-md">
-              <p className="text-xs font-semibold text-[#0C326F] uppercase tracking-wider mb-1">Total Demandas</p>
-              <p className="text-3xl font-bold text-[#0C326F]">{displayData.totalDemandas.toLocaleString()}</p>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-gradient-to-br from-sky-50 to-sky-100 rounded-2xl p-4 border border-sky-200 shadow-md">
+              <p className="text-[10px] font-bold text-sky-700 uppercase tracking-wider mb-1">Total Emendas</p>
+              <p className="text-3xl font-bold text-sky-800">{displayData.totalEmendas.toLocaleString()}</p>
+              <p className="text-[10px] text-slate-400 mt-1">com nº de emenda</p>
             </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-5 border border-green-200 shadow-md">
-              <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Concluídas</p>
-              <p className="text-3xl font-bold text-green-800">{displayData.concluidas.toLocaleString()}</p>
-            </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-2xl p-5 border border-amber-200 shadow-md">
-              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-1">Em Andamento</p>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-2xl p-4 border border-amber-200 shadow-md">
+              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1">Em Andamento</p>
               <p className="text-3xl font-bold text-amber-800">{displayData.emAndamento.toLocaleString()}</p>
+              <p className="text-[10px] text-slate-400 mt-1">{filtered.length > 0 ? Math.round((displayData.emAndamento / filtered.length) * 100) : 0}% do total</p>
             </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-gradient-to-br from-violet-50 to-violet-100 rounded-2xl p-5 border border-violet-200 shadow-md">
-              <p className="text-xs font-semibold text-violet-700 uppercase tracking-wider mb-1">Publicadas</p>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-4 border border-green-200 shadow-md">
+              <p className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-1">Concluídas</p>
+              <p className="text-3xl font-bold text-green-800">{displayData.concluidas.toLocaleString()}</p>
+              <p className="text-[10px] text-slate-400 mt-1">{filtered.length > 0 ? Math.round((displayData.concluidas / filtered.length) * 100) : 0}% do total</p>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-gradient-to-br from-violet-50 to-violet-100 rounded-2xl p-4 border border-violet-200 shadow-md">
+              <p className="text-[10px] font-bold text-violet-700 uppercase tracking-wider mb-1">Publicadas</p>
               <p className="text-3xl font-bold text-violet-800">{displayData.publicadas.toLocaleString()}</p>
+              <p className="text-[10px] text-slate-400 mt-1">com publicação DOE</p>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="bg-gradient-to-br from-red-50 to-red-100 rounded-2xl p-4 border border-red-200 shadow-md">
+              <p className="text-[10px] font-bold text-red-700 uppercase tracking-wider mb-1">Em Diligência</p>
+              <p className="text-3xl font-bold text-red-800">{diligenciasAberto.total.toLocaleString()}</p>
+              <p className="text-[10px] text-slate-400 mt-1">aguardando retorno</p>
             </motion.div>
           </div>
+
+          {/* ===== PANORAMA VISUAL POR SITUAÇÃO/ETAPA ===== */}
+          <CollapsibleCard id="panoramaSituacao" title="Panorama Geral por Situação / Etapa" icon={PieChart} count={displayData.distribuicaoSituacao.length} color="bg-gradient-to-r from-[#1351B4] to-[#2670E8] hover:from-[#0C326F] hover:to-[#1351B4]" collapsed={collapsedCards.panoramaSituacao} toggle={() => toggle('panoramaSituacao')}>
+            {displayData.distribuicaoSituacao.length > 0 ? (
+              <div className="space-y-2.5">
+                {(() => {
+                  const maxCount = Math.max(...displayData.distribuicaoSituacao.map((i: any) => i.count), 1);
+                  const totalAndamento = displayData.distribuicaoSituacao.reduce((s: number, i: any) => s + i.count, 0);
+                  const situacaoColors = [
+                    'bg-blue-500', 'bg-sky-500', 'bg-amber-500', 'bg-red-500', 'bg-orange-500',
+                    'bg-indigo-500', 'bg-violet-500', 'bg-purple-500', 'bg-teal-500', 'bg-fuchsia-500',
+                    'bg-emerald-500', 'bg-rose-500', 'bg-cyan-500', 'bg-lime-500', 'bg-slate-500',
+                  ];
+                  return displayData.distribuicaoSituacao.map((item: any, idx: number) => {
+                    const pctOfMax = (item.count / maxCount) * 100;
+                    const pctOfTotal = totalAndamento > 0 ? ((item.count / totalAndamento) * 100).toFixed(1) : '0.0';
+                    const colorClass = situacaoColors[idx % situacaoColors.length];
+                    return (
+                      <div key={idx}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-semibold text-slate-700 flex-1 pr-4 leading-tight">{item.situacao}</span>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-slate-400">{pctOfTotal}%</span>
+                            <span className="bg-[#1351B4]/10 text-[#1351B4] px-2.5 py-0.5 rounded-full font-bold text-xs min-w-[2rem] text-center">{item.count}</span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${pctOfMax}%` }}
+                            transition={{ duration: 0.7, delay: idx * 0.04, ease: 'easeOut' }}
+                            className={`h-full rounded-full ${colorClass}`}
+                          />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            ) : <p className="text-slate-500 text-center py-8">Sem dados de situação</p>}
+          </CollapsibleCard>
 
           {/* ===== SITUAÇÃO DAS DEMANDAS POR TÉCNICO ===== */}
           <CollapsibleCard id="quadroTecnico" title="Situação das Demandas por Técnico" icon={Users} count={quadroTecnico.rows.length} color="bg-gradient-to-r from-[#1351B4] to-[#0C326F] hover:from-[#0C326F] hover:to-[#1351B4]" collapsed={collapsedCards.quadroTecnico} toggle={() => toggle('quadroTecnico')}>
@@ -699,21 +820,29 @@ export function AdminPanel() {
               <div className="space-y-5">
                 {/* Totais gerais */}
                 {quadroTecnico.totals && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 p-4 bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl border border-slate-200">
                     <div className="text-center">
                       <p className="text-2xl font-bold text-[#0C326F]">{quadroTecnico.totals.recebidas}</p>
                       <p className="text-xs text-slate-500 font-medium mt-0.5">Total Recebidas</p>
                     </div>
-                    <div className="text-center border-l border-slate-200">
+                    <div className="text-center border-l border-slate-300">
                       <p className="text-2xl font-bold text-amber-600">{quadroTecnico.totals.totalGGCON}</p>
                       <p className="text-xs text-slate-500 font-medium mt-0.5">Em Andamento</p>
                     </div>
-                    <div className="text-center border-l border-slate-200">
+                    <div className="text-center border-l border-slate-300">
                       <p className="text-2xl font-bold text-green-600">{quadroTecnico.totals.concluida}</p>
                       <p className="text-xs text-slate-500 font-medium mt-0.5">Concluídas</p>
                     </div>
-                    <div className="text-center border-l border-slate-200">
-                      <p className="text-2xl font-bold text-violet-600">
+                    <div className="text-center border-l border-slate-300">
+                      <p className="text-2xl font-bold text-red-600">{quadroTecnico.totals.diligencia || 0}</p>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">Em Diligência</p>
+                    </div>
+                    <div className="text-center border-l border-slate-300">
+                      <p className="text-2xl font-bold text-violet-600">{quadroTecnico.totals.emConferencia || 0}</p>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">Em Conferência</p>
+                    </div>
+                    <div className="text-center border-l border-slate-300">
+                      <p className="text-2xl font-bold text-violet-700">
                         {quadroTecnico.totals.recebidas > 0 ? Math.round((quadroTecnico.totals.concluida / quadroTecnico.totals.recebidas) * 100) : 0}%
                       </p>
                       <p className="text-xs text-slate-500 font-medium mt-0.5">% Concluído</p>
@@ -722,12 +851,15 @@ export function AdminPanel() {
                 )}
                 {/* Legenda de etapas */}
                 <div className="flex flex-wrap gap-2 px-1">
-                  {ETAPAS_SIMPLES.map((e, i) => (
-                    <span key={i} className={`${e.bgLight} ${e.textColor} border text-[10px] font-semibold px-2 py-0.5 rounded-full`}>{e.label}</span>
-                  ))}
+                  {SITUACAO_CATEGORIAS.map((c, i) => {
+                    const colors = getSituacaoCategoryColor(c.key);
+                    return (
+                      <span key={i} className={`${colors.badge} border border-current/20 text-[10px] font-semibold px-2 py-0.5 rounded-full`}>{c.label}</span>
+                    );
+                  })}
                 </div>
                 {/* Cards por técnico */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   {quadroTecnico.rows.map((row: any, idx: number) => (
                     <TechnicianCard key={idx} row={row} idx={idx} />
                   ))}
