@@ -79,6 +79,17 @@ function parseBRNumber(val: string): number {
   if (!val || !/^[0-9.,]+$/.test(val.trim())) return 0;
   return parseFloat(val.trim().replace(/\./g, '').replace(',', '.')) || 0;
 }
+// Compara emenda normalizando pontos: suporta "2026.005.80418", "202600580418" e "80418"
+function matchEmendaValue(stored: any, search: string): boolean {
+  if (!stored || !search) return false;
+  const storedStr = String(stored).toLowerCase();
+  const searchStr = search.toLowerCase().trim();
+  if (storedStr.includes(searchStr)) return true;
+  const storedDigits = storedStr.replace(/\D/g, '');
+  const searchDigits = searchStr.replace(/\D/g, '');
+  return searchDigits.length > 0 && storedDigits.includes(searchDigits);
+}
+
 function mapCsvRowToEmendas(row: Record<string, string>): Record<string, any> | null {
   const mapped: Record<string, any> = {};
   for (const [csvHeader, dbColumn] of Object.entries(CSV_TO_EMENDAS_MAP)) {
@@ -707,12 +718,16 @@ export default function App() {
         if (!fv.some((v: string) => fieldVal.includes(v.toLowerCase().trim()))) return false;
       }
       // Verificar headerFilters (exceto o da coluna atual)
-      for (const [hk, hv] of Object.entries(headerFilters)) {
+      for (const [hk, hv] of Object.entries(headerFilters) as [string, string[]][]) {
         if (hk === colKey) continue;
         if (!hv || hv.length === 0) continue;
         const hField = columnToDataField[hk] || hk;
         const fieldVal = String(f[hField] || '').trim();
-        if (!hv.some(sv => fieldVal.toLowerCase().includes(sv.toLowerCase()))) return false;
+        if (hk === 'emenda') {
+          if (!hv.some(sv => matchEmendaValue(f[hField], sv))) return false;
+        } else {
+          if (!hv.some(sv => fieldVal.toLowerCase().includes(sv.toLowerCase()))) return false;
+        }
       }
       // Verificar hideEmptyFields (exceto o da coluna atual)
       for (const [field, hide] of Object.entries(hideEmptyFields)) {
@@ -724,8 +739,9 @@ export default function App() {
       // Verificar searchTerm
       if (searchTerm) {
         const s = searchTerm.toLowerCase();
-        const match = ['parlamentar','conveniado','objeto','demanda','demandas_formalizacao','tecnico','emenda','regional','municipio','numero_convenio','area_estagio','area_estagio_situacao_demanda','conferencista']
-          .some(k => (f[k] && String(f[k]).toLowerCase().includes(s)));
+        const match = ['parlamentar','conveniado','objeto','demanda','demandas_formalizacao','tecnico','regional','municipio','numero_convenio','area_estagio','area_estagio_situacao_demanda','conferencista']
+          .some(k => (f[k] && String(f[k]).toLowerCase().includes(s)))
+          || matchEmendaValue(f.emenda, searchTerm);
         if (!match) return false;
       }
       return true;
@@ -1654,6 +1670,17 @@ export default function App() {
           return filterValues.some(filterValue => safeCompare(fieldValue, filterValue));
         };
 
+        // Comparação normalizada para emenda: suporta com/sem pontos e últimos dígitos
+        const matchEmenda = (stored: any, search: string): boolean => {
+          if (!stored || !search) return false;
+          const storedStr = String(stored).toLowerCase();
+          const searchStr = search.toLowerCase().trim();
+          if (storedStr.includes(searchStr)) return true;
+          const storedDigits = storedStr.replace(/\D/g, '');
+          const searchDigits = searchStr.replace(/\D/g, '');
+          return searchDigits.length > 0 && storedDigits.includes(searchDigits);
+        };
+
         // Verificar todos os filtros ativos
         if (Array.isArray(filtersToUse.ano) && filtersToUse.ano.length > 0) {
           const anoNorm = getAnoNorm(f.ano);
@@ -1725,7 +1752,7 @@ export default function App() {
             (f.demanda && String(f.demanda).toLowerCase().includes(searchLower)) ||
             (f.demandas_formalizacao && String(f.demandas_formalizacao).toLowerCase().includes(searchLower)) ||
             (f.tecnico && f.tecnico.toLowerCase().includes(searchLower)) ||
-            (f.emenda && String(f.emenda).toLowerCase().includes(searchLower)) ||
+            (f.emenda && matchEmenda(f.emenda, searchTerm)) ||
             (f.regional && f.regional.toLowerCase().includes(searchLower)) ||
             (f.municipio && f.municipio.toLowerCase().includes(searchLower)) ||
             (f.numero_convenio && String(f.numero_convenio).toLowerCase().includes(searchLower)) ||
@@ -1755,19 +1782,27 @@ export default function App() {
         }
 
         // Filtros de texto por coluna (colunas sem multi-select)
-        for (const [colKey, textValue] of Object.entries(columnTextFilters)) {
+        for (const [colKey, textValue] of Object.entries(columnTextFilters) as [string, string][]) {
           if (!textValue || textValue.trim() === '') continue;
           const dataField = columnToDataField[colKey] || colKey;
-          const fieldValue = String(f[dataField] || '').toLowerCase();
-          if (!fieldValue.includes(textValue.toLowerCase().trim())) return false;
+          if (colKey === 'emenda') {
+            if (!matchEmenda(f[dataField], textValue)) return false;
+          } else {
+            const fieldValue = String(f[dataField] || '').toLowerCase();
+            if (!fieldValue.includes(textValue.toLowerCase().trim())) return false;
+          }
         }
 
         // Filtros multi-select de cabeçalho (colunas extras)
-        for (const [colKey, selectedValues] of Object.entries(headerFilters)) {
+        for (const [colKey, selectedValues] of Object.entries(headerFilters) as [string, string[]][]) {
           if (!selectedValues || selectedValues.length === 0) continue;
           const dataField = columnToDataField[colKey] || colKey;
-          const fieldValue = String(f[dataField] || '').trim();
-          if (!selectedValues.some(sv => fieldValue.toLowerCase().includes(sv.toLowerCase()))) return false;
+          if (colKey === 'emenda') {
+            if (!selectedValues.some(sv => matchEmenda(f[dataField], sv))) return false;
+          } else {
+            const fieldValue = String(f[dataField] || '').trim();
+            if (!selectedValues.some(sv => fieldValue.toLowerCase().includes(sv.toLowerCase()))) return false;
+          }
         }
 
         return true;
@@ -3247,7 +3282,15 @@ export default function App() {
                                               const options = getColumnFilterOptions(col.key);
                                               const searchVal = headerFilterSearch.toLowerCase();
                                               const filtered = options.filter(opt => {
-                                                if (searchVal && !opt.toLowerCase().includes(searchVal)) return false;
+                                                if (searchVal) {
+                                                  const matchesText = opt.toLowerCase().includes(searchVal);
+                                                  const matchesDigits = col.key === 'emenda' && (() => {
+                                                    const optDigits = opt.replace(/\D/g, '');
+                                                    const searchDigits = headerFilterSearch.replace(/\D/g, '');
+                                                    return searchDigits.length > 0 && optDigits.includes(searchDigits);
+                                                  })();
+                                                  if (!matchesText && !matchesDigits) return false;
+                                                }
                                                 if (hideEmptyFields[col.key] && (!opt || opt.trim() === '' || opt === '—')) return false;
                                                 return true;
                                               });
@@ -3267,7 +3310,7 @@ export default function App() {
                                                     }}
                                                     className="rounded cursor-pointer accent-[#1351B4] w-3 h-3 flex-shrink-0"
                                                   />
-                                                  <span className="truncate">{opt || '(vazio)'}</span>
+                                                  <span className="truncate">{col.key === 'emenda' ? formatEmendaNumber(opt) : (opt || '(vazio)')}</span>
                                                 </label>
                                               ));
                                             })()}
