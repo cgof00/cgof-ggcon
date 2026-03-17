@@ -313,7 +313,7 @@ export function AdminPanel() {
     const source = filtered;
     if (!source.length) return null;
     const totalEmendas = source.filter((f: any) => f.emenda && String(f.emenda).trim() !== '').length;
-    const totalDemandas = source.length;
+    const totalDemandas = source.filter((f: any) => f.demandas_formalizacao && String(f.demandas_formalizacao).trim() !== '').length;
     const concluidas = source.filter((f: any) => f.concluida_em && String(f.concluida_em).trim() !== '').length;
     const emAndamento = source.length - concluidas;
     const publicadas = source.filter((f: any) => f.publicacao && String(f.publicacao).trim() !== '').length;
@@ -744,7 +744,7 @@ export function AdminPanel() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-[#1351B4]/5 to-[#1351B4]/15 rounded-2xl p-4 border border-[#1351B4]/20 shadow-md">
               <p className="text-[10px] font-bold text-[#1351B4] uppercase tracking-wider mb-1">Total Demandas</p>
               <p className="text-3xl font-bold text-[#0C326F]">{displayData.totalDemandas.toLocaleString()}</p>
-              <p className="text-[10px] text-slate-400 mt-1">demandas no painel</p>
+              <p className="text-[10px] text-slate-400 mt-1">com nº de demanda preenchido</p>
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-4 border border-green-200 shadow-md">
               <p className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-1">Concluídas</p>
