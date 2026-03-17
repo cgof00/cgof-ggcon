@@ -4056,6 +4056,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   const conferencistaEditableFields = [
                     'area_estagio_situacao_demanda', 'situacao_analise_demanda', 'conferencista',
                     'data_liberacao_assinatura_conferencista', 'data_retorno', 'observacao_motivo_retorno',
+                    'data_recebimento_demanda',
                     'falta_assinatura', 'assinatura',
                     'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em'
                   ];
@@ -4172,7 +4173,6 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       </select>
                     </div>
                     <Input label="Data da Liberação" name="data_liberacao" type="date" defaultValue={editingFormalizacao?.data_liberacao} disabled={isDisabled('data_liberacao', true)} />
-                    <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={editingFormalizacao?.data_recebimento_demanda} disabled={isDisabled('data_recebimento_demanda', true)} />
                     <Input label="Área - Estágio" name="area_estagio" defaultValue={editingFormalizacao?.area_estagio} disabled={isDisabled('area_estagio')} />
                     <Input label="Recurso" name="recurso" defaultValue={editingFormalizacao?.recurso} disabled={isDisabled('recurso')} />
                   </div>
@@ -4311,6 +4311,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
                       <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={editingFormalizacao?.data_retorno} disabled={isDisabled('data_retorno', true)} />
+                      <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={editingFormalizacao?.data_recebimento_demanda} disabled={isDisabled('data_recebimento_demanda', true)} />
                     </div>
                     <Input label="Observação - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} disabled={isDisabled('observacao_motivo_retorno')} />
                   </div>
