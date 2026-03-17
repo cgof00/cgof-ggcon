@@ -740,33 +740,23 @@ export function AdminPanel() {
         <div className="space-y-5">
 
           {/* ===== CARDS RESUMO ===== */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-[#1351B4]/5 to-[#1351B4]/15 rounded-2xl p-4 border border-[#1351B4]/20 shadow-md">
-              <p className="text-[10px] font-bold text-[#1351B4] uppercase tracking-wider mb-1">Total Registros</p>
-              <p className="text-3xl font-bold text-[#0C326F]">{filtered.length.toLocaleString()}</p>
+              <p className="text-[10px] font-bold text-[#1351B4] uppercase tracking-wider mb-1">Total Demandas</p>
+              <p className="text-3xl font-bold text-[#0C326F]">{displayData.totalDemandas.toLocaleString()}</p>
               <p className="text-[10px] text-slate-400 mt-1">demandas no painel</p>
             </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-gradient-to-br from-sky-50 to-sky-100 rounded-2xl p-4 border border-sky-200 shadow-md">
-              <p className="text-[10px] font-bold text-sky-700 uppercase tracking-wider mb-1">Total Emendas</p>
-              <p className="text-3xl font-bold text-sky-800">{displayData.totalEmendas.toLocaleString()}</p>
-              <p className="text-[10px] text-slate-400 mt-1">com nº de emenda</p>
-            </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-2xl p-4 border border-amber-200 shadow-md">
-              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1">Em Andamento</p>
-              <p className="text-3xl font-bold text-amber-800">{displayData.emAndamento.toLocaleString()}</p>
-              <p className="text-[10px] text-slate-400 mt-1">{filtered.length > 0 ? Math.round((displayData.emAndamento / filtered.length) * 100) : 0}% do total</p>
-            </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-4 border border-green-200 shadow-md">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-4 border border-green-200 shadow-md">
               <p className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-1">Concluídas</p>
               <p className="text-3xl font-bold text-green-800">{displayData.concluidas.toLocaleString()}</p>
               <p className="text-[10px] text-slate-400 mt-1">{filtered.length > 0 ? Math.round((displayData.concluidas / filtered.length) * 100) : 0}% do total</p>
             </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-gradient-to-br from-violet-50 to-violet-100 rounded-2xl p-4 border border-violet-200 shadow-md">
-              <p className="text-[10px] font-bold text-violet-700 uppercase tracking-wider mb-1">Publicadas</p>
-              <p className="text-3xl font-bold text-violet-800">{displayData.publicadas.toLocaleString()}</p>
-              <p className="text-[10px] text-slate-400 mt-1">com publicação DOE</p>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-gradient-to-br from-sky-50 to-sky-100 rounded-2xl p-4 border border-sky-200 shadow-md">
+              <p className="text-[10px] font-bold text-sky-700 uppercase tracking-wider mb-1">Total Emendas</p>
+              <p className="text-3xl font-bold text-sky-800">{displayData.totalEmendas.toLocaleString()}</p>
+              <p className="text-[10px] text-slate-400 mt-1">com nº de emenda</p>
             </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="bg-gradient-to-br from-red-50 to-red-100 rounded-2xl p-4 border border-red-200 shadow-md">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-gradient-to-br from-red-50 to-red-100 rounded-2xl p-4 border border-red-200 shadow-md">
               <p className="text-[10px] font-bold text-red-700 uppercase tracking-wider mb-1">Em Diligência</p>
               <p className="text-3xl font-bold text-red-800">{diligenciasAberto.total.toLocaleString()}</p>
               <p className="text-[10px] text-slate-400 mt-1">aguardando retorno</p>
