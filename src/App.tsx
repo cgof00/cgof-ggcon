@@ -4068,16 +4068,22 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     if (isUsuario) return true; // usuário sem atribuição: tudo desabilitado
                     return false; // intermediário: tudo habilitado
                   };
-                  // Verifica se uma data já preenchida está bloqueada (só admin pode alterar)
+                  // Campos bloqueados após 1º preenchimento — só admin pode alterar
+                  const lockOnceFilledFields = new Set([
+                    'data_liberacao_assinatura', 'falta_assinatura', 'assinatura',
+                    'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em'
+                  ]);
+                  // Verifica se um campo já preenchido está bloqueado para não-admins
                   const isDateLocked = (fieldName: string): boolean => {
                     if (isAdmin) return false;
                     if (!editingFormalizacao) return false;
                     const val = (editingFormalizacao as any)[fieldName];
-                    return !!val && val.trim() !== '';
+                    return !!val && String(val).trim() !== '';
                   };
-                  // Combina: campo desabilitado por papel OU data bloqueada
+                  // Combina: campo desabilitado por papel OU bloqueado após 1º preenchimento
                   const isDisabled = (fieldName: string, isDate = false): boolean => {
                     if (isFieldDisabled(fieldName)) return true;
+                    if (lockOnceFilledFields.has(fieldName) && isDateLocked(fieldName)) return true;
                     if (isDate && isDateLocked(fieldName)) return true;
                     return false;
                   };
