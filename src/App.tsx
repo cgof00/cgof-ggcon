@@ -1543,7 +1543,7 @@ export default function App() {
 
   // Função para buscar formalizações com filtros do servidor
   // ⚡ TOTAL CACHE: Carrega TUDO (não há limite de batches)
-  const fetchFormalizacoesComFiltros = async (page: number = 0, filtersParam?: any) => {
+  const fetchFormalizacoesComFiltros = async (page: number = 0, filtersParam?: any, hideConcluidasOverride?: boolean) => {
     try {
       setFormalizacaoSearchResult(prev => ({ ...prev, loading: true }));
       
@@ -1842,7 +1842,8 @@ export default function App() {
       });
 
       // Aplicar "Ocultar Concluídas" para usuário comum
-      if (hideConcluidas) {
+      const hideConcluidasAtual = hideConcluidasOverride !== undefined ? hideConcluidasOverride : hideConcluidas;
+      if (hideConcluidasAtual) {
         filteredData = filteredData.filter(f => {
           const concluida = String(f.concluida_em || '').trim();
           const publicacao = String(f.publicacao || '').trim();
@@ -2958,8 +2959,9 @@ export default function App() {
                             type="checkbox"
                             checked={!hideConcluidas}
                             onChange={(e) => {
-                              setHideConcluidas(!e.target.checked);
-                              fetchFormalizacoesComFiltros(0);
+                              const novoValor = !e.target.checked;
+                              setHideConcluidas(novoValor);
+                              fetchFormalizacoesComFiltros(0, undefined, novoValor);
                             }}
                             className="rounded cursor-pointer accent-[#1351B4] w-3 h-3"
                           />
@@ -4086,11 +4088,12 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                 {/* Permissões por papel: técnico e conferencista */}
                 {(() => {
                   // Determinar se o usuário logado é o técnico ou conferencista atribuído a esta demanda
-                  const isTecnicoAtribuido = !isAdmin && isUsuario && editingFormalizacao && (
+                  // Nota: não exige isUsuario — conferencistas/técnicos com role 'intermediario' também devem ser restringidos
+                  const isTecnicoAtribuido = !isAdmin && editingFormalizacao && (
                     (user?.id && editingFormalizacao.usuario_atribuido_id && user.id === editingFormalizacao.usuario_atribuido_id) ||
                     (user?.nome && editingFormalizacao.tecnico && user.nome === editingFormalizacao.tecnico)
                   );
-                  const isConferencistaAtribuido = !isAdmin && isUsuario && editingFormalizacao && (
+                  const isConferencistaAtribuido = !isAdmin && editingFormalizacao && (
                     user?.nome && editingFormalizacao.conferencista && user.nome === editingFormalizacao.conferencista
                   );
                   // Campos que o técnico pode editar
