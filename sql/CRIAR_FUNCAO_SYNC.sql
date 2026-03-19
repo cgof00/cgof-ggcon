@@ -54,15 +54,16 @@ DECLARE
   v_inserted INTEGER := 0;
 BEGIN
   -- PASSO 1: Atualizar formalizações existentes que têm match por numero_convenio
-  -- Só atualiza campos que estão vazios na formalização
+  -- PROCX: demanda e situacao_demandas_sempapel sempre vêm do CSV quando há valor
+  -- Outros campos: preenche apenas se estiver vazio na formalização
   WITH matched AS (
     UPDATE formalizacao f SET
-      demanda = COALESCE(NULLIF(f.demanda, ''), e.detalhes),
+      demanda = COALESCE(NULLIF(e.detalhes, ''), f.demanda),
       classificacao_emenda_demanda = COALESCE(NULLIF(f.classificacao_emenda_demanda, ''), e.natureza),
       ano = COALESCE(NULLIF(f.ano, ''), e.ano_refer),
       emenda = COALESCE(NULLIF(f.emenda, ''), e.codigo_num),
       emendas_agregadoras = COALESCE(NULLIF(f.emendas_agregadoras, ''), e.num_emenda),
-      situacao_demandas_sempapel = COALESCE(NULLIF(f.situacao_demandas_sempapel, ''), e.situacao_d),
+      situacao_demandas_sempapel = COALESCE(NULLIF(e.situacao_d, ''), f.situacao_demandas_sempapel),
       parlamentar = COALESCE(NULLIF(f.parlamentar, ''), e.parlamentar),
       partido = COALESCE(NULLIF(f.partido, ''), e.partido),
       conveniado = COALESCE(NULLIF(f.conveniado, ''), e.beneficiario),
@@ -83,11 +84,11 @@ BEGIN
   -- (para registros que não foram encontrados pelo numero_convenio)
   WITH matched2 AS (
     UPDATE formalizacao f SET
-      demanda = COALESCE(NULLIF(f.demanda, ''), e.detalhes),
+      demanda = COALESCE(NULLIF(e.detalhes, ''), f.demanda),
       classificacao_emenda_demanda = COALESCE(NULLIF(f.classificacao_emenda_demanda, ''), e.natureza),
       ano = COALESCE(NULLIF(f.ano, ''), e.ano_refer),
       emendas_agregadoras = COALESCE(NULLIF(f.emendas_agregadoras, ''), e.num_emenda),
-      situacao_demandas_sempapel = COALESCE(NULLIF(f.situacao_demandas_sempapel, ''), e.situacao_d),
+      situacao_demandas_sempapel = COALESCE(NULLIF(e.situacao_d, ''), f.situacao_demandas_sempapel),
       parlamentar = COALESCE(NULLIF(f.parlamentar, ''), e.parlamentar),
       partido = COALESCE(NULLIF(f.partido, ''), e.partido),
       conveniado = COALESCE(NULLIF(f.conveniado, ''), e.beneficiario),
