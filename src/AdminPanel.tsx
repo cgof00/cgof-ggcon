@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertCircle, BarChart3, FileText, CheckCheck, ChevronDown, ChevronRight, Filter, Calendar, RefreshCw, Clock, TrendingUp, AlertTriangle, MapPin, Users, UserCheck, BookOpen, Send, Zap, PieChart } from 'lucide-react';
+import { AlertCircle, BarChart3, FileText, CheckCheck, ChevronDown, ChevronRight, Filter, Calendar, RefreshCw, Clock, TrendingUp, AlertTriangle, MapPin, Users, UserCheck, BookOpen, Send, Zap, PieChart, Tag, Layers, Wallet, Briefcase } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
 // Categorias de situação para o quadro detalhado
@@ -92,6 +92,33 @@ const ETAPAS_SIMPLES = [
   { label: 'Em Formalização / Conferência', desc: 'Em processo de formalização ou conferência do convênio', keys: ['formalizacao', 'emConferencia', 'confPendencia', 'comiteGestor'], color: 'bg-violet-500', textColor: 'text-violet-700', bgLight: 'bg-violet-50 border-violet-200' },
   { label: 'Em Assinatura / Publicação', desc: 'Aguardando assinaturas ou publicação no DOE', keys: ['emAssinatura', 'laudasPubli', 'outrasPend'], color: 'bg-emerald-500', textColor: 'text-emerald-700', bgLight: 'bg-emerald-50 border-emerald-200' },
 ];
+
+// ─── Classification helpers ───────────────────────────────────────────────
+function groupByField(data: any[], field: string): { label: string; value: number }[] {
+  const map = new Map<string, number>();
+  data.forEach(row => {
+    const key = String(row[field] ?? '').trim() || '(não preenchido)';
+    map.set(key, (map.get(key) ?? 0) + 1);
+  });
+  return Array.from(map.entries())
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function classifyObjeto(data: any[]): { label: string; value: number }[] {
+  const buckets: Record<string, number> = { 'Custeio': 0, 'Aquisição': 0, 'Obra': 0, 'Outros': 0 };
+  data.forEach(row => {
+    const val = String(row.objeto ?? '').toUpperCase();
+    if (val.includes('CUSTEIO')) buckets['Custeio']++;
+    else if (val.includes('AQUISI') || val.includes('COMPRA')) buckets['Aquisição']++;
+    else if (val.includes('OBRA')) buckets['Obra']++;
+    else buckets['Outros']++;
+  });
+  return Object.entries(buckets)
+    .filter(([, v]) => v > 0)
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
+}
 
 function getStageBadgeClass(stage: string): string {
   const upper = (stage || '').toUpperCase();
@@ -232,6 +259,12 @@ export function AdminPanel() {
     publicacoesMes: true,
     taxaConclusao: true,
     tempoMedioAnalise: true,
+    classClassif: true,
+    classTipo: true,
+    classObjeto: true,
+    classPortfolio: true,
+    classRecurso: true,
+    classAreaEstagio: true,
   });
 
   const [expandedSituacoes, setExpandedSituacoes] = useState<Set<string>>(new Set());
@@ -622,6 +655,14 @@ export function AdminPanel() {
   };
 
   useEffect(() => { carregarDashboard(); }, []);
+
+  // ── Classification groupings (using already-filtered data) ────────────────
+  const classClassif   = useMemo(() => groupByField(filtered, 'classificacao_emenda_demanda'), [filtered]);
+  const classTipo      = useMemo(() => groupByField(filtered, 'tipo_formalizacao'), [filtered]);
+  const classObjeto    = useMemo(() => classifyObjeto(filtered), [filtered]);
+  const classPortfolio = useMemo(() => groupByField(filtered, 'portfolio'), [filtered]);
+  const classRecurso   = useMemo(() => groupByField(filtered, 'recurso'), [filtered]);
+  const classArea      = useMemo(() => groupByField(filtered, 'area_estagio'), [filtered]);
 
   if (user?.role !== 'admin') return null;
 
@@ -1264,6 +1305,51 @@ export function AdminPanel() {
 
         </div>
       ) : null}
+
+      {/* ===== CLASSIFICAÇÕES ===== */}
+      <div className="mt-2 space-y-4">
+        <div className="flex items-center gap-2 px-1">
+          <BarChart3 className="w-5 h-5 text-[#1351B4]" />
+          <h2 className="text-base font-bold text-slate-800">Classificações das Demandas</h2>
+          <span className="text-xs text-slate-400">({filtered.length} registros filtrados)</span>
+        </div>
+
+        <CollapsibleCard id="classClassif" title="Classificação da Emenda / Demanda" icon={Tag} count={classClassif.length} color="bg-gradient-to-r from-[#1351B4] to-[#0C326F] hover:from-[#0C326F] hover:to-[#1351B4]" collapsed={collapsedCards.classClassif} toggle={() => toggle('classClassif')}>
+          {classClassif.length > 0
+            ? <HorizontalBar items={classClassif} colorFrom="from-[#1351B4]" colorTo="to-[#2670E8]" />
+            : <p className="text-slate-500 text-center py-8">Sem dados</p>}
+        </CollapsibleCard>
+
+        <CollapsibleCard id="classTipo" title="Tipo de Formalização" icon={FileText} count={classTipo.length} color="bg-gradient-to-r from-violet-600 to-violet-800 hover:from-violet-700 hover:to-violet-900" collapsed={collapsedCards.classTipo} toggle={() => toggle('classTipo')}>
+          {classTipo.length > 0
+            ? <HorizontalBar items={classTipo} colorFrom="from-violet-500" colorTo="to-violet-700" />
+            : <p className="text-slate-500 text-center py-8">Sem dados</p>}
+        </CollapsibleCard>
+
+        <CollapsibleCard id="classObjeto" title="Objeto" icon={Briefcase} count={classObjeto.length} color="bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-700 hover:to-emerald-900" collapsed={collapsedCards.classObjeto} toggle={() => toggle('classObjeto')}>
+          {classObjeto.length > 0
+            ? <HorizontalBar items={classObjeto} colorFrom="from-emerald-500" colorTo="to-emerald-700" />
+            : <p className="text-slate-500 text-center py-8">Sem dados</p>}
+        </CollapsibleCard>
+
+        <CollapsibleCard id="classPortfolio" title="Portfólio" icon={Layers} count={classPortfolio.length} color="bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-600 hover:to-amber-800" collapsed={collapsedCards.classPortfolio} toggle={() => toggle('classPortfolio')}>
+          {classPortfolio.length > 0
+            ? <HorizontalBar items={classPortfolio} colorFrom="from-amber-400" colorTo="to-amber-600" />
+            : <p className="text-slate-500 text-center py-8">Sem dados</p>}
+        </CollapsibleCard>
+
+        <CollapsibleCard id="classRecurso" title="Recurso" icon={Wallet} count={classRecurso.length} color="bg-gradient-to-r from-sky-600 to-sky-800 hover:from-sky-700 hover:to-sky-900" collapsed={collapsedCards.classRecurso} toggle={() => toggle('classRecurso')}>
+          {classRecurso.length > 0
+            ? <HorizontalBar items={classRecurso} colorFrom="from-sky-500" colorTo="to-sky-700" />
+            : <p className="text-slate-500 text-center py-8">Sem dados</p>}
+        </CollapsibleCard>
+
+        <CollapsibleCard id="classAreaEstagio" title="Área / Estágio" icon={MapPin} count={classArea.length} color="bg-gradient-to-r from-rose-600 to-rose-800 hover:from-rose-700 hover:to-rose-900" collapsed={collapsedCards.classAreaEstagio} toggle={() => toggle('classAreaEstagio')}>
+          {classArea.length > 0
+            ? <HorizontalBar items={classArea} colorFrom="from-rose-500" colorTo="to-rose-700" />
+            : <p className="text-slate-500 text-center py-8">Sem dados</p>}
+        </CollapsibleCard>
+      </div>
     </div>
   );
 }
