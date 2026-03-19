@@ -2017,6 +2017,20 @@ const app = express();
       formalizacaoCache = null;
       formalizacaoCacheTimestamp = 0;
 
+      // ── PASSO 5: Limpar tabela emendas (staging) para economizar espaço no banco ──
+      let emendasCleaned = false;
+      try {
+        const { error: truncErr } = await supabase.from('emendas').delete().gte('id', 0);
+        if (truncErr) {
+          console.warn('⚠️ Não foi possível limpar tabela emendas:', truncErr.message);
+        } else {
+          emendasCleaned = true;
+          console.log('🧹 Tabela emendas limpa após sincronização (economia de espaço)');
+        }
+      } catch (cleanErr: any) {
+        console.warn('⚠️ Erro ao limpar emendas:', cleanErr.message);
+      }
+
       console.log(`📊 Resultado: ${emendasInserted} inseridas | ${skipped} ignoradas | ${formalizacaoUpdated} formalizações | ${notInFormalizacao} sem formalização`);
 
       return res.json({
@@ -2024,8 +2038,9 @@ const app = express();
         skipped,
         formalizacao_updated: formalizacaoUpdated,
         not_in_formalizacao: notInFormalizacao,
+        emendas_cleaned: emendasCleaned,
         errors: errors.length > 0 ? errors : undefined,
-        message: `${emendasInserted} emendas importadas, ${skipped} já existiam, ${formalizacaoUpdated} formalizações atualizadas`
+        message: `${emendasInserted} emendas importadas, ${skipped} já existiam, ${formalizacaoUpdated} formalizações atualizadas${emendasCleaned ? ', staging limpo' : ''}`
       });
 
     } catch (error: any) {
@@ -2130,13 +2145,28 @@ const app = express();
       formalizacaoCache = null;
       formalizacaoCacheTimestamp = 0;
 
+      // Limpar tabela emendas (staging) após sync para economizar espaço
+      let emendasCleaned = false;
+      try {
+        const { error: truncErr } = await supabase.from('emendas').delete().gte('id', 0);
+        if (truncErr) {
+          console.warn('⚠️ Não foi possível limpar tabela emendas:', truncErr.message);
+        } else {
+          emendasCleaned = true;
+          console.log('🧹 Tabela emendas limpa após sincronização (economia de espaço)');
+        }
+      } catch (cleanErr: any) {
+        console.warn('⚠️ Erro ao limpar emendas:', cleanErr.message);
+      }
+
       console.log(`✅ Sync: ${updated} formalizações atualizadas, ${notFound} emendas não encontradas`);
       return res.json({
         updated,
         not_found: notFound,
         total_formalizacoes: allFormalizacoes.length,
+        emendas_cleaned: emendasCleaned,
         errors: errors.length > 0 ? errors.slice(0, 20) : undefined,
-        message: `${updated} formalizações atualizadas com dados das emendas`
+        message: `${updated} formalizações atualizadas com dados das emendas${emendasCleaned ? ', staging limpo' : ''}`
       });
     } catch (error: any) {
       console.error('❌ Erro sync:', error);

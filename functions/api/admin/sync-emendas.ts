@@ -46,11 +46,32 @@ export const onRequest: PagesFunction = async (context) => {
     
     console.log('✅ Sincronização sucesso:', result);
 
+    // Limpar tabela emendas (staging) após sync para economizar espaço no banco
+    let emendasCleaned = false;
+    try {
+      const deleteResp = await fetch(`${SUPABASE_URL}/rest/v1/emendas?id=gte.0`, {
+        method: 'DELETE',
+        headers: {
+          ...headers,
+          'Prefer': 'return=minimal'
+        }
+      });
+      if (deleteResp.ok) {
+        emendasCleaned = true;
+        console.log('🧹 Tabela emendas limpa após sincronização (economia de espaço)');
+      } else {
+        console.warn('⚠️ Não foi possível limpar tabela emendas:', await deleteResp.text());
+      }
+    } catch (cleanErr: any) {
+      console.warn('⚠️ Erro ao limpar emendas:', cleanErr.message);
+    }
+
     return new Response(JSON.stringify({
       success: true,
       result: {
         inserted: result?.inserted || 0,
         updated: result?.updated || 0,
+        emendas_cleaned: emendasCleaned,
         message: result?.message || 'Sincronização concluída'
       }
     }), {

@@ -1348,7 +1348,8 @@ export default function App() {
           `• ${totalDuplicated} registros duplicados ignorados no CSV\n` +
           `\n🔄 Sincronização (comparação total, anos 2023-2026):\n` +
           `• ${syncResult.result?.updated || 0} registros atualizados\n` +
-          `• ${syncResult.result?.inserted || 0} novas formalizações inseridas`
+          `• ${syncResult.result?.inserted || 0} novas formalizações inseridas` +
+          (syncResult.result?.emendas_cleaned ? `\n\n🧹 Staging limpo automaticamente (economia de espaço no banco)` : '')
         );
 
         // Importação + sync alteram dados no banco; forçar recarga da Formalização
