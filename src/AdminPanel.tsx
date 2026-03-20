@@ -247,6 +247,32 @@ export function AdminPanel() {
   const [rawFormalizacoes, setRawFormalizacoes] = useState<any[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
 
+  const [procxRunning, setProcxRunning] = useState(false);
+  const [procxMsg, setProcxMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const handleProcxAreaEstagio = async () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    setProcxRunning(true);
+    setProcxMsg(null);
+    try {
+      const resp = await fetch('/api/admin/update-area-estagio', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || resp.statusText);
+      setProcxMsg({ type: 'ok', text: `✅ ${data.message || data.updated + ' registros atualizados'}` });
+      // Recarregar dados para reflectir a mudança no gráfico
+      window.dispatchEvent(new CustomEvent('admin-reload'));
+    } catch (e: any) {
+      setProcxMsg({ type: 'err', text: `❌ ${e.message}` });
+    } finally {
+      setProcxRunning(false);
+    }
+  };
+
   const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({
     quadroTecnico: true,
     panoramaSituacao: true,
@@ -1345,6 +1371,22 @@ export function AdminPanel() {
         </CollapsibleCard>
 
         <CollapsibleCard id="classAreaEstagio" title="Área / Estágio" icon={MapPin} count={classArea.length} color="bg-gradient-to-r from-rose-600 to-rose-800 hover:from-rose-700 hover:to-rose-900" collapsed={collapsedCards.classAreaEstagio} toggle={() => toggle('classAreaEstagio')}>
+          {/* Botão PROCX */}
+          <div className="mb-4 flex flex-col gap-2">
+            <button
+              onClick={handleProcxAreaEstagio}
+              disabled={procxRunning}
+              className="flex items-center gap-2 self-start px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 ${procxRunning ? 'animate-spin' : ''}`} />
+              {procxRunning ? 'Atualizando...' : 'PROCX: Preencher Área/Estágio via Situação SemPapel'}
+            </button>
+            {procxMsg && (
+              <p className={`text-sm rounded-lg px-3 py-2 ${
+                procxMsg.type === 'ok' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+              }`}>{procxMsg.text}</p>
+            )}
+          </div>
           {classArea.length > 0
             ? <HorizontalBar items={classArea} colorFrom="from-rose-500" colorTo="to-rose-700" />
             : <p className="text-slate-500 text-center py-8">Sem dados</p>}

@@ -162,7 +162,12 @@ BEGIN
     'offset',   p_offset,
     'limit',    p_limit,
     'total',    v_total,
-    'has_more', (p_offset + p_limit < v_total)
+    'has_more', (p_offset + p_limit < v_total),
+    -- No último lote, retorna o total real de formalizações p/ calcular novas inseridas
+    'formalizacao_count', CASE WHEN NOT (p_offset + p_limit < v_total)
+      THEN (SELECT COUNT(*)::int FROM formalizacao)
+      ELSE NULL
+    END
   );
 END;
 $$;

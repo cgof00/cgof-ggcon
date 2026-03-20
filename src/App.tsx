@@ -1332,12 +1332,13 @@ export default function App() {
       
       try {
         const SYNC_LIMIT = 5000;
+        const preCount = bkpResult?.rows ?? 0; // formalizacao count before sync
         let offset = 0;
         let batchNum = 1;
-        let totalUpdated = 0;
-        let totalInserted = 0;
+        let totalInserted = 0;   // reported by SQL (may under-count if prev run timed out)
         let totalStaging = 0;
         let emendasCleaned = false;
+        let finalFormalizacaoCount: number | null = null;
 
         // Loop em lotes: cada chamada processa SYNC_LIMIT emendas (< 5s cada)
         while (true) {
@@ -1363,10 +1364,10 @@ export default function App() {
           }
 
           const r = batch.result || batch;
-          totalUpdated  += r.updated  || 0;
           totalInserted += r.inserted || 0;
-          if (r.total)           totalStaging  = r.total;
-          if (r.emendas_cleaned) emendasCleaned = true;
+          if (r.total)                  totalStaging = r.total;
+          if (r.emendas_cleaned)        emendasCleaned = true;
+          if (r.formalizacao_count != null) finalFormalizacaoCount = r.formalizacao_count;
 
           if (!r.has_more) break;
 
@@ -1377,15 +1378,11 @@ export default function App() {
           setImportMessage(`🔄 Sincronizando formalização (lote ${batchNum} | ${offset}/${totalStaging})...`);
         }
 
-        // Resultado consolidado para a mensagem de sucesso
-        const syncResult = {
-          result: {
-            updated:        totalUpdated,
-            inserted:       totalInserted,
-            staging_count:  totalStaging,
-            emendas_cleaned: emendasCleaned,
-          },
-        };
+        // Inseridos = diferença real no banco (conta também inserções de lotes anteriores abortados)
+        const actualInserted = finalFormalizacaoCount != null
+          ? Math.max(0, finalFormalizacaoCount - preCount)
+          : totalInserted;
+
         setImportProgress(100); 
         setImportStatus('done');
         
@@ -1397,10 +1394,10 @@ export default function App() {
           `• ${totalImported} emendas processadas (UPSERT)\n` +
           `• ${totalDuplicated} registros duplicados ignorados no CSV\n` +
           `\n🔄 Sincronização:\n` +
-          `• ${syncResult.result?.staging_count ?? '?'} emendas no staging\n` +
-          `• ${syncResult.result?.updated || 0} registros atualizados\n` +
-          `• ${syncResult.result?.inserted || 0} novas formalizações inseridas` +
-          (syncResult.result?.emendas_cleaned ? `\n\n🧹 Staging limpo automaticamente` : '')
+          `• ${totalStaging} emendas no staging\n` +
+          `• ${actualInserted} novas formalizações inseridas` +
+          (finalFormalizacaoCount != null ? ` (total: ${finalFormalizacaoCount})` : '') +
+          (emendasCleaned ? `\n\n🧹 Staging limpo automaticamente` : '')
         );
 
         // Importação + sync alteram dados no banco; forçar recarga da Formalização

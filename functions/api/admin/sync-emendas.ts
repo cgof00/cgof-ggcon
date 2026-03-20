@@ -78,14 +78,15 @@ export const onRequest: PagesFunction = async (context) => {
     return new Response(JSON.stringify({
       success: true,
       result: {
-        updated:        result?.updated   || 0,
-        inserted:       result?.inserted  || 0,
-        staging_count:  result?.total     || 0,
-        has_more:       result?.has_more  ?? false,
-        offset:         result?.offset    ?? p_offset,
-        limit:          result?.limit     ?? p_limit,
-        total:          result?.total     || 0,
-        emendas_cleaned: emendasCleaned,
+        updated:           result?.updated           || 0,
+        inserted:          result?.inserted          || 0,
+        staging_count:     result?.total             || 0,
+        has_more:          result?.has_more          ?? false,
+        offset:            result?.offset            ?? p_offset,
+        limit:             result?.limit             ?? p_limit,
+        total:             result?.total             || 0,
+        formalizacao_count: result?.formalizacao_count ?? null,
+        emendas_cleaned:   emendasCleaned,
       },
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 
