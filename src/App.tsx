@@ -1306,6 +1306,7 @@ export default function App() {
       setImportStatus('backing-up');
       setImportProgress(91);
       setImportMessage('💾 Criando backup da formalização...');
+      let preCount = 0; // total de formalizações antes do sync
       try {
         const bkpResp = await fetch('/api/admin/backup-formalizacao', {
           method: 'POST',
@@ -1319,6 +1320,7 @@ export default function App() {
           return;
         }
         const bkpResult = await bkpResp.json();
+        preCount = bkpResult?.rows ?? 0;
         console.log(`✅ Backup criado: ${bkpResult.rows} registros em formalizacao_backup`);
       } catch (e: any) {
         setImportStatus('error');
@@ -1332,7 +1334,7 @@ export default function App() {
       
       try {
         const SYNC_LIMIT = 5000;
-        const preCount = bkpResult?.rows ?? 0; // formalizacao count before sync
+        // preCount vem do backup block acima (declarado fora do try)
         let offset = 0;
         let batchNum = 1;
         let totalInserted = 0;   // reported by SQL (may under-count if prev run timed out)
