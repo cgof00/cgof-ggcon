@@ -25,88 +25,78 @@ export const onRequest: PagesFunction = async (context) => {
     'Content-Type': 'application/json'
   };
 
-  async function callRpc(fnName: string): Promise<any> {
+  // Cada chamada processa um lote de p_limit registros.
+  // O frontend chama em loop até has_more = false.
+  async function callBatch(p_offset: number, p_limit: number): Promise<any> {
     const controller = new AbortController();
-    // Cloudflare Workers encerram conexões externas em ~30s.
-    // Usamos 27s para abortar antes e dar uma mensagem de erro compreensível.
-    const timeoutId = setTimeout(() => controller.abort(), 27000);
-    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
-      method: 'POST', headers, body: '{}', signal: controller.signal
+    const timeoutId = setTimeout(() => controller.abort(), 24000); // 24s < 30s Cloudflare limit
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/sync_emendas_formalizacao_batch`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ p_offset, p_limit }),
+      signal: controller.signal,
     });
     clearTimeout(timeoutId);
     if (!resp.ok) {
       const err = await resp.text();
-      throw new Error(err.substring(0, 300));
+      throw new Error(err.substring(0, 400));
     }
     return resp.json();
   }
 
   try {
-    console.log('🔄 Verificando staging e sincronizando...');
-    
-    // 1. Verificar quantos registros estão no staging antes de sincronizar
-    const countResp = await fetch(`${SUPABASE_URL}/rest/v1/emendas?select=id&limit=1`, {
-      headers: { ...headers, 'Prefer': 'count=exact' }
-    });
-    const stagingCount = countResp.ok
-      ? parseInt(countResp.headers.get('content-range')?.split('/')[1] || '0', 10)
-      : 0;
-    
-    if (stagingCount === 0) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Nenhum registro no staging (tabela emendas vazia). Importe o CSV primeiro.',
-        result: { inserted: 0, updated: 0, staging_count: 0 }
-      }), { status: 400, headers: { 'Content-Type': 'application/json' } });
-    }
-    
-    console.log(`📊 Staging: ${stagingCount} emendas aguardando sync`);
-    
-    const result = await callRpc('sync_emendas_formalizacao');
-    
-    console.log('✅ Sincronização sucesso:', result);
-
-    // Limpar tabela emendas (staging) após sync para economizar espaço no banco
-    let emendasCleaned = false;
+    // Ler offset e limit do body (frontend controla o loop de batches)
+    let p_offset = 0;
+    let p_limit = 5000;
     try {
-      const deleteResp = await fetch(`${SUPABASE_URL}/rest/v1/emendas?id=gte.0`, {
-        method: 'DELETE',
-        headers: {
-          ...headers,
-          'Prefer': 'return=minimal'
+      const body = await request.json() as any;
+      if (typeof body?.offset === 'number') p_offset = body.offset;
+      if (typeof body?.limit  === 'number') p_limit  = body.limit;
+    } catch { /* body vazio ou inválido: usa defaults */ }
+
+    console.log(`🔄 Sync batch: offset=${p_offset}, limit=${p_limit}`);
+    const result = await callBatch(p_offset, p_limit);
+    console.log('✅ Batch concluído:', result);
+
+    // Só limpa o staging após o último lote
+    let emendasCleaned = false;
+    if (!result?.has_more) {
+      try {
+        const deleteResp = await fetch(`${SUPABASE_URL}/rest/v1/emendas?id=gte.0`, {
+          method: 'DELETE',
+          headers: { ...headers, 'Prefer': 'return=minimal' },
+        });
+        if (deleteResp.ok) {
+          emendasCleaned = true;
+          console.log('🧹 Staging limpo após último lote');
         }
-      });
-      if (deleteResp.ok) {
-        emendasCleaned = true;
-        console.log('🧹 Tabela emendas limpa após sincronização (economia de espaço)');
-      } else {
-        console.warn('⚠️ Não foi possível limpar tabela emendas:', await deleteResp.text());
+      } catch (cleanErr: any) {
+        console.warn('⚠️ Erro ao limpar staging:', cleanErr.message);
       }
-    } catch (cleanErr: any) {
-      console.warn('⚠️ Erro ao limpar emendas:', cleanErr.message);
     }
 
     return new Response(JSON.stringify({
       success: true,
       result: {
-        inserted: result?.inserted || 0,
-        updated: result?.updated || 0,
-        staging_count: stagingCount,
+        updated:        result?.updated   || 0,
+        inserted:       result?.inserted  || 0,
+        staging_count:  result?.total     || 0,
+        has_more:       result?.has_more  ?? false,
+        offset:         result?.offset    ?? p_offset,
+        limit:          result?.limit     ?? p_limit,
+        total:          result?.total     || 0,
         emendas_cleaned: emendasCleaned,
-        message: result?.message || 'Sincronização concluída'
-      }
-    }), {
-      status: 200, headers: { 'Content-Type': 'application/json' }
-    });
+      },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 
   } catch (e: any) {
     console.error('❌ Erro sync-emendas:', e);
     const isTimeout = e?.name === 'AbortError' || (e?.message || '').includes('aborted');
     const errorMsg = isTimeout
-      ? 'Timeout na sincronização (>27s). Execute a função sync_emendas_formalizacao() diretamente no Editor SQL do Supabase para volumes grandes.'
+      ? 'Timeout no lote de sincronização (>24s). Tente reduzir o tamanho do lote.'
       : e.message;
     return new Response(JSON.stringify({ error: errorMsg }), {
-      status: 500, headers: { 'Content-Type': 'application/json' }
+      status: 500, headers: { 'Content-Type': 'application/json' },
     });
   }
 };

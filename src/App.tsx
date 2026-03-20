@@ -1328,29 +1328,64 @@ export default function App() {
 
       setImportStatus('syncing'); 
       setImportProgress(92);
-      setImportMessage('🔄 Sincronizando formalização (comparação total + atualização 2023-2026)...');
+      setImportMessage('🔄 Sincronizando formalização (lote 1)...');
       
       try {
-        const syncResp = await fetch('/api/admin/sync-emendas', {
-          method: 'POST', 
-          headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({})  // 🎯 Sem parâmetros - usa função simples incremental
-        });
-        
-        if (!syncResp.ok) { 
-          const err = await syncResp.json().catch(() => ({ error: 'Erro desconhecido' })); 
-          setImportStatus('error'); 
-          setImportError(`Erro na sincronização: ${err.error || syncResp.statusText}`); 
-          return; 
+        const SYNC_LIMIT = 5000;
+        let offset = 0;
+        let batchNum = 1;
+        let totalUpdated = 0;
+        let totalInserted = 0;
+        let totalStaging = 0;
+        let emendasCleaned = false;
+
+        // Loop em lotes: cada chamada processa SYNC_LIMIT emendas (< 5s cada)
+        while (true) {
+          const syncResp = await fetch('/api/admin/sync-emendas', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ offset, limit: SYNC_LIMIT }),
+          });
+
+          if (!syncResp.ok) {
+            const err = await syncResp.json().catch(() => ({ error: 'Erro desconhecido' }));
+            setImportStatus('error');
+            setImportError(`Erro na sincronização (lote ${batchNum}): ${err.error || syncResp.statusText}`);
+            return;
+          }
+
+          const syncText = await syncResp.text();
+          let batch: any;
+          try {
+            batch = JSON.parse(syncText);
+          } catch {
+            throw new Error(`Resposta inválida do servidor: ${syncText.substring(0, 160)}`);
+          }
+
+          const r = batch.result || batch;
+          totalUpdated  += r.updated  || 0;
+          totalInserted += r.inserted || 0;
+          if (r.total)           totalStaging  = r.total;
+          if (r.emendas_cleaned) emendasCleaned = true;
+
+          if (!r.has_more) break;
+
+          offset += SYNC_LIMIT;
+          batchNum++;
+          const pct = 92 + Math.min(7, Math.round((offset / Math.max(totalStaging, 1)) * 7));
+          setImportProgress(pct);
+          setImportMessage(`🔄 Sincronizando formalização (lote ${batchNum} | ${offset}/${totalStaging})...`);
         }
-        
-        const syncText = await syncResp.text();
-        let syncResult: any;
-        try {
-          syncResult = JSON.parse(syncText);
-        } catch {
-          throw new Error(`Resposta inválida do servidor na sincronização: ${syncText.substring(0, 160)}`);
-        }
+
+        // Resultado consolidado para a mensagem de sucesso
+        const syncResult = {
+          result: {
+            updated:        totalUpdated,
+            inserted:       totalInserted,
+            staging_count:  totalStaging,
+            emendas_cleaned: emendasCleaned,
+          },
+        };
         setImportProgress(100); 
         setImportStatus('done');
         

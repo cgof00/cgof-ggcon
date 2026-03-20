@@ -28,152 +28,178 @@ CREATE INDEX IF NOT EXISTS idx_emendas_trim_num_convenio
   ON emendas (TRIM(num_convenio))
   WHERE num_convenio IS NOT NULL AND num_convenio != '';
 
-CREATE INDEX IF NOT EXISTS idx_formalizacao_emenda_digits
+-- Recria o índice com threshold >= 6 (era >= 8, que perdía códigos curtos)
+DROP INDEX IF EXISTS idx_formalizacao_emenda_digits;
+CREATE INDEX idx_formalizacao_emenda_digits
   ON formalizacao (TRIM(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g')))
   WHERE emenda IS NOT NULL AND emenda != ''
-    AND LENGTH(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g')) >= 8;
+    AND LENGTH(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g')) >= 6;
 
 CREATE INDEX IF NOT EXISTS idx_emendas_codigo_num_digits
   ON emendas (TRIM(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g')))
   WHERE codigo_num IS NOT NULL;
 
 -- ============================================================
--- FUNÇÃO RPC DE SINCRONIZAÇÃO
--- Chamada pelo endpoint /api/emendas/sync-formalizacao
+-- FUNÇÃO PRINCIPAL (BATCH): processa p_limit registros a partir de p_offset
+-- Chamada pelo endpoint /api/admin/sync-emendas com offset/limit
+-- Cada lote: < 5s. O frontend chama em loop até has_more = false.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION sync_emendas_formalizacao_batch(
+  p_offset int DEFAULT 0,
+  p_limit  int DEFAULT 5000
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET statement_timeout = '25s'
+AS $$
+DECLARE
+  v_updated  INTEGER := 0;
+  v_updated2 INTEGER := 0;
+  v_inserted INTEGER := 0;
+  v_total    INTEGER;
+BEGIN
+  -- Total no staging (para calcular has_more)
+  SELECT COUNT(*) INTO v_total FROM emendas;
+
+  -- Batch: apenas p_limit registros do staging (REGEXP_REPLACE em ~5k linhas: < 0.3s)
+  CREATE TEMP TABLE _batch ON COMMIT DROP AS
+    SELECT
+      e.id,
+      e.ano_refer, e.parlamentar, e.partido, e.codigo_num,
+      e.detalhes, e.natureza, e.num_convenio, e.regional,
+      e.municipio, e.beneficiario, e.objeto, e.portfolio,
+      e.valor, e.num_emenda, e.situacao_d,
+      TRIM(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g')) AS digits,
+      TRIM(COALESCE(e.num_convenio, ''))                                   AS conv_trim
+    FROM emendas e
+    ORDER BY e.id
+    LIMIT p_limit OFFSET p_offset;
+
+  CREATE INDEX ON _batch (digits);
+  CREATE INDEX ON _batch (conv_trim);
+  ANALYZE _batch;
+
+  -- ── PASSO 1: Atualizar por numero_convenio ──────────────────────────────
+  -- Join _batch(5k) × formalizacao(37k) via idx_formalizacao_trim_numero_convenio
+  WITH m AS (
+    UPDATE formalizacao f SET
+      demanda                      = COALESCE(NULLIF(b.detalhes, ''), f.demanda),
+      situacao_demandas_sempapel   = COALESCE(NULLIF(b.situacao_d, ''), f.situacao_demandas_sempapel),
+      classificacao_emenda_demanda = COALESCE(NULLIF(f.classificacao_emenda_demanda, ''), b.natureza),
+      ano                          = COALESCE(NULLIF(f.ano, ''), b.ano_refer),
+      emenda                       = COALESCE(NULLIF(f.emenda, ''), b.codigo_num),
+      emendas_agregadoras          = COALESCE(NULLIF(f.emendas_agregadoras, ''), b.num_emenda),
+      parlamentar                  = COALESCE(NULLIF(f.parlamentar, ''), b.parlamentar),
+      partido                      = COALESCE(NULLIF(f.partido, ''), b.partido),
+      conveniado                   = COALESCE(NULLIF(f.conveniado, ''), b.beneficiario),
+      municipio                    = COALESCE(NULLIF(f.municipio, ''), b.municipio),
+      objeto                       = COALESCE(NULLIF(f.objeto, ''), b.objeto),
+      regional                     = COALESCE(NULLIF(f.regional, ''), b.regional),
+      portfolio                    = COALESCE(NULLIF(f.portfolio, ''), b.portfolio),
+      valor                        = COALESCE(f.valor, b.valor)
+    FROM _batch b
+    WHERE b.conv_trim != ''
+      AND TRIM(f.numero_convenio) = b.conv_trim
+    RETURNING f.id
+  )
+  SELECT COUNT(*) INTO v_updated FROM m;
+
+  -- ── PASSO 1b: Atualizar por codigo_num ─────────────────────────────────
+  -- Join usa idx_formalizacao_emenda_digits (expression index): sem NOT EXISTS, idempotente via COALESCE
+  WITH m2 AS (
+    UPDATE formalizacao f SET
+      demanda                      = COALESCE(NULLIF(b.detalhes, ''), f.demanda),
+      situacao_demandas_sempapel   = COALESCE(NULLIF(b.situacao_d, ''), f.situacao_demandas_sempapel),
+      classificacao_emenda_demanda = COALESCE(NULLIF(f.classificacao_emenda_demanda, ''), b.natureza),
+      ano                          = COALESCE(NULLIF(f.ano, ''), b.ano_refer),
+      emendas_agregadoras          = COALESCE(NULLIF(f.emendas_agregadoras, ''), b.num_emenda),
+      parlamentar                  = COALESCE(NULLIF(f.parlamentar, ''), b.parlamentar),
+      partido                      = COALESCE(NULLIF(f.partido, ''), b.partido),
+      conveniado                   = COALESCE(NULLIF(f.conveniado, ''), b.beneficiario),
+      municipio                    = COALESCE(NULLIF(f.municipio, ''), b.municipio),
+      objeto                       = COALESCE(NULLIF(f.objeto, ''), b.objeto),
+      regional                     = COALESCE(NULLIF(f.regional, ''), b.regional),
+      portfolio                    = COALESCE(NULLIF(f.portfolio, ''), b.portfolio),
+      numero_convenio              = COALESCE(NULLIF(f.numero_convenio, ''), b.num_convenio),
+      valor                        = COALESCE(f.valor, b.valor)
+    FROM _batch b
+    WHERE LENGTH(b.digits) >= 6
+      AND TRIM(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) = b.digits
+    RETURNING f.id
+  )
+  SELECT COUNT(*) INTO v_updated2 FROM m2;
+
+  -- ── PASSO 2: Inserir emendas que não existem na formalização ───────────
+  -- LEFT JOIN usa idx_formalizacao_emenda_digits + idx_formalizacao_trim_numero_convenio
+  -- Sem O(N×M): planner faz hash/nested-loop via índice expressão
+  INSERT INTO formalizacao (
+    ano, parlamentar, partido, emenda, demanda,
+    classificacao_emenda_demanda, numero_convenio,
+    regional, municipio, conveniado, objeto, portfolio, valor
+  )
+  SELECT
+    b.ano_refer, b.parlamentar, b.partido, b.codigo_num, b.detalhes,
+    b.natureza,  b.num_convenio, b.regional, b.municipio,
+    b.beneficiario, b.objeto, b.portfolio, b.valor
+  FROM _batch b
+  LEFT JOIN formalizacao f_e
+    ON LENGTH(b.digits) >= 6
+    AND TRIM(REGEXP_REPLACE(f_e.emenda, '[^0-9]', '', 'g')) = b.digits
+  LEFT JOIN formalizacao f_c
+    ON b.conv_trim != ''
+    AND TRIM(f_c.numero_convenio) = b.conv_trim
+  WHERE f_e.id IS NULL
+    AND f_c.id IS NULL;
+
+  GET DIAGNOSTICS v_inserted = ROW_COUNT;
+  DROP TABLE IF EXISTS _batch;
+
+  RETURN json_build_object(
+    'updated',  v_updated + v_updated2,
+    'inserted', v_inserted,
+    'offset',   p_offset,
+    'limit',    p_limit,
+    'total',    v_total,
+    'has_more', (p_offset + p_limit < v_total)
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION sync_emendas_formalizacao_batch(int, int) TO service_role;
+
+-- ============================================================
+-- WRAPPER (uso manual no SQL Editor): chama o batch em loop
+-- NÃO use via Cloudflare (sem limite de timeout aqui)
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION sync_emendas_formalizacao()
 RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET statement_timeout = '60s'
+SET statement_timeout = '600s'
 AS $$
 DECLARE
-  v_updated INTEGER := 0;
-  v_updated2 INTEGER := 0;
+  v_total    INTEGER;
+  v_offset   INTEGER := 0;
+  v_limit    CONSTANT INTEGER := 5000;
+  v_updated  INTEGER := 0;
   v_inserted INTEGER := 0;
+  v_batch    JSON;
 BEGIN
-  -- ── PRÉ-COMPUTAR: dígitos normalizados das emendas em staging ────────────
-  -- Evita REGEXP_REPLACE repetido em cada linha do JOIN (O(N) em vez de O(N×M))
-  CREATE TEMP TABLE _e_digits ON COMMIT DROP AS
-    SELECT
-      id,
-      codigo_num,
-      TRIM(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g')) AS digits,
-      TRIM(num_convenio)  AS num_convenio_trim
-    FROM emendas
-    WHERE codigo_num IS NOT NULL AND codigo_num != ''
-      AND LENGTH(TRIM(REGEXP_REPLACE(codigo_num, '[^0-9]', '', 'g'))) >= 6;
-
-  CREATE INDEX ON _e_digits (digits);
-  CREATE INDEX ON _e_digits (num_convenio_trim);
-
-  -- ── PRÉ-COMPUTAR: dígitos normalizados das formalizações existentes ───────
-  CREATE TEMP TABLE _f_digits ON COMMIT DROP AS
-    SELECT
-      id,
-      TRIM(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g')) AS digits,
-      TRIM(numero_convenio)                            AS num_convenio_trim
-    FROM formalizacao
-    WHERE emenda IS NOT NULL AND emenda != ''
-      AND LENGTH(REGEXP_REPLACE(emenda, '[^0-9]', '', 'g')) >= 6;
-
-  CREATE INDEX ON _f_digits (digits);
-  CREATE INDEX ON _f_digits (num_convenio_trim);
-
-  -- ── PASSO 1: Atualizar por numero_convenio (hash join via índice) ─────────
-  -- PROCX: demanda e situacao_demandas_sempapel sempre vêm do CSV quando há valor
-  -- Outros campos: preenche apenas se estiver vazio na formalização
-  WITH matched AS (
-    UPDATE formalizacao f SET
-      demanda                      = COALESCE(NULLIF(e.detalhes, ''), f.demanda),
-      situacao_demandas_sempapel   = COALESCE(NULLIF(e.situacao_d, ''), f.situacao_demandas_sempapel),
-      classificacao_emenda_demanda = COALESCE(NULLIF(f.classificacao_emenda_demanda, ''), e.natureza),
-      ano                          = COALESCE(NULLIF(f.ano, ''), e.ano_refer),
-      emenda                       = COALESCE(NULLIF(f.emenda, ''), e.codigo_num),
-      emendas_agregadoras          = COALESCE(NULLIF(f.emendas_agregadoras, ''), e.num_emenda),
-      parlamentar                  = COALESCE(NULLIF(f.parlamentar, ''), e.parlamentar),
-      partido                      = COALESCE(NULLIF(f.partido, ''), e.partido),
-      conveniado                   = COALESCE(NULLIF(f.conveniado, ''), e.beneficiario),
-      municipio                    = COALESCE(NULLIF(f.municipio, ''), e.municipio),
-      objeto                       = COALESCE(NULLIF(f.objeto, ''), e.objeto),
-      regional                     = COALESCE(NULLIF(f.regional, ''), e.regional),
-      portfolio                    = COALESCE(NULLIF(f.portfolio, ''), e.portfolio),
-      valor                        = COALESCE(f.valor, e.valor)
-    FROM emendas e
-    WHERE TRIM(f.numero_convenio) = TRIM(e.num_convenio)
-      AND f.numero_convenio IS NOT NULL
-      AND f.numero_convenio != ''
-    RETURNING f.id
-  )
-  SELECT COUNT(*) INTO v_updated FROM matched;
-
-  -- ── PASSO 1b: Atualizar por codigo_num (usando temp tables indexadas) ─────
-  WITH matched2 AS (
-    UPDATE formalizacao f SET
-      demanda                      = COALESCE(NULLIF(e.detalhes, ''), f.demanda),
-      situacao_demandas_sempapel   = COALESCE(NULLIF(e.situacao_d, ''), f.situacao_demandas_sempapel),
-      classificacao_emenda_demanda = COALESCE(NULLIF(f.classificacao_emenda_demanda, ''), e.natureza),
-      ano                          = COALESCE(NULLIF(f.ano, ''), e.ano_refer),
-      emendas_agregadoras          = COALESCE(NULLIF(f.emendas_agregadoras, ''), e.num_emenda),
-      parlamentar                  = COALESCE(NULLIF(f.parlamentar, ''), e.parlamentar),
-      partido                      = COALESCE(NULLIF(f.partido, ''), e.partido),
-      conveniado                   = COALESCE(NULLIF(f.conveniado, ''), e.beneficiario),
-      municipio                    = COALESCE(NULLIF(f.municipio, ''), e.municipio),
-      objeto                       = COALESCE(NULLIF(f.objeto, ''), e.objeto),
-      regional                     = COALESCE(NULLIF(f.regional, ''), e.regional),
-      portfolio                    = COALESCE(NULLIF(f.portfolio, ''), e.portfolio),
-      numero_convenio              = COALESCE(NULLIF(f.numero_convenio, ''), e.num_convenio),
-      valor                        = COALESCE(f.valor, e.valor)
-    FROM emendas e
-    JOIN _e_digits ed ON ed.id = e.id
-    JOIN _f_digits fd ON fd.digits = ed.digits   -- índice hash: O(N)
-    WHERE f.id = fd.id
-      -- Excluir registros já atualizados via convenio no passo anterior
-      AND (f.numero_convenio IS NULL OR f.numero_convenio = ''
-           OR NOT EXISTS (
-             SELECT 1 FROM emendas ex
-             WHERE TRIM(ex.num_convenio) = TRIM(f.numero_convenio)
-           ))
-    RETURNING f.id
-  )
-  SELECT COUNT(*) INTO v_updated2 FROM matched2;
-
-  -- ── PASSO 2: Inserir emendas que não existem em formalizacao ─────────────
-  -- LEFT JOIN para encontrar ausentes: O(N log N) via índice
-  INSERT INTO formalizacao (
-    ano, parlamentar, partido, emenda, demanda,
-    classificacao_emenda_demanda, numero_convenio,
-    regional, municipio, conveniado, objeto,
-    portfolio, valor
-  )
-  SELECT
-    e.ano_refer, e.parlamentar, e.partido, e.codigo_num, e.detalhes,
-    e.natureza,  e.num_convenio, e.regional, e.municipio,
-    e.beneficiario, e.objeto, e.portfolio, e.valor
-  FROM emendas e
-  JOIN _e_digits ed ON ed.id = e.id
-  -- Não existe por código da emenda
-  LEFT JOIN _f_digits fd ON fd.digits = ed.digits
-  -- Não existe por numero_convenio
-  LEFT JOIN formalizacao fconv
-    ON ed.num_convenio_trim != ''
-    AND TRIM(fconv.numero_convenio) = ed.num_convenio_trim
-  WHERE fd.id IS NULL       -- sem match por codigo_num
-    AND fconv.id IS NULL;   -- sem match por numero_convenio
-
-  GET DIAGNOSTICS v_inserted = ROW_COUNT;
-
-  -- Limpar temp tables explicitamente
-  DROP TABLE IF EXISTS _e_digits;
-  DROP TABLE IF EXISTS _f_digits;
-
+  SELECT COUNT(*) INTO v_total FROM emendas;
+  WHILE v_offset < v_total LOOP
+    v_batch    := sync_emendas_formalizacao_batch(v_offset, v_limit);
+    v_updated  := v_updated  + (v_batch->>'updated')::int;
+    v_inserted := v_inserted + (v_batch->>'inserted')::int;
+    v_offset   := v_offset + v_limit;
+  END LOOP;
   RETURN json_build_object(
-    'updated',             v_updated + v_updated2,
-    'updated_by_convenio', v_updated,
-    'updated_by_emenda',   v_updated2,
-    'inserted',            v_inserted,
-    'message', (v_updated + v_updated2) || ' formalizacoes atualizadas, ' || v_inserted || ' novas inseridas'
+    'updated',  v_updated,
+    'inserted', v_inserted,
+    'total',    v_total,
+    'message',  v_updated || ' atualizados, ' || v_inserted || ' inseridos'
   );
 END;
 $$;
