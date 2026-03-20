@@ -212,6 +212,23 @@ $$;
 -- Dar permissão para o service_role executar a função
 GRANT EXECUTE ON FUNCTION sync_emendas_formalizacao() TO service_role;
 
+-- ============================================================
+-- FUNÇÃO AUXILIAR: TRUNCATE do staging (usa TRUNCATE em vez de DELETE
+-- para devolver espaço em disco imediatamente - sem bloat)
+-- ============================================================
+CREATE OR REPLACE FUNCTION truncate_emendas_staging()
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  TRUNCATE TABLE emendas RESTART IDENTITY;
+  RETURN json_build_object('truncated', true, 'message', 'emendas staging truncated');
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION truncate_emendas_staging() TO service_role;
+
 -- IMPORTANTE: Recarregar o cache do PostgREST para reconhecer a nova função
 NOTIFY pgrst, 'reload schema';
 

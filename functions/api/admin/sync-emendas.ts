@@ -62,13 +62,23 @@ export const onRequest: PagesFunction = async (context) => {
     let emendasCleaned = false;
     if (!result?.has_more) {
       try {
-        const deleteResp = await fetch(`${SUPABASE_URL}/rest/v1/emendas?id=gte.0`, {
-          method: 'DELETE',
-          headers: { ...headers, 'Prefer': 'return=minimal' },
+        // TRUNCATE via RPC devolve espaço em disco imediatamente (sem bloat).
+        // DELETE marcaria linhas como mortas e acumularia bloat ao longo do tempo.
+        const truncResp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/truncate_emendas_staging`, {
+          method: 'POST',
+          headers,
+          body: '{}',
         });
-        if (deleteResp.ok) {
+        if (truncResp.ok) {
           emendasCleaned = true;
-          console.log('🧹 Staging limpo após último lote');
+          console.log('🧹 Staging truncado após último lote (espaço liberado)');
+        } else {
+          // Fallback para DELETE caso a função ainda não exista no banco
+          const deleteResp = await fetch(`${SUPABASE_URL}/rest/v1/emendas?id=gte.0`, {
+            method: 'DELETE',
+            headers: { ...headers, 'Prefer': 'return=minimal' },
+          });
+          if (deleteResp.ok) emendasCleaned = true;
         }
       } catch (cleanErr: any) {
         console.warn('⚠️ Erro ao limpar staging:', cleanErr.message);
