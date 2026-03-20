@@ -40,7 +40,25 @@ export const onRequest: PagesFunction = async (context) => {
   }
 
   try {
-    console.log('🔄 Sincronizando incrementalmente (comparação total, anos 2023-2026)...');
+    console.log('🔄 Verificando staging e sincronizando...');
+    
+    // 1. Verificar quantos registros estão no staging antes de sincronizar
+    const countResp = await fetch(`${SUPABASE_URL}/rest/v1/emendas?select=id&limit=1`, {
+      headers: { ...headers, 'Prefer': 'count=exact' }
+    });
+    const stagingCount = countResp.ok
+      ? parseInt(countResp.headers.get('content-range')?.split('/')[1] || '0', 10)
+      : 0;
+    
+    if (stagingCount === 0) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Nenhum registro no staging (tabela emendas vazia). Importe o CSV primeiro.',
+        result: { inserted: 0, updated: 0, staging_count: 0 }
+      }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+    
+    console.log(`📊 Staging: ${stagingCount} emendas aguardando sync`);
     
     const result = await callRpc('sync_emendas_formalizacao');
     
@@ -71,6 +89,7 @@ export const onRequest: PagesFunction = async (context) => {
       result: {
         inserted: result?.inserted || 0,
         updated: result?.updated || 0,
+        staging_count: stagingCount,
         emendas_cleaned: emendasCleaned,
         message: result?.message || 'Sincronização concluída'
       }

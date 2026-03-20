@@ -77,6 +77,7 @@ BEGIN
   SELECT COUNT(*) INTO v_updated2 FROM matched2;
 
   -- Inserir emendas novas (sem correspondência em formalizacao)
+  -- INCLUI emendas com OU SEM num_convenio (novas emendas ainda sem convênio)
   WITH new_records AS (
     INSERT INTO formalizacao (
       ano, parlamentar, partido, emenda, demanda,
@@ -88,13 +89,18 @@ BEGIN
       e.natureza, e.num_convenio, e.regional, e.municipio,
       e.beneficiario, e.objeto, e.portfolio, e.valor
     FROM emendas e
-    WHERE e.num_convenio IS NOT NULL AND e.num_convenio != ''
-      AND NOT EXISTS (
-        SELECT 1 FROM formalizacao f WHERE TRIM(f.numero_convenio) = TRIM(e.num_convenio)
+    WHERE
+      -- Se tiver num_convenio, não deve já existir por convenio
+      NOT EXISTS (
+        SELECT 1 FROM formalizacao f
+        WHERE e.num_convenio IS NOT NULL AND e.num_convenio != ''
+          AND TRIM(f.numero_convenio) = TRIM(e.num_convenio)
       )
+      -- Não deve existir por codigo_num (emenda já importada)
       AND NOT EXISTS (
         SELECT 1 FROM formalizacao f
-        WHERE LENGTH(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) >= 8
+        WHERE f.emenda IS NOT NULL AND f.emenda != ''
+          AND LENGTH(TRIM(REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g'))) >= 6
           AND TRIM(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) = TRIM(REGEXP_REPLACE(e.codigo_num, '[^0-9]', '', 'g'))
       )
     RETURNING id

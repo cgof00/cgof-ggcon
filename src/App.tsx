@@ -73,6 +73,15 @@ const CSV_TO_EMENDAS_MAP: Record<string, string> = {
   'Ordem Bancária': 'ordem_bancaria', 'Data pagamento Ordem Bancária': 'data_paga',
   'Valor Total Ordem Bancária': 'valor_total_ordem_bancaria',
 };
+
+// Mapa normalizado (sem acento, lowercase) para fallback quando o header do CSV
+// tiver encoding diferente (ex: 'Codigo/N° Emenda' em vez de 'Código/Nº Emenda')
+function normalizeHeader(h: string): string {
+  return h.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+const CSV_NORMALIZED_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(CSV_TO_EMENDAS_MAP).map(([k, v]) => [normalizeHeader(k), v])
+);
 const NUMERIC_COLUMNS = new Set(['valor', 'valor_desembolsado', 'valor_total_empenhado', 'valor_total_liquidado', 'valor_total_pago', 'valor_total_ordem_bancaria']);
 const INTEGER_COLUMNS = new Set(['qtd_dias']);
 function parseBRNumber(val: string): number {
@@ -92,9 +101,15 @@ function matchEmendaValue(stored: any, search: string): boolean {
 
 function mapCsvRowToEmendas(row: Record<string, string>): Record<string, any> | null {
   const mapped: Record<string, any> = {};
-  for (const [csvHeader, dbColumn] of Object.entries(CSV_TO_EMENDAS_MAP)) {
-    const val = row[csvHeader];
-    if (val === undefined) continue;
+  for (const [csvHeader, val] of Object.entries(row)) {
+    // 1. Exact match
+    let dbColumn = CSV_TO_EMENDAS_MAP[csvHeader];
+    // 2. Normalized fallback (handles encoding/accent differences)
+    if (dbColumn === undefined) {
+      dbColumn = CSV_NORMALIZED_MAP[normalizeHeader(csvHeader)];
+    }
+    if (dbColumn === undefined) continue;
+    if (val === undefined || val === null) continue;
     if (NUMERIC_COLUMNS.has(dbColumn)) mapped[dbColumn] = parseBRNumber(val);
     else if (INTEGER_COLUMNS.has(dbColumn)) mapped[dbColumn] = /^\d+$/.test(val.trim()) ? parseInt(val.trim(), 10) : 0;
     else mapped[dbColumn] = val;
@@ -1346,10 +1361,11 @@ export default function App() {
           `✅ Importação Concluída!\n` +
           `• ${totalImported} emendas processadas (UPSERT)\n` +
           `• ${totalDuplicated} registros duplicados ignorados no CSV\n` +
-          `\n🔄 Sincronização (comparação total, anos 2023-2026):\n` +
+          `\n🔄 Sincronização:\n` +
+          `• ${syncResult.result?.staging_count ?? '?'} emendas no staging\n` +
           `• ${syncResult.result?.updated || 0} registros atualizados\n` +
           `• ${syncResult.result?.inserted || 0} novas formalizações inseridas` +
-          (syncResult.result?.emendas_cleaned ? `\n\n🧹 Staging limpo automaticamente (economia de espaço no banco)` : '')
+          (syncResult.result?.emendas_cleaned ? `\n\n🧹 Staging limpo automaticamente` : '')
         );
 
         // Importação + sync alteram dados no banco; forçar recarga da Formalização
