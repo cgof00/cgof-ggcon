@@ -27,7 +27,9 @@ export const onRequest: PagesFunction = async (context) => {
 
   async function callRpc(fnName: string): Promise<any> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000);
+    // Cloudflare Workers encerram conexões externas em ~30s.
+    // Usamos 27s para abortar antes e dar uma mensagem de erro compreensível.
+    const timeoutId = setTimeout(() => controller.abort(), 27000);
     const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
       method: 'POST', headers, body: '{}', signal: controller.signal
     });
@@ -99,7 +101,11 @@ export const onRequest: PagesFunction = async (context) => {
 
   } catch (e: any) {
     console.error('❌ Erro sync-emendas:', e);
-    return new Response(JSON.stringify({ error: e.message }), {
+    const isTimeout = e?.name === 'AbortError' || (e?.message || '').includes('aborted');
+    const errorMsg = isTimeout
+      ? 'Timeout na sincronização (>27s). Execute a função sync_emendas_formalizacao() diretamente no Editor SQL do Supabase para volumes grandes.'
+      : e.message;
+    return new Response(JSON.stringify({ error: errorMsg }), {
       status: 500, headers: { 'Content-Type': 'application/json' }
     });
   }
