@@ -4514,65 +4514,42 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     </h3>
                   </div>
                   <div className="p-5 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                      <Input label="Data Liberação de Assinatura" name="data_liberacao_assinatura" type="date" defaultValue={toInputDate(editingFormalizacao?.data_liberacao_assinatura)} disabled={isDisabled('data_liberacao_assinatura')} />
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Falta Assinatura</label>
-                        <div className={`bg-white border border-gray-200 rounded-lg p-3 space-y-2 ${isDisabled('falta_assinatura') ? 'opacity-50 pointer-events-none bg-gray-50' : ''}`}>
-                          {[
-                            'GESTOR ADMINISTRATIVO DRS',
-                            'GESTOR TÉCNICO DRS',
-                            'DIRETOR DRS',
-                            'COORDENADOR CRS',
-                            'DIRETOR GGCON',
-                            'ORDENADOR DE DESPESAS',
-                            'SECRETÁRIO',
-                            'GESTOR – CONVÊNIO / DEMANDANTE',
-                          ].map((opcao) => {
-                            const checked = editingFormalizacao?.falta_assinatura
-                              ? editingFormalizacao.falta_assinatura.split(',').map((s: string) => s.trim()).includes(opcao)
-                              : false;
-                            return (
-                              <label key={opcao} className="flex items-center gap-2.5 cursor-pointer group">
-                                <input
-                                  type="checkbox"
-                                  name="falta_assinatura"
-                                  value={opcao}
-                                  defaultChecked={checked}
-                                  className="w-4 h-4 rounded border-gray-300 text-[#1351B4] focus:ring-[#1351B4]/30 accent-[#1351B4]"
-                                />
-                                <span className="text-xs text-gray-700 group-hover:text-gray-900">{opcao}</span>
-                              </label>
-                            );
-                          })}
+                    {isAdmin && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+                        <Input label="Data Liberação de Assinatura" name="data_liberacao_assinatura" type="date" defaultValue={toInputDate(editingFormalizacao?.data_liberacao_assinatura)} disabled={isDisabled('data_liberacao_assinatura')} />
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Falta Assinatura</label>
+                          <div className={`bg-white border border-gray-200 rounded-lg p-3 space-y-2 ${isDisabled('falta_assinatura') ? 'opacity-50 pointer-events-none bg-gray-50' : ''}`}>
+                            {[
+                              'GESTOR ADMINISTRATIVO DRS',
+                              'GESTOR TÉCNICO DRS',
+                              'DIRETOR DRS',
+                              'COORDENADOR CRS',
+                              'DIRETOR GGCON',
+                              'ORDENADOR DE DESPESAS',
+                              'SECRETÁRIO',
+                              'GESTOR – CONVÊNIO / DEMANDANTE',
+                            ].map((opcao) => {
+                              const checked = editingFormalizacao?.falta_assinatura
+                                ? editingFormalizacao.falta_assinatura.split(',').map((s: string) => s.trim()).includes(opcao)
+                                : false;
+                              return (
+                                <label key={opcao} className="flex items-center gap-2.5 cursor-pointer group">
+                                  <input
+                                    type="checkbox"
+                                    name="falta_assinatura"
+                                    value={opcao}
+                                    defaultChecked={checked}
+                                    className="w-4 h-4 rounded border-gray-300 text-[#1351B4] focus:ring-[#1351B4]/30 accent-[#1351B4]"
+                                  />
+                                  <span className="text-xs text-gray-700 group-hover:text-gray-900">{opcao}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Assinatura</label>
-                        <input
-                          type="date"
-                          name="assinatura"
-                          defaultValue={toInputDate(editingFormalizacao?.assinatura)}
-                          disabled={isDisabled('assinatura')}
-                          onChange={(e) => {
-                            if (e.target.value && e.target.value.trim() !== '') {
-                              // Desmarcar todos os checkboxes de falta_assinatura
-                              const checkboxes = document.querySelectorAll<HTMLInputElement>('input[name="falta_assinatura"]');
-                              checkboxes.forEach(cb => { cb.checked = false; });
-                              // Marcar campo oculto com DEMANDA ASSINADA
-                              const hiddenDemandaAssinada = document.getElementById('demanda_assinada_flag') as HTMLInputElement;
-                              if (hiddenDemandaAssinada) hiddenDemandaAssinada.value = 'DEMANDA ASSINADA';
-                            } else {
-                              const hiddenDemandaAssinada = document.getElementById('demanda_assinada_flag') as HTMLInputElement;
-                              if (hiddenDemandaAssinada) hiddenDemandaAssinada.value = '';
-                            }
-                          }}
-                          className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all ${isDisabled('assinatura', true) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
-                        />
-                      </div>
-                    </div>
+                    )}
                     <input type="hidden" id="demanda_assinada_flag" name="demanda_assinada_flag" defaultValue="" />
                   </div>
                 </div>
@@ -4586,11 +4563,36 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       Publicação e Finalização
                     </h3>
                   </div>
-                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
-                    <Input label="Publicação" name="publicacao" type="date" defaultValue={toInputDate(editingFormalizacao?.publicacao)} disabled={isDisabled('publicacao')} />
-                    <Input label="Vigência" name="vigencia" type="date" defaultValue={toInputDate(editingFormalizacao?.vigencia)} disabled={isDisabled('vigencia')} />
-                    <Input label="Encaminhado em" name="encaminhado_em" type="date" defaultValue={toInputDate(editingFormalizacao?.encaminhado_em)} disabled={isDisabled('encaminhado_em')} />
-                    <Input label="Concluída em" name="concluida_em" type="date" defaultValue={toInputDate(editingFormalizacao?.concluida_em)} disabled={isDisabled('concluida_em')} />
+                  <div className="p-5 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Assinatura</label>
+                        <input
+                          type="date"
+                          name="assinatura"
+                          defaultValue={toInputDate(editingFormalizacao?.assinatura)}
+                          disabled={isDisabled('assinatura')}
+                          onChange={(e) => {
+                            if (e.target.value && e.target.value.trim() !== '') {
+                              const checkboxes = document.querySelectorAll<HTMLInputElement>('input[name="falta_assinatura"]');
+                              checkboxes.forEach(cb => { cb.checked = false; });
+                              const hiddenDemandaAssinada = document.getElementById('demanda_assinada_flag') as HTMLInputElement;
+                              if (hiddenDemandaAssinada) hiddenDemandaAssinada.value = 'DEMANDA ASSINADA';
+                            } else {
+                              const hiddenDemandaAssinada = document.getElementById('demanda_assinada_flag') as HTMLInputElement;
+                              if (hiddenDemandaAssinada) hiddenDemandaAssinada.value = '';
+                            }
+                          }}
+                          className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all ${isDisabled('assinatura', true) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                        />
+                      </div>
+                      <Input label="Publicação" name="publicacao" type="date" defaultValue={toInputDate(editingFormalizacao?.publicacao)} disabled={isDisabled('publicacao')} />
+                      <Input label="Vigência" name="vigencia" type="date" defaultValue={toInputDate(editingFormalizacao?.vigencia)} disabled={isDisabled('vigencia')} />
+                      <Input label="Encaminhado em" name="encaminhado_em" type="date" defaultValue={toInputDate(editingFormalizacao?.encaminhado_em)} disabled={isDisabled('encaminhado_em')} />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
+                      <Input label="Concluída em" name="concluida_em" type="date" defaultValue={toInputDate(editingFormalizacao?.concluida_em)} disabled={isDisabled('concluida_em')} />
+                    </div>
                   </div>
                 </div>
 
