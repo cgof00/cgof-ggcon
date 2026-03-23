@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Plus, 
   Search, 
@@ -3372,7 +3373,7 @@ export default function App() {
                                         title="Arrastar para redimensionar"
                                       />
                                       {/* Dropdown multi-select */}
-                                      {isOpen && (
+                                      {isOpen && createPortal(
                                         <div
                                           ref={headerFilterRef}
                                           className="fixed z-[9999] w-60 bg-white rounded-lg shadow-2xl border border-gray-200"
@@ -3472,7 +3473,7 @@ export default function App() {
                                             </button>
                                           </div>
                                         </div>
-                                      )}
+                                      , document.body)}
                                     </th>
                                   );
                                 })}
