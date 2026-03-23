@@ -405,6 +405,58 @@ const app = express();
     }
   });
 
+  app.post("/api/auth/change-password", authMiddleware, async (req: any, res) => {
+    try {
+      console.log('\n🔑 POST /api/auth/change-password - User:', req.user.email);
+      const { senhaAtual, novaSenha } = req.body;
+
+      if (!senhaAtual || !novaSenha) {
+        return res.status(400).json({ error: "Senha atual e nova senha são obrigatórias" });
+      }
+
+      if (novaSenha.trim().length < 6) {
+        return res.status(400).json({ error: "Nova senha deve ter no mínimo 6 caracteres" });
+      }
+
+      if (!supabase) {
+        return res.status(500).json({ error: "Supabase não configurado" });
+      }
+
+      const { data: userData, error: fetchError } = await supabase
+        .from("usuarios")
+        .select("id, senha_hash")
+        .eq("id", req.user.userId)
+        .single();
+
+      if (fetchError || !userData) {
+        console.error('❌ Usuário não encontrado:', fetchError);
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
+      if (!verifyPassword(senhaAtual, userData.senha_hash)) {
+        console.log('❌ Senha atual incorreta');
+        return res.status(401).json({ error: "Senha atual incorreta" });
+      }
+
+      const novoHash = hashPassword(novaSenha);
+      const { error: updateError } = await supabase
+        .from("usuarios")
+        .update({ senha_hash: novoHash, updated_at: new Date().toISOString() })
+        .eq("id", req.user.userId);
+
+      if (updateError) {
+        console.error('❌ Erro ao atualizar senha:', updateError);
+        return res.status(500).json({ error: "Erro ao atualizar senha" });
+      }
+
+      console.log('✅ Senha alterada com sucesso para:', req.user.email);
+      return res.json({ message: "Senha alterada com sucesso" });
+    } catch (error) {
+      console.error('❌ Erro em /api/auth/change-password:', error);
+      res.status(500).json({ error: "Erro ao alterar senha", details: String(error) });
+    }
+  });
+
   // Lista de usuários (apenas para admin)
   app.get("/api/usuarios", authMiddleware, async (req: any, res) => {
     try {

@@ -831,6 +831,14 @@ export default function App() {
   const [formalizacaoParaDeletar, setFormalizacaoParaDeletar] = useState<any>(null);
   const [senhaParaDeletarFormalizacao, setSenhaParaDeletarFormalizacao] = useState('');
 
+  // Estado para modal de troca de senha
+  const [showTrocarSenhaModal, setShowTrocarSenhaModal] = useState(false);
+  const [trocarSenhaAtual, setTrocarSenhaAtual] = useState('');
+  const [trocarNovaSenha, setTrocarNovaSenha] = useState('');
+  const [trocarConfirmarSenha, setTrocarConfirmarSenha] = useState('');
+  const [trocarSenhaLoading, setTrocarSenhaLoading] = useState(false);
+  const [trocarSenhaErro, setTrocarSenhaErro] = useState('');
+
   // 🎯 Carregar filtros em cascata (atualiza quando qualquer filtro muda)
   useEffect(() => {
     if (activeTab === 'formalizacao') {
@@ -968,6 +976,43 @@ export default function App() {
       throw new Error('Sessão expirada. Faça login novamente.');
     }
     return response;
+  };
+
+  const handleTrocarSenha = async () => {
+    setTrocarSenhaErro('');
+    if (!trocarSenhaAtual || !trocarNovaSenha || !trocarConfirmarSenha) {
+      setTrocarSenhaErro('Preencha todos os campos.');
+      return;
+    }
+    if (trocarNovaSenha !== trocarConfirmarSenha) {
+      setTrocarSenhaErro('Nova senha e confirmação não coincidem.');
+      return;
+    }
+    if (trocarNovaSenha.length < 6) {
+      setTrocarSenhaErro('Nova senha deve ter no mínimo 6 caracteres.');
+      return;
+    }
+    setTrocarSenhaLoading(true);
+    try {
+      const res = await fetchWithAuth('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ senhaAtual: trocarSenhaAtual, novaSenha: trocarNovaSenha }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTrocarSenhaErro(data.error || 'Erro ao alterar senha.');
+        return;
+      }
+      setShowTrocarSenhaModal(false);
+      setTrocarSenhaAtual('');
+      setTrocarNovaSenha('');
+      setTrocarConfirmarSenha('');
+      alert('✅ Senha alterada com sucesso!');
+    } catch (err: any) {
+      setTrocarSenhaErro(err.message || 'Erro ao alterar senha.');
+    } finally {
+      setTrocarSenhaLoading(false);
+    }
   };
 
   // 🔥 Pré-carregar cache na inicialização
@@ -2541,10 +2586,30 @@ export default function App() {
                     </button>
                     <button
                       onClick={() => setIsUpdateCamposOpen(true)}
-                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 last:rounded-b-xl font-bold transition-colors"
+                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 font-bold transition-colors"
                     >
                       <PenLine className="w-4 h-4" />
                       Atualizar Tipo/Recurso
+                    </button>
+                    <button
+                      onClick={() => { setTrocarSenhaErro(''); setShowTrocarSenhaModal(true); }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 last:rounded-b-xl font-bold transition-colors"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Trocar Senha
+                    </button>
+                  </div>
+                )}
+
+                {/* Dropdown para usuários não-admin */}
+                {!isAdmin && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <button
+                      onClick={() => { setTrocarSenhaErro(''); setShowTrocarSenhaModal(true); }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 rounded-xl font-bold transition-colors"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Trocar Senha
                     </button>
                   </div>
                 )}
@@ -3107,8 +3172,8 @@ export default function App() {
                       onMouseMove={handleTableMouseMove}
                       onMouseUp={handleTableMouseUp}
                       onMouseLeave={handleTableMouseLeave}
-                      className={`overflow-x-auto bg-white select-none user-select-none ${isDraggingScroll ? 'cursor-grabbing' : 'cursor-grab'}`}
-                      style={{ WebkitUserSelect: 'none', userSelect: 'none', minHeight: '400px' }}
+                      className={`overflow-x-auto overflow-y-auto bg-white select-none user-select-none ${isDraggingScroll ? 'cursor-grabbing' : 'cursor-grab'}`}
+                      style={{ WebkitUserSelect: 'none', userSelect: 'none', maxHeight: 'calc(100vh - 260px)' }}
                     >
                       {(() => {
                         const columnDefinitions = [
@@ -5115,6 +5180,109 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
         isOpen={isUserManagementOpen} 
         onClose={() => setIsUserManagementOpen(false)} 
       />
+
+      {/* Modal de Troca de Senha */}
+      <AnimatePresence>
+        {showTrocarSenhaModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowTrocarSenhaModal(false)}
+              className="fixed inset-0 bg-black/40 z-50"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-0 flex items-center justify-center z-50 p-4"
+            >
+              <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-[#1351B4] p-2 rounded-lg">
+                      <Settings className="text-white w-5 h-5" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900">Trocar Senha</h3>
+                  </div>
+                  <button
+                    onClick={() => setShowTrocarSenhaModal(false)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                {trocarSenhaErro && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-700">{trocarSenhaErro}</p>
+                  </div>
+                )}
+
+                <form
+                  onSubmit={(e) => { e.preventDefault(); handleTrocarSenha(); }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label className="text-sm font-bold text-slate-700 ml-1">Senha Atual</label>
+                    <input
+                      type="password"
+                      value={trocarSenhaAtual}
+                      onChange={(e) => setTrocarSenhaAtual(e.target.value)}
+                      className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1351B4] focus:ring-4 focus:ring-[#1351B4]/10"
+                      placeholder="Digite sua senha atual"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-bold text-slate-700 ml-1">Nova Senha</label>
+                    <input
+                      type="password"
+                      value={trocarNovaSenha}
+                      onChange={(e) => setTrocarNovaSenha(e.target.value)}
+                      className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1351B4] focus:ring-4 focus:ring-[#1351B4]/10"
+                      placeholder="Mínimo 6 caracteres"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-bold text-slate-700 ml-1">Confirmar Nova Senha</label>
+                    <input
+                      type="password"
+                      value={trocarConfirmarSenha}
+                      onChange={(e) => setTrocarConfirmarSenha(e.target.value)}
+                      className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1351B4] focus:ring-4 focus:ring-[#1351B4]/10"
+                      placeholder="Repita a nova senha"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowTrocarSenhaModal(false)}
+                      className="flex-1 bg-slate-200 text-slate-700 font-bold py-2.5 rounded-lg hover:bg-slate-300 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={trocarSenhaLoading}
+                      className="flex-1 bg-[#1351B4] text-white font-bold py-2.5 rounded-lg hover:bg-[#0C326F] transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {trocarSenhaLoading ? (
+                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
+                      Salvar
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
