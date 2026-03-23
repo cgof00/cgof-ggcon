@@ -40,7 +40,9 @@ import {
   Bell,
   CheckSquare,
   XCircle,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Papa from 'papaparse';
@@ -838,6 +840,9 @@ export default function App() {
   const [trocarConfirmarSenha, setTrocarConfirmarSenha] = useState('');
   const [trocarSenhaLoading, setTrocarSenhaLoading] = useState(false);
   const [trocarSenhaErro, setTrocarSenhaErro] = useState('');
+  const [showSenhaAtual, setShowSenhaAtual] = useState(false);
+  const [showNovaSenha, setShowNovaSenha] = useState(false);
+  const [showConfirmarSenha, setShowConfirmarSenha] = useState(false);
 
   // 🎯 Carregar filtros em cascata (atualiza quando qualquer filtro muda)
   useEffect(() => {
@@ -2592,7 +2597,7 @@ export default function App() {
                       Atualizar Tipo/Recurso
                     </button>
                     <button
-                      onClick={() => { setTrocarSenhaErro(''); setShowTrocarSenhaModal(true); }}
+                      onClick={() => { setTrocarSenhaErro(''); setShowSenhaAtual(false); setShowNovaSenha(false); setShowConfirmarSenha(false); setShowTrocarSenhaModal(true); }}
                       className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 last:rounded-b-xl font-bold transition-colors"
                     >
                       <Settings className="w-4 h-4" />
@@ -2605,7 +2610,7 @@ export default function App() {
                 {!isAdmin && (
                   <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                     <button
-                      onClick={() => { setTrocarSenhaErro(''); setShowTrocarSenhaModal(true); }}
+                      onClick={() => { setTrocarSenhaErro(''); setShowSenhaAtual(false); setShowNovaSenha(false); setShowConfirmarSenha(false); setShowTrocarSenhaModal(true); }}
                       className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 rounded-xl font-bold transition-colors"
                     >
                       <Settings className="w-4 h-4" />
@@ -5226,34 +5231,49 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                 >
                   <div>
                     <label className="text-sm font-bold text-slate-700 ml-1">Senha Atual</label>
-                    <input
-                      type="password"
-                      value={trocarSenhaAtual}
-                      onChange={(e) => setTrocarSenhaAtual(e.target.value)}
-                      className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1351B4] focus:ring-4 focus:ring-[#1351B4]/10"
-                      placeholder="Digite sua senha atual"
-                      autoFocus
-                    />
+                    <div className="relative mt-2">
+                      <input
+                        type={showSenhaAtual ? 'text' : 'password'}
+                        value={trocarSenhaAtual}
+                        onChange={(e) => setTrocarSenhaAtual(e.target.value)}
+                        className="w-full px-4 py-2 pr-10 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1351B4] focus:ring-4 focus:ring-[#1351B4]/10"
+                        placeholder="Digite sua senha atual"
+                        autoFocus
+                      />
+                      <button type="button" onClick={() => setShowSenhaAtual(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        {showSenhaAtual ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="text-sm font-bold text-slate-700 ml-1">Nova Senha</label>
-                    <input
-                      type="password"
-                      value={trocarNovaSenha}
-                      onChange={(e) => setTrocarNovaSenha(e.target.value)}
-                      className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1351B4] focus:ring-4 focus:ring-[#1351B4]/10"
-                      placeholder="Mínimo 6 caracteres"
-                    />
+                    <div className="relative mt-2">
+                      <input
+                        type={showNovaSenha ? 'text' : 'password'}
+                        value={trocarNovaSenha}
+                        onChange={(e) => setTrocarNovaSenha(e.target.value)}
+                        className="w-full px-4 py-2 pr-10 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1351B4] focus:ring-4 focus:ring-[#1351B4]/10"
+                        placeholder="Mínimo 6 caracteres"
+                      />
+                      <button type="button" onClick={() => setShowNovaSenha(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        {showNovaSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="text-sm font-bold text-slate-700 ml-1">Confirmar Nova Senha</label>
-                    <input
-                      type="password"
-                      value={trocarConfirmarSenha}
-                      onChange={(e) => setTrocarConfirmarSenha(e.target.value)}
-                      className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1351B4] focus:ring-4 focus:ring-[#1351B4]/10"
-                      placeholder="Repita a nova senha"
-                    />
+                    <div className="relative mt-2">
+                      <input
+                        type={showConfirmarSenha ? 'text' : 'password'}
+                        value={trocarConfirmarSenha}
+                        onChange={(e) => setTrocarConfirmarSenha(e.target.value)}
+                        className="w-full px-4 py-2 pr-10 border border-slate-200 rounded-lg focus:outline-none focus:border-[#1351B4] focus:ring-4 focus:ring-[#1351B4]/10"
+                        placeholder="Repita a nova senha"
+                      />
+                      <button type="button" onClick={() => setShowConfirmarSenha(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        {showConfirmarSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex gap-3 pt-4">

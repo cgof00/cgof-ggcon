@@ -98,9 +98,18 @@ export const onRequest: PagesFunction = async (context) => {
     });
   }
 
+  // id pode ser 'id' (cloudflare login) ou 'userId' (express login)
+  const userId = decoded.id ?? decoded.userId;
+  if (!userId) {
+    return new Response(JSON.stringify({ error: 'Token inválido: sem ID de usuário' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   // Buscar usuário no Supabase para validar senha atual
   const fetchResp = await fetch(
-    `${supabaseUrl}/rest/v1/usuarios?id=eq.${decoded.userId}&select=id,senha_hash`,
+    `${supabaseUrl}/rest/v1/usuarios?id=eq.${userId}&select=id,senha_hash`,
     {
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
@@ -140,7 +149,7 @@ export const onRequest: PagesFunction = async (context) => {
   // Atualizar senha
   const novoHash = await hashPassword(novaSenha);
   const updateResp = await fetch(
-    `${supabaseUrl}/rest/v1/usuarios?id=eq.${decoded.userId}`,
+    `${supabaseUrl}/rest/v1/usuarios?id=eq.${userId}`,
     {
       method: 'PATCH',
       headers: {
@@ -165,7 +174,7 @@ export const onRequest: PagesFunction = async (context) => {
     });
   }
 
-  console.log(`✅ Senha alterada para userId=${decoded.userId}`);
+  console.log(`✅ Senha alterada para userId=${userId}`);
   return new Response(JSON.stringify({ message: 'Senha alterada com sucesso' }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
