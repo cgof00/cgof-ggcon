@@ -687,6 +687,7 @@ export default function App() {
   const [headerFilterOpen, setHeaderFilterOpen] = useState<string | null>(null);
   const [headerFilterSearch, setHeaderFilterSearch] = useState('');
   const [columnTextFilters, setColumnTextFilters] = useState<{ [key: string]: string }>({});
+  const [headerFilterPos, setHeaderFilterPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   // Filtros multi-select para colunas sem filterOptions do servidor
   const [headerFilters, setHeaderFilters] = useState<Record<string, string[]>>({});
   const headerFilterRef = useRef<HTMLDivElement>(null);
@@ -699,8 +700,14 @@ export default function App() {
         setHeaderFilterOpen(null);
       }
     }
+    function handleScroll() { setHeaderFilterOpen(null); }
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    tableContainerRef.current?.addEventListener('scroll', handleScroll);
+    const tc = tableContainerRef.current;
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      tc?.removeEventListener('scroll', handleScroll);
+    };
   }, [headerFilterOpen]);
 
   // Mapeamento de colunas para chaves de filtro (server-side cascade)
@@ -3313,6 +3320,13 @@ export default function App() {
                                               setHeaderFilterOpen(null);
                                               setHeaderFilterSearch('');
                                             } else {
+                                              const thEl = columnHeaderRefs.current[col.key];
+                                              if (thEl) {
+                                                const rect = thEl.getBoundingClientRect();
+                                                const dropW = 240;
+                                                const left = Math.min(rect.left, window.innerWidth - dropW - 8);
+                                                setHeaderFilterPos({ top: rect.bottom + 4, left: Math.max(8, left) });
+                                              }
                                               setHeaderFilterOpen(col.key);
                                               setHeaderFilterSearch('');
                                             }
@@ -3361,7 +3375,8 @@ export default function App() {
                                       {isOpen && (
                                         <div
                                           ref={headerFilterRef}
-                                          className="absolute top-full left-0 z-[100] mt-1 w-60 bg-white rounded-lg shadow-2xl border border-gray-200"
+                                          className="fixed z-[9999] w-60 bg-white rounded-lg shadow-2xl border border-gray-200"
+                                          style={{ top: headerFilterPos.top, left: headerFilterPos.left }}
                                           onClick={(e) => e.stopPropagation()}
                                         >
                                           <div className="p-2 border-b border-gray-100 space-y-1.5">
