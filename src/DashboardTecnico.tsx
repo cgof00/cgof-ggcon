@@ -488,7 +488,6 @@ export function DashboardTecnico() {
   }, [filtered, personField]);
 
   // KPIs
-  const totalValor = useMemo(() => filtered.reduce((s, r) => s + (Number(r.valor) || 0), 0), [filtered]);
   const totalConcluidas = useMemo(() => matrixData.totalCols.concluida, [matrixData]);
   const pctConcluidas = filtered.length > 0 ? Math.round((totalConcluidas / filtered.length) * 100) : 0;
   const totalEmAndamento = matrixData.totalCols.total_ggcon;
@@ -652,16 +651,14 @@ export function DashboardTecnico() {
       {!loading && rawData.length > 0 && (
         <>
           {/* ── KPI Cards ───────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <KpiCard label="Total de Demandas" value={filtered.length.toLocaleString('pt-BR')}
               sub={hasActiveFilters ? `de ${rawData.length.toLocaleString('pt-BR')} total` : undefined}
               color="bg-gradient-to-br from-[#1351B4] to-[#0C326F]" icon={BarChart3} />
-            <KpiCard label="Valor Total" value={fmtCompact(totalValor)}
-              sub={fmtCurrency(totalValor)} color="bg-gradient-to-br from-emerald-500 to-emerald-700" icon={DollarSign} />
             <KpiCard label="Concluídas" value={`${totalConcluidas.toLocaleString('pt-BR')} (${pctConcluidas}%)`}
               sub="com data de conclusão" color="bg-gradient-to-br from-violet-500 to-violet-700" icon={CheckCircle2} />
-            <KpiCard label="Em Andamento" value={totalEmAndamento.toLocaleString('pt-BR')}
-              sub={`${(100 - pctConcluidas)}% do total`} color="bg-gradient-to-br from-orange-500 to-orange-700" icon={TrendingUp} />
+            <KpiCard label="Em Andamento (GGCON)" value={totalEmAndamento.toLocaleString('pt-BR')}
+              sub="total no GGCON" color="bg-gradient-to-br from-orange-500 to-orange-700" icon={TrendingUp} />
           </div>
 
           {/* ── Matrix Table ─────────────────────────────────────────── */}

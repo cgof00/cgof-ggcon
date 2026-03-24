@@ -49,7 +49,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { useAuth } from './AuthContext';
-import { AdminPanel } from './AdminPanel';
 import { DashboardTecnico } from './DashboardTecnico';
 import { UserManagementPanel } from './UserManagementPanel';
 // EmendasDataTable removido - sistema usa somente Formalização
@@ -532,7 +531,7 @@ interface Formalizacao {
 
 export default function App() {
   const { user, token, logout, isAdmin, isIntermediario, isUsuario } = useAuth();
-  const [activeTab, setActiveTab] = useState<'formalizacao' | 'admin' | 'dashboard'>('formalizacao');
+  const [activeTab, setActiveTab] = useState<'formalizacao' | 'admin' | 'dashboard'>('formalizacao'); // 'admin' = Demonstrativo, 'dashboard' kept for compat
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const [adminAlertas, setAdminAlertas] = useState<{id: number, tipo: string, descricao: string, data: string}[]>([]);
   const [showAlertasDropdown, setShowAlertasDropdown] = useState(false);
@@ -2489,12 +2488,6 @@ export default function App() {
                       <BarChart3 className="w-3.5 h-3.5" />
                       Demonstrativo
                     </button>
-                    <button 
-                      onClick={() => setActiveTab('admin')}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'admin' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
-                    >
-                      Dashboard
-                    </button>
                   </>
                 )}
               </nav>
@@ -3082,8 +3075,6 @@ export default function App() {
             )}
 
             {activeTab === 'admin' ? (
-              <AdminPanel />
-            ) : activeTab === 'dashboard' ? (
               <DashboardTecnico />
             ) : loading && formalizacoes.length === 0 && formalizacaoSearchResult.data.length === 0 ? (
               <div className="flex flex-col justify-center items-center py-16">
