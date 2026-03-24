@@ -50,6 +50,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { useAuth } from './AuthContext';
 import { AdminPanel } from './AdminPanel';
+import { DashboardTecnico } from './DashboardTecnico';
 import { UserManagementPanel } from './UserManagementPanel';
 // EmendasDataTable removido - sistema usa somente Formalização
 import logo1Img from './img/logo1.png';
@@ -531,7 +532,7 @@ interface Formalizacao {
 
 export default function App() {
   const { user, token, logout, isAdmin, isIntermediario, isUsuario } = useAuth();
-  const [activeTab, setActiveTab] = useState<'formalizacao' | 'admin'>('formalizacao');
+  const [activeTab, setActiveTab] = useState<'formalizacao' | 'admin' | 'dashboard'>('formalizacao');
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const [adminAlertas, setAdminAlertas] = useState<{id: number, tipo: string, descricao: string, data: string}[]>([]);
   const [showAlertasDropdown, setShowAlertasDropdown] = useState(false);
@@ -2480,13 +2481,21 @@ export default function App() {
                   Formalização
                 </button>
                 {user?.role === 'admin' && (
-                  <button 
-                    onClick={() => setActiveTab('admin')}
-                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'admin' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
-                  >
-                    <BarChart3 className="w-3.5 h-3.5" />
-                    Dashboard
-                  </button>
+                  <>
+                    <button 
+                      onClick={() => setActiveTab('dashboard')}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'dashboard' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
+                    >
+                      <BarChart3 className="w-3.5 h-3.5" />
+                      Demonstrativo
+                    </button>
+                    <button 
+                      onClick={() => setActiveTab('admin')}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'admin' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
+                    >
+                      Dashboard
+                    </button>
+                  </>
                 )}
               </nav>
             </div>
@@ -3074,6 +3083,8 @@ export default function App() {
 
             {activeTab === 'admin' ? (
               <AdminPanel />
+            ) : activeTab === 'dashboard' ? (
+              <DashboardTecnico />
             ) : loading && formalizacoes.length === 0 && formalizacaoSearchResult.data.length === 0 ? (
               <div className="flex flex-col justify-center items-center py-16">
                 <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-b-red-600 mb-4"></div>
