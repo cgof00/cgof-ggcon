@@ -28,6 +28,7 @@ UPDATE formalizacao SET tecnico = 'Marta Conceicao de Moura' WHERE UPPER(TRIM(te
 UPDATE formalizacao SET tecnico = 'Ronaldo Hilario dos Santos' WHERE UPPER(TRIM(tecnico)) = 'RONALDO';
 UPDATE formalizacao SET tecnico = 'Arlete Shirley Pereira de Carvalho' WHERE UPPER(TRIM(tecnico)) = 'ARLETE';
 UPDATE formalizacao SET tecnico = 'Renato Tatit' WHERE UPPER(TRIM(tecnico)) = 'RENATO';
+UPDATE formalizacao SET tecnico = 'Tânia Cristina Begosso' WHERE UPPER(TRIM(tecnico)) = 'TANIA';
 
 -- ===== ATUALIZAR COLUNA CONFERENCISTA =====
 
@@ -55,6 +56,7 @@ UPDATE formalizacao SET conferencista = 'Marta Conceicao de Moura' WHERE UPPER(T
 UPDATE formalizacao SET conferencista = 'Ronaldo Hilario dos Santos' WHERE UPPER(TRIM(conferencista)) = 'RONALDO';
 UPDATE formalizacao SET conferencista = 'Arlete Shirley Pereira de Carvalho' WHERE UPPER(TRIM(conferencista)) = 'ARLETE';
 UPDATE formalizacao SET conferencista = 'Renato Tatit' WHERE UPPER(TRIM(conferencista)) = 'RENATO';
+UPDATE formalizacao SET conferencista = 'Tânia Cristina Begosso' WHERE UPPER(TRIM(conferencista)) = 'TANIA';
 
 -- ===== VERIFICAR RESULTADO =====
 

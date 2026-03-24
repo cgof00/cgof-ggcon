@@ -836,6 +836,13 @@ export default function App() {
   const [atribuicaoConferencista, setAtribuicaoConferencista] = useState<{id: number, nome: string} | null>(null);
   const [atribuindoConferencista, setAtribuindoConferencista] = useState(false);
 
+  // Estado para liberar para assinatura em lote
+  const [showLiberarAssinaturaModal, setShowLiberarAssinaturaModal] = useState(false);
+  const [liberandoAssinatura, setLiberandoAssinatura] = useState(false);
+  // Estado para edição inline de falta_assinatura
+  const [inlineEditFalta, setInlineEditFalta] = useState<{id: string, value: string} | null>(null);
+  const [savingFalta, setSavingFalta] = useState(false);
+
   // Estado para modal de deletar formalizacao com senha
   const [showDeleteFormalizacaoModal, setShowDeleteFormalizacaoModal] = useState(false);
   const [formalizacaoParaDeletar, setFormalizacaoParaDeletar] = useState<any>(null);
@@ -1174,7 +1181,7 @@ export default function App() {
         data_retorno: false,
         observacao_motivo_retorno: false,
         data_liberacao_assinatura_conferencista: false,
-        data_liberacao_assinatura: false,
+        data_liberacao_assinatura: true,
         falta_assinatura: true,
         assinatura: true,
         publicacao: true,
@@ -2680,6 +2687,18 @@ export default function App() {
                         Atribuir a Conferencista ({selectedRows.size})
                       </motion.button>
                     )}
+                    {/* Botão Liberar para Assinatura - aparece quando há seleção (só admin) */}
+                    {isAdmin && selectedRows.size > 0 && (
+                      <motion.button
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        onClick={() => setShowLiberarAssinaturaModal(true)}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-orange-200 text-orange-900 hover:bg-orange-300 border border-orange-600"
+                      >
+                        <PenLine className="w-4 h-4" />
+                        Liberar para Assinatura ({selectedRows.size})
+                      </motion.button>
+                    )}
                     {/* Botão Limpar Todos os Filtros */}
                     <button
                       onClick={() => clearAllFilters()}
@@ -3224,7 +3243,24 @@ export default function App() {
                           { key: 'observacao_motivo_retorno', label: 'Observações', render: (f: any) => f.observacao_motivo_retorno },
                           { key: 'data_liberacao_assinatura_conferencista', label: 'Data Lib. Assit. Conf.', render: (f: any) => formatDateForDisplay(f.data_liberacao_assinatura_conferencista || '—') },
                           { key: 'data_liberacao_assinatura', label: 'Data Lib. Assinatura', render: (f: any) => formatDateForDisplay(f.data_liberacao_assinatura || '—') },
-                          { key: 'falta_assinatura', label: 'Falta Assinatura', render: (f: any) => f.falta_assinatura },
+                          { key: 'falta_assinatura', label: 'Falta Assinatura', titleStr: (f: any) => f.falta_assinatura || '', render: (f: any) => {
+                            if (isAdmin) {
+                              return (
+                                <button
+                                  className="flex items-center gap-1 text-left w-full group"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setInlineEditFalta({ id: String(f.id), value: f.falta_assinatura || '' });
+                                  }}
+                                  title="Clique para editar"
+                                >
+                                  <span className="truncate flex-1 text-xs">{f.falta_assinatura || '—'}</span>
+                                  <PenLine className="w-3 h-3 text-orange-500 flex-shrink-0 opacity-0 group-hover:opacity-100" />
+                                </button>
+                              );
+                            }
+                            return f.falta_assinatura || '—';
+                          } },
                           { key: 'assinatura', label: 'Assinatura', render: (f: any) => formatDateForDisplay(f.assinatura || '—') },
                           { key: 'publicacao', label: 'Publicação', render: (f: any) => formatDateForDisplay(f.publicacao || '—') },
                           { key: 'vigencia', label: 'Vigência', render: (f: any) => formatDateForDisplay(f.vigencia || '—') },
@@ -3563,7 +3599,7 @@ export default function App() {
                                           col.align === 'right' ? 'text-right font-semibold text-emerald-700' : 'text-slate-800'
                                         }`}
                                         style={{ backgroundColor: 'inherit', width: columnWidths[col.key] || col.width || 110, maxWidth: columnWidths[col.key] || col.width || 110, overflow: 'hidden' }}
-                                        title={String(col.render(f))}
+                                        title={(col as any).titleStr ? (col as any).titleStr(f) : col.key === 'falta_assinatura' ? (f.falta_assinatura || '') : String(col.render(f))}
                                       >
                                         {col.render(f)}
                                       </td>
@@ -5098,6 +5134,143 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
         )}
       </AnimatePresence>
 
+      {/* Modal de Liberar para Assinatura em Lote */}
+      <AnimatePresence>
+        {showLiberarAssinaturaModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowLiberarAssinaturaModal(false)}
+              className="fixed inset-0 bg-black/40 z-40"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 flex items-center justify-center z-50 p-4"
+            >
+              <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-orange-100 p-2 rounded-lg">
+                      <PenLine className="text-orange-600 w-5 h-5" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900">Liberar para Assinatura</h3>
+                  </div>
+                  <button
+                    onClick={() => setShowLiberarAssinaturaModal(false)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-orange-900 font-medium">
+                    {selectedRows.size} registro(s) selecionado(s)
+                  </p>
+                  <p className="text-xs text-orange-700 mt-1">
+                    A coluna “Data Lib. Assinatura” será preenchida com a data de hoje.
+                  </p>
+                </div>
+
+                <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-lg mb-6">
+                  <span className="font-semibold">Data:</span> {new Date().toLocaleDateString('pt-BR')}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowLiberarAssinaturaModal(false)}
+                    className="flex-1 px-4 py-2.5 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                    disabled={liberandoAssinatura}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={liberandoAssinatura}
+                    onClick={async () => {
+                      const idsToUpdate = Array.from(selectedRows).map(id => {
+                        const numId = parseInt(id, 10);
+                        if (isNaN(numId) || numId <= 0) return null;
+                        return numId;
+                      }).filter(id => id !== null) as number[];
+
+                      if (idsToUpdate.length === 0) {
+                        alert('❌ Nenhum ID válido selecionado');
+                        return;
+                      }
+
+                      const now = new Date();
+                      const dataLiberacao = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
+
+                      setLiberandoAssinatura(true);
+                      try {
+                        const response = await fetch('/api/formalizacao/liberar-assinatura', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                          },
+                          body: JSON.stringify({ ids: idsToUpdate, data_liberacao_assinatura: dataLiberacao })
+                        });
+
+                        if (!response.ok) {
+                          const error = await response.json();
+                          throw new Error(error.error || `Erro HTTP ${response.status}`);
+                        }
+
+                        const result = await response.json();
+
+                        if (result.updatedRecords && result.updatedRecords.length > 0) {
+                          const updateMap = new Map(result.updatedRecords.map((r: any) => [r.id, r]));
+                          const updater = (list: any[]) => list.map((f: any) => {
+                            const u = updateMap.get(f.id);
+                            return u ? { ...f, ...u } : f;
+                          });
+                          if (allDataCacheRef.current.length > 0) {
+                            allDataCacheRef.current = updater(allDataCacheRef.current);
+                          }
+                          setFormalizacoes(prev => updater(prev));
+                          setFormalizacaoSearchResult((prev: any) => ({
+                            ...prev,
+                            data: updater(prev.data)
+                          }));
+                        }
+
+                        setSelectedRows(new Set());
+                        setShowLiberarAssinaturaModal(false);
+                        alert(`✅ Sucesso! ${result.updated} registro(s) liberados para assinatura!`);
+                      } catch (error: any) {
+                        alert(`❌ Erro ao liberar para assinatura:\n\n${error.message}`);
+                      } finally {
+                        setLiberandoAssinatura(false);
+                      }
+                    }}
+                    className="flex-1 px-4 py-2.5 rounded-lg font-medium text-white bg-orange-500 hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {liberandoAssinatura ? (
+                      <>
+                        <div className="animate-spin">⏳</div>
+                        Processando...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Confirmar
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Modal de Deletar Formalizacao */}
       <AnimatePresence>
         {showDeleteFormalizacaoModal && (formalizacaoParaDeletar || selectedRows.size > 0) && (
@@ -5337,6 +5510,116 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
           background: #CBD5E1;
         }
       `}</style>
+
+      {/* Edição inline de falta_assinatura */}
+      {inlineEditFalta && createPortal(
+        <>
+          <div
+            className="fixed inset-0 bg-black/20 z-[9000]"
+            onClick={() => setInlineEditFalta(null)}
+          />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[9001] bg-white rounded-2xl shadow-2xl p-5 w-80">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <PenLine className="w-4 h-4 text-orange-500" />
+                Falta Assinatura
+              </h4>
+              <button onClick={() => setInlineEditFalta(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-1 mb-4">
+              {[
+                'GESTOR ADMINISTRATIVO DRS',
+                'GESTOR TÉCNICO DRS',
+                'DIRETOR DRS',
+                'COORDENADOR CRS',
+                'DIRETOR GGCON',
+                'ORDENADOR DE DESPESAS',
+                'SECRETÁRIO',
+                'GESTOR – CONVÊNIO / DEMANDANTE',
+              ].map(opcao => {
+                const currentValues = inlineEditFalta.value
+                  ? inlineEditFalta.value.split(',').map((s: string) => s.trim()).filter(Boolean)
+                  : [];
+                const isChecked = currentValues.includes(opcao);
+                return (
+                  <label key={opcao} className="flex items-center gap-2.5 cursor-pointer hover:bg-orange-50 p-1.5 rounded">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {
+                        const newValues = isChecked
+                          ? currentValues.filter(v => v !== opcao)
+                          : [...currentValues, opcao];
+                        setInlineEditFalta({ ...inlineEditFalta, value: newValues.join(', ') });
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 accent-orange-500"
+                    />
+                    <span className="text-xs text-gray-700">{opcao}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setInlineEditFalta(null)}
+                className="flex-1 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                disabled={savingFalta}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  if (!inlineEditFalta.id) return;
+                  setSavingFalta(true);
+                  try {
+                    const response = await fetch(`/api/formalizacao/${inlineEditFalta.id}`, {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                      },
+                      body: JSON.stringify({ falta_assinatura: inlineEditFalta.value })
+                    });
+                    if (!response.ok) {
+                      const err = await response.json();
+                      throw new Error(err.error || 'Erro ao salvar');
+                    }
+                    const numId = parseInt(inlineEditFalta.id);
+                    const savedValue = inlineEditFalta.value;
+                    const updater = (list: any[]) => list.map((item: any) =>
+                      item.id === numId ? { ...item, falta_assinatura: savedValue } : item
+                    );
+                    if (allDataCacheRef.current.length > 0) {
+                      allDataCacheRef.current = updater(allDataCacheRef.current);
+                    }
+                    setFormalizacoes(prev => updater(prev));
+                    setFormalizacaoSearchResult((prev: any) => ({
+                      ...prev,
+                      data: updater(prev.data)
+                    }));
+                    setInlineEditFalta(null);
+                  } catch (error: any) {
+                    alert(`❌ Erro ao salvar:\n${error.message}`);
+                  } finally {
+                    setSavingFalta(false);
+                  }
+                }}
+                className="flex-1 px-3 py-2 text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                disabled={savingFalta}
+              >
+                {savingFalta
+                  ? <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full" />
+                  : <Check className="w-3.5 h-3.5" />
+                }
+                Salvar
+              </button>
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
 
       {/* Floating refresh progress bar */}
       {refreshProgress && refreshProgress.active && (
