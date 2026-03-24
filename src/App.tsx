@@ -534,6 +534,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'formalizacao' | 'admin' | 'dashboard'>('formalizacao'); // 'admin' = Demonstrativo, 'dashboard' kept for compat
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const [adminAlertas, setAdminAlertas] = useState<{id: number, tipo: string, descricao: string, data: string}[]>([]);
+  const [tecnicoAlertas, setTecnicoAlertas] = useState<{id: number, tipo: string, descricao: string, data: string}[]>([]);
   const [showAlertasDropdown, setShowAlertasDropdown] = useState(false);
   const [refreshProgress, setRefreshProgress] = useState<{ active: boolean; loaded: number; total: number; startTime: number } | null>(null);
   // emendas removido do frontend - dados apenas no Supabase
@@ -1238,6 +1239,45 @@ export default function App() {
       });
     }
   }, [formalizacoes, isAdmin]);
+
+  // 🔔 Alertas para técnicos: conferencista liberou assinatura na demanda do técnico
+  const tecnicoAlertasVistosRef = useRef<Set<number>>(new Set<number>());
+  const tecnicoAlertasInitRef = useRef(false);
+  if (!tecnicoAlertasInitRef.current) {
+    tecnicoAlertasInitRef.current = true;
+    try {
+      const saved = localStorage.getItem('tecnico_alertas_vistos_ids');
+      if (saved) { (JSON.parse(saved) as number[]).forEach(id => tecnicoAlertasVistosRef.current.add(id)); }
+    } catch {}
+  }
+  const saveTecnicoAlertasVistos = (ids: Set<number>) => {
+    try { localStorage.setItem('tecnico_alertas_vistos_ids', JSON.stringify([...ids])); } catch {}
+  };
+  useEffect(() => {
+    if (!user?.nome || formalizacoes.length === 0) return;
+    const nomeUpper = user.nome.trim().toUpperCase();
+    // Filtra demandas deste técnico que tiveram liberação do conferencista
+    const liberadas = formalizacoes.filter(
+      (f: Formalizacao) =>
+        f.data_liberacao_assinatura_conferencista &&
+        (f.tecnico || '').trim().toUpperCase() === nomeUpper
+    );
+    const seenIds = tecnicoAlertasVistosRef.current;
+    const novas = liberadas.filter((f: Formalizacao) => !seenIds.has(f.id));
+    if (novas.length > 0) {
+      setTecnicoAlertas(prev => {
+        const existingIds = new Set(prev.map(a => a.id));
+        const reallyNew = novas.filter(f => !existingIds.has(f.id));
+        if (reallyNew.length === 0) return prev;
+        return [...prev, ...reallyNew.map((f: Formalizacao) => ({
+          id: f.id,
+          tipo: 'Liberação Conferencista',
+          descricao: `Demanda ${f.demandas_formalizacao || f.demanda || `#${f.id}`} — Conferencista: ${f.conferencista || '(n/a)'} liberou assinatura em ${formatDateForDisplay(f.data_liberacao_assinatura_conferencista || '')}${f.observacao_motivo_retorno ? ` — Obs: ${f.observacao_motivo_retorno}` : ''}`,
+          data: f.data_liberacao_assinatura_conferencista || ''
+        }))];
+      });
+    }
+  }, [formalizacoes, user?.nome]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -2510,16 +2550,25 @@ export default function App() {
             {/* Right: Tools + User */}
             <div className="flex items-center gap-3">
               
-              {/* 🔔 Admin Alert Bell */}
-              {isAdmin && adminAlertas.length > 0 && (
+              {/* 🔔 Alert Bell — admin + técnico notifications */}
+              {(() => {
+                const allAlertas = [
+                  ...(isAdmin ? adminAlertas : []),
+                  ...tecnicoAlertas
+                ];
+                if (allAlertas.length === 0) return null;
+                return (
                 <div className="relative">
                   <button
                     onClick={() => {
                       setShowAlertasDropdown(!showAlertasDropdown);
-                      // Mark current alerts as seen when opening dropdown
-                      if (!showAlertasDropdown && adminAlertas.length > 0) {
-                        adminAlertas.forEach(a => alertasVistosRef.current.add(a.id));
-                        saveAlertasVistos(alertasVistosRef.current);
+                      if (!showAlertasDropdown && allAlertas.length > 0) {
+                        if (isAdmin) {
+                          adminAlertas.forEach(a => alertasVistosRef.current.add(a.id));
+                          saveAlertasVistos(alertasVistosRef.current);
+                        }
+                        tecnicoAlertas.forEach(a => tecnicoAlertasVistosRef.current.add(a.id));
+                        saveTecnicoAlertasVistos(tecnicoAlertasVistosRef.current);
                       }
                     }}
                     className="relative p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/20 transition-colors"
@@ -2527,18 +2576,23 @@ export default function App() {
                   >
                     <Bell className="w-5 h-5" />
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-pulse">
-                      {adminAlertas.length}
+                      {allAlertas.length}
                     </span>
                   </button>
                   {showAlertasDropdown && (
-                    <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-80 overflow-y-auto">
+                    <div className="absolute right-0 mt-2 w-96 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-80 overflow-y-auto">
                       <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                         <span className="text-sm font-bold text-[#1351B4]">Alertas</span>
                         <button
                           onClick={() => {
-                            adminAlertas.forEach(a => alertasVistosRef.current.add(a.id));
-                            saveAlertasVistos(alertasVistosRef.current);
-                            setAdminAlertas([]);
+                            if (isAdmin) {
+                              adminAlertas.forEach(a => alertasVistosRef.current.add(a.id));
+                              saveAlertasVistos(alertasVistosRef.current);
+                              setAdminAlertas([]);
+                            }
+                            tecnicoAlertas.forEach(a => tecnicoAlertasVistosRef.current.add(a.id));
+                            saveTecnicoAlertasVistos(tecnicoAlertasVistosRef.current);
+                            setTecnicoAlertas([]);
                             setShowAlertasDropdown(false);
                           }}
                           className="text-[10px] text-gray-400 hover:text-red-500 font-semibold"
@@ -2546,10 +2600,10 @@ export default function App() {
                           Limpar tudo
                         </button>
                       </div>
-                      {adminAlertas.map(a => (
-                        <div key={a.id} className="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                      {allAlertas.map(a => (
+                        <div key={`${a.tipo}-${a.id}`} className="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full">{a.tipo}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${a.tipo === 'Liberação Conferencista' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>{a.tipo}</span>
                           </div>
                           <p className="text-xs text-gray-600">{a.descricao}</p>
                         </div>
@@ -2557,7 +2611,8 @@ export default function App() {
                     </div>
                   )}
                 </div>
-              )}
+                );
+              })()}
 
               {/* User dropdown */}
               <div className="relative group">

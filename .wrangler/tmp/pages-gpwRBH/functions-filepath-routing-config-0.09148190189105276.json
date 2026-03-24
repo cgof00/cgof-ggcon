@@ -1,0 +1,269 @@
+{
+  "routes": [
+    {
+      "routePath": "/api/admin/usuarios/:id/senha",
+      "mountPath": "/api/admin/usuarios/:id",
+      "method": "",
+      "module": [
+        "api/admin/usuarios/[id]/senha.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/admin/usuarios/:id",
+      "mountPath": "/api/admin/usuarios",
+      "method": "",
+      "module": [
+        "api/admin/usuarios/[id].ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/formalizacao/page/:pageNum",
+      "mountPath": "/api/formalizacao/page",
+      "method": "",
+      "module": [
+        "api/formalizacao/page/[pageNum].ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/admin/backup-formalizacao",
+      "mountPath": "/api/admin",
+      "method": "",
+      "module": [
+        "api/admin/backup-formalizacao.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/admin/import-emendas",
+      "mountPath": "/api/admin",
+      "method": "",
+      "module": [
+        "api/admin/import-emendas.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/admin/import-formalizacao",
+      "mountPath": "/api/admin",
+      "method": "",
+      "module": [
+        "api/admin/import-formalizacao.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/admin/setup-sync",
+      "mountPath": "/api/admin",
+      "method": "",
+      "module": [
+        "api/admin/setup-sync.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/admin/sync-emendas",
+      "mountPath": "/api/admin",
+      "method": "",
+      "module": [
+        "api/admin/sync-emendas.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/admin/update-area-estagio",
+      "mountPath": "/api/admin",
+      "method": "",
+      "module": [
+        "api/admin/update-area-estagio.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/admin/update-formalizacao-campos",
+      "mountPath": "/api/admin",
+      "method": "",
+      "module": [
+        "api/admin/update-formalizacao-campos.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/admin/usuarios",
+      "mountPath": "/api/admin",
+      "method": "",
+      "module": [
+        "api/admin/usuarios.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/auth/change-password",
+      "mountPath": "/api/auth",
+      "method": "",
+      "module": [
+        "api/auth/change-password.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/auth/login",
+      "mountPath": "/api/auth",
+      "method": "",
+      "module": [
+        "api/auth/login.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/auth/me",
+      "mountPath": "/api/auth",
+      "method": "",
+      "module": [
+        "api/auth/me.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/cache/refresh",
+      "mountPath": "/api/cache",
+      "method": "",
+      "module": [
+        "api/cache/refresh.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/debug/status",
+      "mountPath": "/api/debug",
+      "method": "",
+      "module": [
+        "api/debug/status.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/debug/warmup-cache",
+      "mountPath": "/api/debug",
+      "method": "",
+      "module": [
+        "api/debug/warmup-cache.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/formalizacao/atribuir-conferencista",
+      "mountPath": "/api/formalizacao",
+      "method": "",
+      "module": [
+        "api/formalizacao/atribuir-conferencista.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/formalizacao/atribuir-tecnico",
+      "mountPath": "/api/formalizacao",
+      "method": "",
+      "module": [
+        "api/formalizacao/atribuir-tecnico.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/formalizacao/filters",
+      "mountPath": "/api/formalizacao",
+      "method": "",
+      "module": [
+        "api/formalizacao/filters.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/formalizacao/filters-cascata",
+      "mountPath": "/api/formalizacao",
+      "method": "",
+      "module": [
+        "api/formalizacao/filters-cascata.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/formalizacao/liberar-assinatura",
+      "mountPath": "/api/formalizacao",
+      "method": "",
+      "module": [
+        "api/formalizacao/liberar-assinatura.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/formalizacao/remover-conferencista",
+      "mountPath": "/api/formalizacao",
+      "method": "",
+      "module": [
+        "api/formalizacao/remover-conferencista.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/formalizacao/remover-tecnico",
+      "mountPath": "/api/formalizacao",
+      "method": "",
+      "module": [
+        "api/formalizacao/remover-tecnico.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/formalizacao/search",
+      "mountPath": "/api/formalizacao",
+      "method": "",
+      "module": [
+        "api/formalizacao/search.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/formalizacao/tecnicos",
+      "mountPath": "/api/formalizacao",
+      "method": "",
+      "module": [
+        "api/formalizacao/tecnicos.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/formalizacao/:id",
+      "mountPath": "/api/formalizacao",
+      "method": "",
+      "module": [
+        "api/formalizacao/[id].ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/usuarios/:id",
+      "mountPath": "/api/usuarios",
+      "method": "",
+      "module": [
+        "api/usuarios/[id].ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/diagnose",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/diagnose.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/env-check",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/env-check.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/formalizacao",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/formalizacao.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/health",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/health.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/usuarios",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/usuarios.ts:onRequest"
+      ]
+    }
+  ],
+  "baseURL": "/"
+}
