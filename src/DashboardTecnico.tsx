@@ -45,7 +45,6 @@ interface FormalizacaoRow {
 }
 
 // ─── Known column ordering for area_estagio_situacao_demanda ───────────────
-// These appear in a logical workflow order; additional discovered values go at end
 const KNOWN_STAGE_ORDER = [
   'DEMANDA COM O TÉCNICO',
   'EM ANÁLISE DA DOCUMENTAÇÃO',
@@ -65,9 +64,24 @@ const KNOWN_STAGE_ORDER = [
   'TRANSFERÊNCIA VOLUNTÁRIA',
 ];
 
-// ─── Color map per stage column ─────────────────────────────────────────────
-const STAGE_COLORS: Record<string, { bg: string; text: string; badge: string }> = {
-  default: { bg: 'bg-red-600', text: 'text-white', badge: 'bg-red-600' },
+// Abbreviated labels for rotation headers
+const STAGE_ABBREV: Record<string, string> = {
+  'DEMANDA COM O TÉCNICO': 'C/ Técnico',
+  'EM ANÁLISE DA DOCUMENTAÇÃO': 'Em Análise Doc.',
+  'EM ANÁLISE DO PLANO DE TRABALHO': 'Análise Plano',
+  'AGUARDANDO DOCUMENTAÇÃO': 'Ag. Doc.',
+  'DEMANDA EM DILIGÊNCIA': 'Diligência',
+  'DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS': 'Dilig. DRS',
+  'EM FORMALIZAÇÃO': 'Formalização',
+  'EM CONFERÊNCIA': 'Conferência',
+  'CONF / PENDÊNCIA': 'Conf/Pend.',
+  'EM ASSINATURA': 'Assinatura',
+  'LAUDAS + PUBLI DOE': 'Laudas/DOE',
+  'COMITE GESTOR': 'Comitê',
+  'OUTRAS PENDÊNCIAS': 'Outras Pend.',
+  'TOTAL NO GGCON': 'Total GGCON',
+  'CONCLUÍDA': 'Concluída',
+  'TRANSFERÊNCIA VOLUNTÁRIA': 'Transf. Vol.',
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -328,6 +342,8 @@ export function DashboardTecnico() {
 
   // Compact mode
   const [compact, setCompact] = useState(false);
+  // Filter panel collapsed
+  const [filtersOpen, setFiltersOpen] = useState(true);
 
   // Drilldown state
   const [drilldown, setDrilldown] = useState<{ title: string; rows: FormalizacaoRow[] } | null>(null);
@@ -495,100 +511,100 @@ export function DashboardTecnico() {
       </AnimatePresence>
 
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-[#1351B4]" />
-            Demonstrativo por Técnico / Conferencista
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {lastUpdated
-              ? `Atualizado às ${lastUpdated.toLocaleTimeString('pt-BR')} — ${rawData.length.toLocaleString('pt-BR')} registros`
-              : 'Carregando dados...'}
-          </p>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <BarChart3 className="w-4 h-4 text-[#1351B4] flex-shrink-0" />
+          <h2 className="text-base font-bold text-slate-800 truncate">Demonstrativo por Técnico / Conferencista</h2>
+          {lastUpdated && (
+            <span className="text-[10px] text-slate-400 hidden md:inline flex-shrink-0">
+              · {rawData.length.toLocaleString('pt-BR')} registros · {lastUpdated.toLocaleTimeString('pt-BR')}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
           {/* View toggle */}
-          <div className="flex rounded-lg border border-gray-300 overflow-hidden bg-white text-xs font-bold">
+          <div className="flex rounded-lg border border-gray-300 overflow-hidden bg-white text-[11px] font-bold">
             <button onClick={() => setViewMode('tecnico')}
-              className={`px-3 py-1.5 flex items-center gap-1.5 transition-all ${viewMode === 'tecnico' ? 'bg-[#1351B4] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-              <User className="w-3.5 h-3.5" /> Técnico
+              className={`px-2.5 py-1 flex items-center gap-1 transition-all ${viewMode === 'tecnico' ? 'bg-[#1351B4] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+              <User className="w-3 h-3" /> Técnico
             </button>
             <button onClick={() => setViewMode('conferencista')}
-              className={`px-3 py-1.5 flex items-center gap-1.5 transition-all ${viewMode === 'conferencista' ? 'bg-[#1351B4] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-              <Users className="w-3.5 h-3.5" /> Conferencista
+              className={`px-2.5 py-1 flex items-center gap-1 transition-all ${viewMode === 'conferencista' ? 'bg-[#1351B4] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+              <Users className="w-3 h-3" /> Conferencista
             </button>
           </div>
-          <button onClick={() => setCompact(v => !v)}
-            title={compact ? 'Expandir' : 'Compactar'}
-            className="p-1.5 border border-gray-300 rounded-lg bg-white text-gray-600 hover:border-[#1351B4] hover:text-[#1351B4] transition-all">
-            {compact ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
-          </button>
           <button onClick={exportMatrix}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-all">
-            <Download className="w-3.5 h-3.5" /> Exportar CSV
+            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-all">
+            <Download className="w-3 h-3" /> CSV
           </button>
           <button onClick={loadData} disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#1351B4] bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-50">
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-[#1351B4] bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-50">
+            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
             Atualizar
           </button>
         </div>
       </div>
 
       {/* ── Filters ─────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-4">
-        <div className="flex items-center justify-between mb-3">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+        <button
+          onClick={() => setFiltersOpen(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-slate-50 rounded-xl transition-colors">
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-[#1351B4]" />
-            <span className="text-sm font-bold text-slate-700">Filtros</span>
+            <Filter className="w-3.5 h-3.5 text-[#1351B4]" />
+            <span className="text-xs font-bold text-slate-700">Filtros</span>
             {hasActiveFilters ? (
               <span className="text-[10px] bg-[#1351B4] text-white px-2 py-0.5 rounded-full font-bold">
-                {filtered.length.toLocaleString('pt-BR')} de {rawData.length.toLocaleString('pt-BR')}
+                {filtered.length.toLocaleString('pt-BR')} / {rawData.length.toLocaleString('pt-BR')}
               </span>
             ) : (
               <span className="text-[10px] text-slate-400">{rawData.length.toLocaleString('pt-BR')} registros</span>
             )}
           </div>
-          {hasActiveFilters && (
-            <button onClick={clearFilters}
-              className="flex items-center gap-1 text-xs font-bold text-red-600 hover:text-red-700 transition-colors">
-              <X className="w-3.5 h-3.5" /> Limpar filtros
-            </button>
-          )}
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2.5">
-          <MultiCheckFilter label="Ano" options={anoOptions} selected={filtroAno} onChange={setFiltroAno} />
-          <MultiCheckFilter label="Regional" options={regionalOptions} selected={filtroRegional} onChange={setFiltroRegional} />
-          <MultiCheckFilter label="Técnico" options={tecnicoOptions} selected={filtroTecnico} onChange={setFiltroTecnico} />
-          <MultiCheckFilter label="Conferencista" options={conferencistaOptions} selected={filtroConferencista} onChange={setFiltroConferencista} />
-          <MultiCheckFilter label="Parlamentar" options={parlamentarOptions} selected={filtroParlamentar} onChange={setFiltroParlamentar} />
-          <MultiCheckFilter label="Tipo Formalização" options={tipoOptions} selected={filtroTipo} onChange={setFiltroTipo} />
-          <MultiCheckFilter label="Situação/Estágio" options={situacaoOptions} selected={filtroSituacao} onChange={setFiltroSituacao} />
-          <div className="col-span-2 sm:col-span-3 md:col-span-4 lg:col-span-1">
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Campo de Data</label>
-              <select value={filtroDataCampo} onChange={e => setFiltroDataCampo(e.target.value as any)}
-                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg bg-white text-gray-700 focus:border-[#1351B4] outline-none">
-                <option value="data_liberacao">Data Liberação</option>
-                <option value="data_analise_demanda">Data Análise</option>
-                <option value="data_recebimento_demanda">Data Recebimento</option>
-              </select>
+          <div className="flex items-center gap-2">
+            {hasActiveFilters && (
+              <button onClick={e => { e.stopPropagation(); clearFilters(); }}
+                className="flex items-center gap-1 text-[11px] font-bold text-red-500 hover:text-red-700 transition-colors">
+                <X className="w-3 h-3" /> Limpar
+              </button>
+            )}
+            {filtersOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+          </div>
+        </button>
+        {filtersOpen && (
+          <div className="px-4 pb-3 border-t border-slate-100">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 mt-2.5">
+              <MultiCheckFilter label="Ano" options={anoOptions} selected={filtroAno} onChange={setFiltroAno} />
+              <MultiCheckFilter label="Regional" options={regionalOptions} selected={filtroRegional} onChange={setFiltroRegional} />
+              <MultiCheckFilter label="Técnico" options={tecnicoOptions} selected={filtroTecnico} onChange={setFiltroTecnico} />
+              <MultiCheckFilter label="Conferencista" options={conferencistaOptions} selected={filtroConferencista} onChange={setFiltroConferencista} />
+              <MultiCheckFilter label="Parlamentar" options={parlamentarOptions} selected={filtroParlamentar} onChange={setFiltroParlamentar} />
+              <MultiCheckFilter label="Tipo Form." options={tipoOptions} selected={filtroTipo} onChange={setFiltroTipo} />
+              <MultiCheckFilter label="Situação/Estágio" options={situacaoOptions} selected={filtroSituacao} onChange={setFiltroSituacao} />
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-2">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Campo Data</label>
+                <select value={filtroDataCampo} onChange={e => setFiltroDataCampo(e.target.value as any)}
+                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg bg-white text-gray-700 focus:border-[#1351B4] outline-none">
+                  <option value="data_liberacao">Data Liberação</option>
+                  <option value="data_analise_demanda">Data Análise</option>
+                  <option value="data_recebimento_demanda">Data Recebimento</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Data Início</label>
+                <input type="date" value={filtroDataDe} onChange={e => setFiltroDataDe(e.target.value)}
+                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:border-[#1351B4] outline-none bg-white text-gray-900" />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Data Fim</label>
+                <input type="date" value={filtroDataAte} onChange={e => setFiltroDataAte(e.target.value)}
+                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:border-[#1351B4] outline-none bg-white text-gray-900" />
+              </div>
             </div>
           </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2.5 mt-2.5">
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Data Início</label>
-            <input type="date" value={filtroDataDe} onChange={e => setFiltroDataDe(e.target.value)}
-              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:border-[#1351B4] outline-none bg-white text-gray-900" />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Data Fim</label>
-            <input type="date" value={filtroDataAte} onChange={e => setFiltroDataAte(e.target.value)}
-              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:border-[#1351B4] outline-none bg-white text-gray-900" />
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ── Loading ───────────────────────────────────────────────────── */}
@@ -616,7 +632,7 @@ export function DashboardTecnico() {
       {!loading && rawData.length > 0 && (
         <>
           {/* ── KPI Cards ───────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
             <KpiCard label="Total de Demandas" value={filtered.length.toLocaleString('pt-BR')}
               sub={hasActiveFilters ? `de ${rawData.length.toLocaleString('pt-BR')} total` : undefined}
               color="bg-gradient-to-br from-[#1351B4] to-[#0C326F]" icon={BarChart3} />
@@ -630,156 +646,190 @@ export function DashboardTecnico() {
 
           {/* ── Matrix Table ─────────────────────────────────────────── */}
           <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
-            <div className="px-5 py-3 bg-slate-900 flex items-center justify-between">
+            {/* Table header bar */}
+            <div className="px-4 py-2.5 bg-slate-900 flex items-center justify-between">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Users className="w-4 h-4" />
+                <Users className="w-4 h-4 flex-shrink-0" />
                 {viewMode === 'tecnico' ? 'Demonstrativo por Técnico' : 'Demonstrativo por Conferencista'}
-                <span className="text-xs text-slate-400 font-normal">— clique em qualquer número para ver detalhes</span>
+                <span className="text-[11px] text-slate-400 font-normal hidden sm:inline">— clique num número para ver detalhes</span>
               </h3>
-              <span className="text-xs text-slate-400">{matrixData.rows.length} {viewMode === 'tecnico' ? 'técnico(s)' : 'conferencista(s)'}</span>
+              <span className="text-[11px] text-slate-400 flex-shrink-0">
+                {matrixData.rows.length} {viewMode === 'tecnico' ? 'técnico(s)' : 'conferencista(s)'}
+              </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-xs border-collapse">
-                <thead>
-                  {/* Stage header row */}
+            {/* Scrollable table wrapper — max height so it fits on screen */}
+            <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 340px)' }}>
+              <table className="border-collapse text-[11px] w-max min-w-full">
+                <thead className="sticky top-0 z-20">
                   <tr className="bg-slate-800">
-                    <th className="sticky left-0 z-10 bg-slate-800 px-4 py-2 text-left text-white font-bold min-w-[160px]">
-                      {viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'} ▲
+                    {/* Sticky name column */}
+                    <th className="sticky left-0 z-30 bg-slate-800 border-r border-slate-600 px-3 py-2 text-left text-white font-bold align-bottom"
+                      style={{ minWidth: 180, maxWidth: 220 }}>
+                      <span className="text-xs">{viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}</span>
                     </th>
-                    <th className="px-3 py-2 text-center text-white font-bold whitespace-nowrap bg-slate-700 min-w-[80px]">
-                      Demandas Recebidas
+                    {/* Total column */}
+                    <th className="bg-slate-700 border-r border-slate-600 px-2 align-bottom" style={{ minWidth: 54 }}>
+                      <div className="flex flex-col items-center justify-end h-24 pb-1">
+                        <div style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+                          className="text-[10px] font-bold text-white leading-none whitespace-nowrap">
+                          Total Recebido
+                        </div>
+                      </div>
                     </th>
+                    {/* Stage columns — rotated headers */}
                     {stageColumns.map(stage => (
-                      <th key={stage}
-                        className="px-2 py-2 text-center text-white font-bold whitespace-nowrap min-w-[90px] bg-slate-800 border-l border-slate-700"
-                        title={stage}>
-                        <div className="max-w-[100px] leading-tight">
-                          {stage.length > 20 ? stage.slice(0, 18) + '…' : stage}
+                      <th key={stage} title={stage}
+                        className="bg-slate-800 border-l border-slate-700 px-1 align-bottom" style={{ minWidth: 40, maxWidth: 52 }}>
+                        <div className="flex flex-col items-center justify-end h-24 pb-1">
+                          <div style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+                            className="text-[10px] font-bold text-slate-200 leading-none whitespace-nowrap">
+                            {STAGE_ABBREV[stage] ?? stage}
+                          </div>
                         </div>
                       </th>
                     ))}
-                    <th className="px-3 py-2 text-center text-white font-bold whitespace-nowrap bg-slate-700 border-l border-slate-600 min-w-[80px]">Concluída</th>
-                    <th className="px-3 py-2 text-center text-white font-bold whitespace-nowrap bg-slate-700 min-w-[100px]">Transf. Vol.</th>
-                    <th className="px-3 py-2 text-center text-white font-bold whitespace-nowrap bg-slate-700 min-w-[80px]">Emenda LOA</th>
+                    {/* Extra columns */}
+                    <th className="bg-emerald-900 border-l border-emerald-700 px-1 align-bottom" style={{ minWidth: 44 }}>
+                      <div className="flex flex-col items-center justify-end h-24 pb-1">
+                        <div style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+                          className="text-[10px] font-bold text-emerald-300 leading-none whitespace-nowrap">Concluída</div>
+                      </div>
+                    </th>
+                    <th className="bg-emerald-900 border-l border-emerald-800 px-1 align-bottom" style={{ minWidth: 44 }}>
+                      <div className="flex flex-col items-center justify-end h-24 pb-1">
+                        <div style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+                          className="text-[10px] font-bold text-emerald-300 leading-none whitespace-nowrap">Transf. Vol.</div>
+                      </div>
+                    </th>
+                    <th className="bg-emerald-900 border-l border-emerald-800 px-1 align-bottom" style={{ minWidth: 44 }}>
+                      <div className="flex flex-col items-center justify-end h-24 pb-1">
+                        <div style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+                          className="text-[10px] font-bold text-emerald-300 leading-none whitespace-nowrap">Emenda LOA</div>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {matrixData.rows.map((row, idx) => {
                     const isEven = idx % 2 === 0;
-                    const bgBase = isEven ? 'bg-white' : 'bg-slate-50';
+                    const bg = isEven ? 'bg-white' : 'bg-slate-50/60';
                     const concluidas = row.rows.filter(r => String(r.concluida_em ?? '').trim()).length;
                     const transfVol = row.rows.filter(r => String(r.tipo_formalizacao ?? '').toLowerCase().includes('transfer')).length;
-                    const emendaLoa = row.rows.filter(r => String(r.tipo_formalizacao ?? '').toLowerCase().includes('emenda') || String(r.classificacao_emenda_demanda ?? '').toLowerCase().includes('emenda')).length;
+                    const emendaLoa = row.rows.filter(r =>
+                      String(r.tipo_formalizacao ?? '').toLowerCase().includes('emenda') ||
+                      String(r.classificacao_emenda_demanda ?? '').toLowerCase().includes('emenda')
+                    ).length;
 
                     return (
-                      <tr key={row.person}
-                        className={`${bgBase} hover:bg-blue-50 transition-colors group border-b border-slate-100`}>
-                        {/* Person name */}
-                        <td className={`sticky left-0 z-10 ${bgBase} group-hover:bg-blue-50 px-4 transition-colors border-r border-slate-200`}
-                          style={{ minWidth: 160 }}>
+                      <tr key={row.person} className={`${bg} hover:bg-blue-50 transition-colors group border-b border-slate-100`}>
+                        {/* Sticky name */}
+                        <td className={`sticky left-0 z-10 ${bg} group-hover:bg-blue-50 px-3 py-1 border-r border-slate-200 transition-colors`}
+                          style={{ minWidth: 180, maxWidth: 220 }}>
                           <button
-                            onClick={() => openDrilldown(`${row.person} — Todas as demandas`, row.rows)}
-                            className="font-bold text-slate-800 text-left hover:text-[#1351B4] transition-colors w-full truncate"
+                            onClick={() => openDrilldown(`${row.person} — Todas (${row.total})`, row.rows)}
+                            className="font-semibold text-slate-800 text-left hover:text-[#1351B4] transition-colors w-full truncate text-[11px]"
                             title={row.person}>
-                            {compact ? row.person.split(' ')[0] : row.person}
+                            {row.person}
                           </button>
                         </td>
-                        {/* Total received */}
-                        <td className="px-3 py-1.5 text-center font-semibold text-slate-700 bg-slate-50 border-r border-slate-200">
+                        {/* Total */}
+                        <td className="py-1 px-1 text-center border-r border-slate-200 bg-slate-100/60">
                           <button onClick={() => openDrilldown(`${row.person} — Todas (${row.total})`, row.rows)}
-                            className="font-bold text-slate-800 hover:text-[#1351B4] transition-colors">
+                            className="font-black text-slate-700 hover:text-[#1351B4] transition-colors text-[11px]">
                             {row.total}
                           </button>
                         </td>
-                        {/* Stage counts */}
+                        {/* Stage cells */}
                         {stageColumns.map(stage => {
                           const count = row.stageCounts[stage] || 0;
                           const stageRows = row.rows.filter(r =>
                             String(r.area_estagio_situacao_demanda ?? '').trim() === stage
                           );
                           return (
-                            <td key={stage} className="px-2 py-1 text-center border-l border-slate-100">
+                            <td key={stage} className="py-1 px-0.5 text-center border-l border-slate-100">
                               {count > 0 ? (
                                 <button
                                   onClick={() => openDrilldown(`${row.person} — ${stage} (${count})`, stageRows)}
-                                  className="inline-flex items-center justify-center bg-red-600 text-white font-bold rounded px-2 py-0.5 min-w-[28px] hover:bg-red-700 active:scale-95 transition-all shadow-sm text-xs">
+                                  className="inline-flex items-center justify-center bg-red-600 text-white font-bold rounded text-[11px] px-1.5 py-0.5 min-w-[26px] hover:bg-red-700 active:scale-95 transition-all shadow-sm">
                                   {count}
                                 </button>
                               ) : (
-                                <span className="text-slate-200 text-[10px]">—</span>
+                                <span className="text-slate-200 text-[9px] select-none">·</span>
                               )}
                             </td>
                           );
                         })}
                         {/* Concluídas */}
-                        <td className="px-3 py-1.5 text-center border-l border-slate-200 bg-emerald-50">
+                        <td className="py-1 px-0.5 text-center border-l border-emerald-100 bg-emerald-50/50">
                           {concluidas > 0 ? (
-                            <button
-                              onClick={() => openDrilldown(`${row.person} — Concluídas (${concluidas})`,
-                                row.rows.filter(r => String(r.concluida_em ?? '').trim()))}
-                              className="inline-flex items-center justify-center bg-emerald-600 text-white font-bold rounded px-2 py-0.5 min-w-[28px] hover:bg-emerald-700 transition-all shadow-sm text-xs">
+                            <button onClick={() => openDrilldown(`${row.person} — Concluídas (${concluidas})`,
+                              row.rows.filter(r => String(r.concluida_em ?? '').trim()))}
+                              className="inline-flex items-center justify-center bg-emerald-600 text-white font-bold rounded text-[11px] px-1.5 py-0.5 min-w-[26px] hover:bg-emerald-700 transition-all shadow-sm">
                               {concluidas}
                             </button>
-                          ) : <span className="text-slate-200 text-[10px]">—</span>}
+                          ) : <span className="text-slate-200 text-[9px]">·</span>}
                         </td>
-                        {/* Transferência Voluntária */}
-                        <td className="px-3 py-1.5 text-center bg-emerald-50">
+                        {/* Transf. Vol. */}
+                        <td className="py-1 px-0.5 text-center border-l border-emerald-100 bg-emerald-50/50">
                           {transfVol > 0 ? (
-                            <button
-                              onClick={() => openDrilldown(`${row.person} — Transferência Voluntária (${transfVol})`,
-                                row.rows.filter(r => String(r.tipo_formalizacao ?? '').toLowerCase().includes('transfer')))}
-                              className="font-semibold text-emerald-700 hover:text-emerald-900 transition-colors text-xs">
+                            <button onClick={() => openDrilldown(`${row.person} — Transf. Vol. (${transfVol})`,
+                              row.rows.filter(r => String(r.tipo_formalizacao ?? '').toLowerCase().includes('transfer')))}
+                              className="font-bold text-emerald-700 hover:text-emerald-900 transition-colors text-[11px]">
                               {transfVol}
                             </button>
-                          ) : <span className="text-slate-300 text-[10px]">—</span>}
+                          ) : <span className="text-slate-200 text-[9px]">·</span>}
                         </td>
                         {/* Emenda LOA */}
-                        <td className="px-3 py-1.5 text-center bg-emerald-50">
+                        <td className="py-1 px-0.5 text-center border-l border-emerald-100 bg-emerald-50/50">
                           {emendaLoa > 0 ? (
-                            <button
-                              onClick={() => openDrilldown(`${row.person} — Emenda LOA (${emendaLoa})`,
-                                row.rows.filter(r => String(r.tipo_formalizacao ?? '').toLowerCase().includes('emenda') || String(r.classificacao_emenda_demanda ?? '').toLowerCase().includes('emenda')))}
-                              className="font-semibold text-emerald-700 hover:text-emerald-900 transition-colors text-xs">
+                            <button onClick={() => openDrilldown(`${row.person} — Emenda LOA (${emendaLoa})`,
+                              row.rows.filter(r =>
+                                String(r.tipo_formalizacao ?? '').toLowerCase().includes('emenda') ||
+                                String(r.classificacao_emenda_demanda ?? '').toLowerCase().includes('emenda')))}
+                              className="font-bold text-emerald-700 hover:text-emerald-900 transition-colors text-[11px]">
                               {emendaLoa}
                             </button>
-                          ) : <span className="text-slate-300 text-[10px]">—</span>}
+                          ) : <span className="text-slate-200 text-[9px]">·</span>}
                         </td>
                       </tr>
                     );
                   })}
 
-                  {/* Totals row */}
-                  <tr className="bg-slate-900 text-white font-bold border-t-2 border-slate-600">
-                    <td className="sticky left-0 z-10 bg-slate-900 px-4 py-2 text-white font-black" style={{ minWidth: 160 }}>
-                      Total
+                  {/* Totals row — sticky bottom */}
+                  <tr className="bg-slate-900 border-t-2 border-slate-600 sticky bottom-0 z-10">
+                    <td className="sticky left-0 z-20 bg-slate-900 px-3 py-1.5 text-white font-black text-[11px] border-r border-slate-600"
+                      style={{ minWidth: 180 }}>
+                      TOTAL
                     </td>
-                    <td className="px-3 py-2 text-center font-black text-yellow-300 bg-slate-800">
+                    <td className="py-1.5 px-1 text-center font-black text-yellow-300 text-[11px] bg-slate-800 border-r border-slate-600">
                       {filtered.length.toLocaleString('pt-BR')}
                     </td>
                     {stageColumns.map(stage => {
                       const t = matrixData.stageTotals[stage] || 0;
                       return (
-                        <td key={stage} className="px-2 py-2 text-center border-l border-slate-700">
+                        <td key={stage} className="py-1.5 px-0.5 text-center border-l border-slate-700">
                           {t > 0 ? (
-                            <button
-                              onClick={() => openDrilldown(`Total — ${stage} (${t})`,
-                                filtered.filter(r => String(r.area_estagio_situacao_demanda ?? '').trim() === stage))}
-                              className="inline-flex items-center justify-center bg-red-700 text-white font-bold rounded px-2 py-0.5 min-w-[28px] hover:bg-red-800 active:scale-95 transition-all text-xs">
+                            <button onClick={() => openDrilldown(`Total — ${stage} (${t})`,
+                              filtered.filter(r => String(r.area_estagio_situacao_demanda ?? '').trim() === stage))}
+                              className="inline-flex items-center justify-center bg-red-700 text-white font-bold rounded text-[11px] px-1.5 py-0.5 min-w-[26px] hover:bg-red-800 active:scale-95 transition-all">
                               {t}
                             </button>
-                          ) : <span className="text-slate-600">—</span>}
+                          ) : <span className="text-slate-600 text-[9px]">·</span>}
                         </td>
                       );
                     })}
-                    <td className="px-3 py-2 text-center border-l border-slate-700 font-black text-emerald-400">
+                    <td className="py-1.5 px-1 text-center border-l border-slate-700 font-black text-emerald-400 text-[11px] bg-emerald-950/50">
                       {totalConcluidas.toLocaleString('pt-BR')}
                     </td>
-                    <td className="px-3 py-2 text-center font-black text-emerald-400">
+                    <td className="py-1.5 px-1 text-center font-black text-emerald-400 text-[11px] bg-emerald-950/50 border-l border-slate-700">
                       {filtered.filter(r => String(r.tipo_formalizacao ?? '').toLowerCase().includes('transfer')).length.toLocaleString('pt-BR')}
                     </td>
-                    <td className="px-3 py-2 text-center font-black text-emerald-400">
-                      {filtered.filter(r => String(r.tipo_formalizacao ?? '').toLowerCase().includes('emenda') || String(r.classificacao_emenda_demanda ?? '').toLowerCase().includes('emenda')).length.toLocaleString('pt-BR')}
+                    <td className="py-1.5 px-1 text-center font-black text-emerald-400 text-[11px] bg-emerald-950/50 border-l border-slate-700">
+                      {filtered.filter(r =>
+                        String(r.tipo_formalizacao ?? '').toLowerCase().includes('emenda') ||
+                        String(r.classificacao_emenda_demanda ?? '').toLowerCase().includes('emenda')
+                      ).length.toLocaleString('pt-BR')}
                     </td>
                   </tr>
                 </tbody>
