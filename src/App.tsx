@@ -43,7 +43,8 @@ import {
   XCircle,
   SlidersHorizontal,
   Eye,
-  EyeOff
+  EyeOff,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Papa from 'papaparse';
@@ -1181,7 +1182,7 @@ export default function App() {
         data_recebimento_demanda: true,
         data_retorno: false,
         observacao_motivo_retorno: false,
-        data_liberacao_assinatura_conferencista: false,
+        data_liberacao_assinatura_conferencista: true,
         data_liberacao_assinatura: true,
         falta_assinatura: true,
         assinatura: true,
@@ -3605,7 +3606,8 @@ export default function App() {
                                         dragStateRef.current.hasMoved = false;
                                         return;
                                       }
-                                      setSelectedFormalizacao(f);
+                                      setEditingFormalizacao(f);
+                                      setIsFormalizacaoFormOpen(true);
                                     }}
                                     className={`cursor-pointer transition-all ${
                                       selectedFormalizacao?.id === f.id 
@@ -3754,255 +3756,7 @@ export default function App() {
             )}
           </div>
 
-          {/* Detail Modal Overlay */}
-          <AnimatePresence>
-            {activeTab === 'formalizacao' && selectedFormalizacao ? (
-              <>
-                {/* Backdrop */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={() => setSelectedFormalizacao(null)}
-                  className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
-                />
-                
-                {/* Detail Panel */}
-                <motion.div
-                  initial={{ x: '100%', opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: '100%', opacity: 0 }}
-                  transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-                  className="fixed right-0 top-0 bottom-0 z-50 w-full lg:w-[580px] bg-white shadow-2xl overflow-hidden flex flex-col border-l border-slate-200"
-                >
-                  {/* ── HEADER ── */}
-                  <div className="bg-gradient-to-br from-[#1351B4] via-[#0F3D8C] to-[#0C326F] px-6 pt-5 pb-6 flex-shrink-0">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Parlamentar</p>
-                        <h2 className="text-[22px] font-extrabold text-white leading-tight truncate">
-                          {selectedFormalizacao.parlamentar || '—'}
-                        </h2>
-                        <div className="flex flex-wrap items-center gap-2 mt-2">
-                          {selectedFormalizacao.partido && (
-                            <span className="text-[11px] font-bold bg-white/20 text-white px-3 py-0.5 rounded-full">{selectedFormalizacao.partido}</span>
-                          )}
-                          {selectedFormalizacao.municipio && (
-                            <span className="text-[11px] text-white/70">📍 {selectedFormalizacao.municipio}</span>
-                          )}
-                          {selectedFormalizacao.ano && (
-                            <span className="text-[11px] font-bold bg-white/10 text-white/80 px-2.5 py-0.5 rounded-lg">Ano {selectedFormalizacao.ano}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-1 flex-shrink-0 ml-3">
-                        <button
-                          onClick={() => { setEditingFormalizacao(selectedFormalizacao); setIsFormalizacaoFormOpen(true); }}
-                          title="Editar"
-                          className="p-2.5 text-white/70 hover:text-white hover:bg-white/15 rounded-xl transition-all"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteFormalizacao(selectedFormalizacao.id!)}
-                          title="Excluir"
-                          className="p-2.5 text-white/40 hover:text-red-300 hover:bg-white/10 rounded-xl transition-all"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setSelectedFormalizacao(null)}
-                          title="Fechar"
-                          className="p-2.5 text-white/70 hover:text-white hover:bg-white/15 rounded-xl transition-all"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Quick-stats chips */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-white/10 rounded-xl px-3.5 py-2.5">
-                        <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Emenda</p>
-                        <p className="text-[13px] font-bold text-white font-mono tracking-wide mt-0.5">{formatEmendaNumber(selectedFormalizacao.emenda) || '—'}</p>
-                      </div>
-                      <div className="bg-white/10 rounded-xl px-3.5 py-2.5">
-                        <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Valor</p>
-                        <p className="text-[13px] font-bold text-emerald-300 mt-0.5">{formatCurrency(selectedFormalizacao.valor)}</p>
-                      </div>
-                      <div className="bg-white/10 rounded-xl px-3.5 py-2.5">
-                        <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Técnico</p>
-                        <p className="text-[12px] font-semibold text-white/90 mt-0.5 truncate">{selectedFormalizacao.tecnico || 'Não atribuído'}</p>
-                      </div>
-                      <div className="bg-white/10 rounded-xl px-3.5 py-2.5">
-                        <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Conferencista</p>
-                        <p className="text-[12px] font-semibold text-white/90 mt-0.5 truncate">{selectedFormalizacao.conferencista || 'Não atribuído'}</p>
-                      </div>
-                    </div>
-
-                    {/* Estágio badge */}
-                    {selectedFormalizacao.area_estagio_situacao_demanda && (
-                      <div className="mt-3 bg-amber-400/20 border border-amber-400/30 rounded-xl px-4 py-2.5 flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0"></div>
-                        <span className="text-[12px] font-bold text-amber-200 uppercase tracking-wide">{selectedFormalizacao.area_estagio_situacao_demanda}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ── SCROLLABLE BODY ── */}
-                  <div className="overflow-y-auto flex-1 bg-slate-50">
-                    <div className="p-5 space-y-4">
-
-                    {/* OBJETO full-width highlight */}
-                    {selectedFormalizacao.objeto && (
-                      <div className="bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Objeto</p>
-                        <p className="text-[14px] text-slate-800 leading-relaxed font-medium">{selectedFormalizacao.objeto}</p>
-                      </div>
-                    )}
-
-                    {/* 1. Identificação */}
-                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
-                      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-100 bg-[#1351B4]/4">
-                        <div className="w-7 h-7 rounded-lg bg-[#1351B4] flex items-center justify-center text-white text-[11px] font-bold">1</div>
-                        <span className="text-[11px] font-extrabold text-[#1351B4] uppercase tracking-wider">📋 Identificação e Classificação</span>
-                      </div>
-                      <div className="p-4 grid grid-cols-2 gap-2.5">
-                        <DetailItem label="Emenda" value={formatEmendaNumber(selectedFormalizacao.emenda)} highlight mono />
-                        <DetailItem label="Demanda" value={selectedFormalizacao.demanda} highlight />
-                        <DetailItem label="Emendas Agregadoras" value={selectedFormalizacao.emendas_agregadoras} />
-                        <DetailItem label="Demandas Formalização" value={selectedFormalizacao.demandas_formalizacao} />
-                        <DetailItem label="Portfólio" value={selectedFormalizacao.portfolio} />
-                        <DetailItem label="Classificação" value={selectedFormalizacao.classificacao_emenda_demanda} />
-                      </div>
-                    </div>
-
-                    {/* 2. Convênio e Local */}
-                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
-                      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-100 bg-teal-50">
-                        <div className="w-7 h-7 rounded-lg bg-teal-600 flex items-center justify-center text-white text-[11px] font-bold">2</div>
-                        <span className="text-[11px] font-extrabold text-teal-700 uppercase tracking-wider">🏢 Convênio e Localização</span>
-                      </div>
-                      <div className="p-4 grid grid-cols-2 gap-2.5">
-                        <DetailItem label="Conveniado" value={selectedFormalizacao.conveniado} full />
-                        <DetailItem label="Regional" value={selectedFormalizacao.regional} />
-                        <DetailItem label="Município" value={selectedFormalizacao.municipio} />
-                        <DetailItem label="Nº Convênio" value={selectedFormalizacao.numero_convenio} />
-                        <DetailItem label="Tipo de Formalização" value={selectedFormalizacao.tipo_formalizacao} />
-                        <DetailItem label="Recurso" value={selectedFormalizacao.recurso} />
-                      </div>
-                    </div>
-
-                    {/* 3. Financeiro */}
-                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
-                      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-100 bg-emerald-50">
-                        <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center text-white text-[11px] font-bold">3</div>
-                        <span className="text-[11px] font-extrabold text-emerald-700 uppercase tracking-wider">💰 Financeiro</span>
-                      </div>
-                      <div className="p-4">
-                        <div className="bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-100 rounded-xl px-5 py-4 flex items-center justify-between">
-                          <div>
-                            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Valor Total</p>
-                            <p className="text-[26px] font-extrabold text-emerald-800 tracking-tight leading-none mt-1">{formatCurrency(selectedFormalizacao.valor)}</p>
-                          </div>
-                          <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                            <span className="text-2xl">R$</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 4. At Demanda (Técnico) */}
-                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
-                      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-100 bg-violet-50">
-                        <div className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center text-white text-[11px] font-bold">4</div>
-                        <span className="text-[11px] font-extrabold text-violet-700 uppercase tracking-wider">🔍 Análise da Demanda — Técnico</span>
-                      </div>
-                      <div className="p-4 grid grid-cols-2 gap-2.5">
-                        <DetailItem label="Técnico Responsável" value={selectedFormalizacao.tecnico} highlight full />
-                        <DetailItem label="Área – Estágio" value={selectedFormalizacao.area_estagio} />
-                        <DetailItem label="Data da Liberação" value={formatDateForDisplay(selectedFormalizacao.data_liberacao || '')} />
-                        <DetailItem label="Situação Análise" value={selectedFormalizacao.situacao_analise_demanda} />
-                        <DetailItem label="Data Análise" value={formatDateForDisplay(selectedFormalizacao.data_analise_demanda || '')} />
-                        <DetailItem label="Posição Anterior" value={selectedFormalizacao.posicao_anterior} />
-                        <DetailItem label="Situação SemPapel" value={selectedFormalizacao.situacao_demandas_sempapel} />
-                      </div>
-                    </div>
-
-                    {/* 5. Diligência */}
-                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
-                      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-100 bg-orange-50">
-                        <div className="w-7 h-7 rounded-lg bg-orange-500 flex items-center justify-center text-white text-[11px] font-bold">5</div>
-                        <span className="text-[11px] font-extrabold text-orange-700 uppercase tracking-wider">📤 Diligência</span>
-                      </div>
-                      <div className="p-4 grid grid-cols-2 gap-2.5">
-                        <DetailItem label="Motivo do Retorno da Diligência" value={selectedFormalizacao.motivo_retorno_diligencia} full />
-                        <DetailItem label="Data do Retorno da Diligência" value={formatDateForDisplay(selectedFormalizacao.data_retorno_diligencia || '')} />
-                      </div>
-                    </div>
-
-                    {/* 6. Conferência */}
-                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
-                      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-100 bg-sky-50">
-                        <div className="w-7 h-7 rounded-lg bg-sky-600 flex items-center justify-center text-white text-[11px] font-bold">6</div>
-                        <span className="text-[11px] font-extrabold text-sky-700 uppercase tracking-wider">✅ Conferência — Conferencista</span>
-                      </div>
-                      <div className="p-4 grid grid-cols-2 gap-2.5">
-                        <DetailItem label="Conferencista" value={selectedFormalizacao.conferencista} highlight full />
-                        <DetailItem label="Data Recebimento Demanda" value={formatDateForDisplay(selectedFormalizacao.data_recebimento_demanda || '')} />
-                        <DetailItem label="Data do Retorno" value={formatDateForDisplay(selectedFormalizacao.data_retorno || '')} />
-                        <DetailItem label="Data Lib. Assinatura — Conferencista" value={formatDateForDisplay(selectedFormalizacao.data_liberacao_assinatura_conferencista || '')} />
-                        {selectedFormalizacao.observacao_motivo_retorno && (
-                          <div className="col-span-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Observação / Motivo do Retorno</p>
-                            <p className="text-[13px] text-amber-900 leading-relaxed">{selectedFormalizacao.observacao_motivo_retorno}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 7. Assinatura */}
-                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
-                      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-100 bg-rose-50">
-                        <div className="w-7 h-7 rounded-lg bg-rose-600 flex items-center justify-center text-white text-[11px] font-bold">7</div>
-                        <span className="text-[11px] font-extrabold text-rose-700 uppercase tracking-wider">✍️ Assinatura</span>
-                      </div>
-                      <div className="p-4 grid grid-cols-2 gap-2.5">
-                        <DetailItem label="Data Lib. de Assinatura" value={formatDateForDisplay(selectedFormalizacao.data_liberacao_assinatura || '')} />
-                        <DetailItem label="Assinatura" value={formatDateForDisplay(selectedFormalizacao.assinatura || '')} />
-                        {selectedFormalizacao.falta_assinatura && (
-                          <div className="col-span-full">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Falta Assinatura</p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {selectedFormalizacao.falta_assinatura.split(',').map((s: string) => s.trim()).filter(Boolean).map((sig: string) => (
-                                <span key={sig} className="text-[11px] font-semibold bg-rose-100 text-rose-700 border border-rose-200 px-2.5 py-1 rounded-full">{sig}</span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 8. Finalização */}
-                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
-                      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-100 bg-indigo-50">
-                        <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-[11px] font-bold">8</div>
-                        <span className="text-[11px] font-extrabold text-indigo-700 uppercase tracking-wider">📅 Publicação e Finalização</span>
-                      </div>
-                      <div className="p-4 grid grid-cols-2 gap-2.5">
-                        <DetailItem label="Publicação" value={formatDateForDisplay(selectedFormalizacao.publicacao || '')} />
-                        <DetailItem label="Vigência" value={formatDateForDisplay(selectedFormalizacao.vigencia || '')} />
-                        <DetailItem label="Encaminhado em" value={formatDateForDisplay(selectedFormalizacao.encaminhado_em || '')} />
-                        <DetailItem label="Concluída em" value={formatDateForDisplay(selectedFormalizacao.concluida_em || '')} />
-                      </div>
-                    </div>
-
-                    </div>{/* /p-5 */}
-                  </div>{/* /overflow-y-auto */}
-                </motion.div>
-              </>
-            ) : null}
-          </AnimatePresence>
+          {/* Detail panel desativado — clique na linha abre editar */}
         </div>
       </main>
 
@@ -4317,8 +4071,6 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
 
                 {/* Permissões por papel: técnico e conferencista */}
                 {(() => {
-                  // Determinar se o usuário logado é o técnico ou conferencista atribuído a esta demanda
-                  // Nota: não exige isUsuario — conferencistas/técnicos com role 'intermediario' também devem ser restringidos
                   const isTecnicoAtribuido = !isAdmin && editingFormalizacao && (
                     (user?.id && editingFormalizacao.usuario_atribuido_id && user.id === editingFormalizacao.usuario_atribuido_id) ||
                     (user?.nome && editingFormalizacao.tecnico && user.nome === editingFormalizacao.tecnico)
@@ -4326,41 +4078,35 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   const isConferencistaAtribuido = !isAdmin && editingFormalizacao && (
                     user?.nome && editingFormalizacao.conferencista && user.nome === editingFormalizacao.conferencista
                   );
-                  // Campos que o técnico pode editar
                   const tecnicoEditableFields = [
                     'area_estagio_situacao_demanda', 'situacao_analise_demanda', 'data_analise_demanda',
                     'motivo_retorno_diligencia', 'data_retorno_diligencia',
                     'data_liberacao_assinatura', 'falta_assinatura', 'assinatura',
                     'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em'
                   ];
-                  // Campos que o conferencista pode editar
                   const conferencistaEditableFields = [
                     'area_estagio_situacao_demanda', 'situacao_analise_demanda', 'conferencista',
                     'data_liberacao_assinatura_conferencista', 'data_retorno', 'observacao_motivo_retorno',
                     'falta_assinatura', 'assinatura',
                     'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em'
                   ];
-                  // Verifica se um campo está desabilitado para o usuário atual
                   const isFieldDisabled = (fieldName: string): boolean => {
                     if (isAdmin) return false;
                     if (isTecnicoAtribuido) return !tecnicoEditableFields.includes(fieldName);
                     if (isConferencistaAtribuido) return !conferencistaEditableFields.includes(fieldName);
-                    if (isUsuario) return true; // usuário sem atribuição: tudo desabilitado
-                    return false; // intermediário: tudo habilitado
+                    if (isUsuario) return true;
+                    return false;
                   };
-                  // Campos bloqueados após 1º preenchimento — só admin pode alterar
                   const lockOnceFilledFields = new Set([
                     'data_liberacao_assinatura', 'falta_assinatura', 'assinatura',
                     'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em'
                   ]);
-                  // Verifica se um campo já preenchido está bloqueado para não-admins
                   const isDateLocked = (fieldName: string): boolean => {
                     if (isAdmin) return false;
                     if (!editingFormalizacao) return false;
                     const val = (editingFormalizacao as any)[fieldName];
                     return !!val && String(val).trim() !== '';
                   };
-                  // Combina: campo desabilitado por papel OU bloqueado após 1º preenchimento
                   const isDisabled = (fieldName: string, _isDate = false): boolean => {
                     if (isFieldDisabled(fieldName)) return true;
                     if (lockOnceFilledFields.has(fieldName) && isDateLocked(fieldName)) return true;
@@ -4369,7 +4115,6 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   const disabledClass = (fieldName: string, isDate = false): string => {
                     return isDisabled(fieldName, isDate) ? 'opacity-50 cursor-not-allowed bg-gray-50' : '';
                   };
-                  // Converte qualquer formato de data (DD/MM/YYYY ou YYYY-MM-DD) para YYYY-MM-DD (necessário para input[type="date"])
                   const toInputDate = (val?: string): string => {
                     if (!val) return '';
                     const s = val.trim();
@@ -4381,45 +4126,76 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     return '';
                   };
 
+                  // Estilo de seção por role
+                  const sectionRole = (role: 'tecnico' | 'conferencista' | 'shared' | 'readonly') => {
+                    const styles = {
+                      tecnico:       { border: 'border-l-4 border-l-violet-500 border border-violet-200', bg: 'bg-violet-50/40',  headerBg: 'bg-violet-600',  headerText: 'text-violet-700',  badge: 'bg-violet-100 text-violet-700 border-violet-300' },
+                      conferencista: { border: 'border-l-4 border-l-sky-500 border border-sky-200',       bg: 'bg-sky-50/40',     headerBg: 'bg-sky-600',     headerText: 'text-sky-700',     badge: 'bg-sky-100 text-sky-700 border-sky-300' },
+                      shared:        { border: 'border-l-4 border-l-emerald-500 border border-emerald-200', bg: 'bg-emerald-50/40', headerBg: 'bg-emerald-600', headerText: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
+                      readonly:      { border: 'border border-gray-200',                                  bg: 'bg-gray-50/60',   headerBg: 'bg-gray-500',    headerText: 'text-gray-600',    badge: 'bg-gray-100 text-gray-600 border-gray-300' },
+                    };
+                    return styles[role];
+                  };
+
                   return (
                     <>
 
-                {/* Informações da Emenda (read-only) */}
-                {editingFormalizacao && (
-                  <div className="bg-[#1351B4]/5 border border-[#1351B4]/15 rounded-xl px-5 py-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <span className="text-[10px] font-semibold text-[#1351B4]/60 uppercase tracking-wider">Nome do Parlamentar</span>
-                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{editingFormalizacao.parlamentar || '—'}</p>
+                {/* Legenda de cores */}
+                <div className="flex flex-wrap gap-3 text-[10px] font-bold uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-violet-500"></span> Técnico pode editar</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-sky-500"></span> Conferencista pode editar</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500"></span> Ambos podem editar</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-gray-400"></span> Somente leitura</span>
+                </div>
+
+                {/* ═══════════ DADOS DA EMENDA (Somente leitura) ═══════════ */}
+                {editingFormalizacao && (() => {
+                  const s = sectionRole('readonly');
+                  return (
+                  <div className={`rounded-xl shadow-sm overflow-hidden ${s.border} ${s.bg}`}>
+                    <div className={`px-5 py-2.5 flex items-center gap-2 ${s.bg}`}>
+                      <div className={`${s.headerBg} text-white rounded-md w-6 h-6 flex items-center justify-center text-[10px] font-bold`}>
+                        <Lock className="w-3 h-3" />
                       </div>
-                      <div>
-                        <span className="text-[10px] font-semibold text-[#1351B4]/60 uppercase tracking-wider">Emenda</span>
-                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{editingFormalizacao.emenda || '—'}</p>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-semibold text-[#1351B4]/60 uppercase tracking-wider">Demanda</span>
-                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{editingFormalizacao.demanda || editingFormalizacao.demandas_formalizacao || '—'}</p>
+                      <h3 className={`text-xs font-bold ${s.headerText} uppercase tracking-wide`}>Dados da Emenda</h3>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Somente Leitura</span>
+                    </div>
+                    <div className="p-5 bg-white/80">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Parlamentar</span>
+                          <p className="text-sm font-semibold text-gray-800 mt-0.5">{editingFormalizacao.parlamentar || '—'}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Emenda</span>
+                          <p className="text-sm font-semibold text-gray-800 mt-0.5">{editingFormalizacao.emenda || '—'}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Demanda</span>
+                          <p className="text-sm font-semibold text-gray-800 mt-0.5">{editingFormalizacao.demanda || editingFormalizacao.demandas_formalizacao || '—'}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
-                {/* Área – Estágio da Situação da Demanda (campo separado) */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-5 py-3 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
-                    <div className="bg-amber-500 text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">★</div>
-                    <h3 className="text-xs font-bold text-amber-700 uppercase tracking-wide flex items-center gap-2">
-                      Área – Estágio da Situação da Demanda
-                    </h3>
-                  </div>
-                  <div className="p-5">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Selecione o estágio atual</label>
+                {/* ═══════════ ESTÁGIO DA DEMANDA (Ambos) ═══════════ */}
+                {(() => {
+                  const s = sectionRole('shared');
+                  return (
+                  <div className={`rounded-xl shadow-sm overflow-hidden ${s.border} ${s.bg}`}>
+                    <div className={`px-5 py-2.5 flex items-center gap-2 ${s.bg}`}>
+                      <div className={`${s.headerBg} text-white rounded-md w-6 h-6 flex items-center justify-center text-[10px] font-bold`}>★</div>
+                      <h3 className={`text-xs font-bold ${s.headerText} uppercase tracking-wide`}>Área – Estágio da Situação da Demanda</h3>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Técnico + Conferencista</span>
+                    </div>
+                    <div className="p-5 bg-white/80">
                       <select
                         name="area_estagio_situacao_demanda"
                         defaultValue={editingFormalizacao?.area_estagio_situacao_demanda || ''}
                         disabled={isDisabled('area_estagio_situacao_demanda')}
-                        className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none ${disabledClass('area_estagio_situacao_demanda')}`}
+                        className={`w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all appearance-none ${disabledClass('area_estagio_situacao_demanda')}`}
                       >
                         <option value="">-- Selecione --</option>
                         <option value="DEMANDA COM O TÉCNICO">DEMANDA COM O TÉCNICO</option>
@@ -4442,268 +4218,303 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       </select>
                     </div>
                   </div>
-                </div>
+                  );
+                })()}
 
-                {/* 1️⃣ Atribuição da Demanda */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
-                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">1</div>
-                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
-                      <ClipboardList className="w-3.5 h-3.5" />
-                      Atribuição da Demanda
-                    </h3>
-                  </div>
-                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Técnico</label>
-                      <select
-                        name="tecnico"
-                        defaultValue={editingFormalizacao?.tecnico || ''}
-                        disabled={isDisabled('tecnico')}
-                        className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none ${disabledClass('tecnico')}`}
-                      >
-                        <option value="">-- Selecione o Técnico --</option>
-                        {tecnicosDisponiveis.map((t: any) => (
-                          <option key={t.id} value={t.nome}>{t.nome} ({t.email})</option>
-                        ))}
-                      </select>
+                {/* ═══════════ 1. ATRIBUIÇÃO (Somente leitura) ═══════════ */}
+                {(() => {
+                  const s = sectionRole('readonly');
+                  return (
+                  <div className={`rounded-xl shadow-sm overflow-hidden ${s.border} ${s.bg}`}>
+                    <div className={`px-5 py-2.5 flex items-center gap-2 ${s.bg}`}>
+                      <div className={`${s.headerBg} text-white rounded-md w-6 h-6 flex items-center justify-center text-[10px] font-bold`}>1</div>
+                      <h3 className={`text-xs font-bold ${s.headerText} uppercase tracking-wide flex items-center gap-2`}>
+                        <ClipboardList className="w-3.5 h-3.5" />
+                        Atribuição da Demanda
+                      </h3>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Somente Leitura</span>
                     </div>
-                    <Input label="Data da Liberação" name="data_liberacao" type="date" defaultValue={toInputDate(editingFormalizacao?.data_liberacao)} disabled={isDisabled('data_liberacao')} />
-                    <Input label="Área - Estágio" name="area_estagio" defaultValue={editingFormalizacao?.area_estagio} disabled={isDisabled('area_estagio')} />
-                    <Input label="Recurso" name="recurso" defaultValue={editingFormalizacao?.recurso} disabled={isDisabled('recurso')} />
+                    <div className="p-5 bg-white/80 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Técnico</label>
+                        <select
+                          name="tecnico"
+                          defaultValue={editingFormalizacao?.tecnico || ''}
+                          disabled={isDisabled('tecnico')}
+                          className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none ${disabledClass('tecnico')}`}
+                        >
+                          <option value="">-- Selecione o Técnico --</option>
+                          {tecnicosDisponiveis.map((t: any) => (
+                            <option key={t.id} value={t.nome}>{t.nome} ({t.email})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <Input label="Data da Liberação" name="data_liberacao" type="date" defaultValue={toInputDate(editingFormalizacao?.data_liberacao)} disabled={isDisabled('data_liberacao')} />
+                      <Input label="Área - Estágio" name="area_estagio" defaultValue={editingFormalizacao?.area_estagio} disabled={isDisabled('area_estagio')} />
+                      <Input label="Recurso" name="recurso" defaultValue={editingFormalizacao?.recurso} disabled={isDisabled('recurso')} />
+                    </div>
                   </div>
-                </div>
+                  );
+                })()}
 
-                {/* 2️⃣ Análise da Demanda */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
-                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">2</div>
-                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
-                      <FileSearch className="w-3.5 h-3.5" />
-                      Análise da Demanda (Técnico)
-                    </h3>
-                  </div>
-                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                    <Input label="Situação - Análise Demanda" name="situacao_analise_demanda" defaultValue={editingFormalizacao?.situacao_analise_demanda} disabled={isDisabled('situacao_analise_demanda')} />
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data - Análise Demanda</label>
-                      {isAdmin ? (
-                        <Input label="" name="data_analise_demanda" type="date" defaultValue={editingFormalizacao?.data_analise_demanda} />
-                      ) : isDisabled('data_analise_demanda') || isDateLocked('data_analise_demanda') ? (
-                        <>
-                          <input type="hidden" name="data_analise_demanda" defaultValue={editingFormalizacao?.data_analise_demanda || ''} />
-                          <span className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center opacity-50">
-                            {editingFormalizacao?.data_analise_demanda ? formatDateForDisplay(editingFormalizacao.data_analise_demanda) : '—'}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <input type="hidden" name="data_analise_demanda" id="data_analise_demanda_hidden" defaultValue={editingFormalizacao?.data_analise_demanda || ''} />
-                          <div className="flex items-center gap-2">
-                            <span id="data_analise_demanda_display" className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center">
+                {/* ═══════════ 2. ANÁLISE DA DEMANDA (Técnico) ═══════════ */}
+                {(() => {
+                  const s = sectionRole('tecnico');
+                  return (
+                  <div className={`rounded-xl shadow-sm overflow-hidden ${s.border} ${s.bg}`}>
+                    <div className={`px-5 py-2.5 flex items-center gap-2 ${s.bg}`}>
+                      <div className={`${s.headerBg} text-white rounded-md w-6 h-6 flex items-center justify-center text-[10px] font-bold`}>2</div>
+                      <h3 className={`text-xs font-bold ${s.headerText} uppercase tracking-wide flex items-center gap-2`}>
+                        <FileSearch className="w-3.5 h-3.5" />
+                        Análise da Demanda
+                      </h3>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Técnico</span>
+                    </div>
+                    <div className="p-5 bg-white/80 grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+                      <Input label="Situação - Análise Demanda" name="situacao_analise_demanda" defaultValue={editingFormalizacao?.situacao_analise_demanda} disabled={isDisabled('situacao_analise_demanda')} />
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data - Análise Demanda</label>
+                        {isAdmin ? (
+                          <Input label="" name="data_analise_demanda" type="date" defaultValue={editingFormalizacao?.data_analise_demanda} />
+                        ) : isDisabled('data_analise_demanda') || isDateLocked('data_analise_demanda') ? (
+                          <>
+                            <input type="hidden" name="data_analise_demanda" defaultValue={editingFormalizacao?.data_analise_demanda || ''} />
+                            <span className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center opacity-50">
                               {editingFormalizacao?.data_analise_demanda ? formatDateForDisplay(editingFormalizacao.data_analise_demanda) : '—'}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const now = new Date();
-                                const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                                const hiddenInput = document.getElementById('data_analise_demanda_hidden') as HTMLInputElement;
-                                const displaySpan = document.getElementById('data_analise_demanda_display');
-                                if (hiddenInput) hiddenInput.value = dataHoje;
-                                if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
-                            >
-                              <CheckSquare className="w-3.5 h-3.5" />
-                              Demanda Analisada
-                            </button>
-                          </div>
-                        </>
-                      )}
+                          </>
+                        ) : (
+                          <>
+                            <input type="hidden" name="data_analise_demanda" id="data_analise_demanda_hidden" defaultValue={editingFormalizacao?.data_analise_demanda || ''} />
+                            <div className="flex items-center gap-2">
+                              <span id="data_analise_demanda_display" className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center">
+                                {editingFormalizacao?.data_analise_demanda ? formatDateForDisplay(editingFormalizacao.data_analise_demanda) : '—'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const now = new Date();
+                                  const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                                  const hiddenInput = document.getElementById('data_analise_demanda_hidden') as HTMLInputElement;
+                                  const displaySpan = document.getElementById('data_analise_demanda_display');
+                                  if (hiddenInput) hiddenInput.value = dataHoje;
+                                  if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
+                              >
+                                <CheckSquare className="w-3.5 h-3.5" />
+                                Demanda Analisada
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                  );
+                })()}
 
-                {/* 3️⃣ Diligência */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
-                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">3</div>
-                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
-                      <Send className="w-3.5 h-3.5" />
-                      Diligência
-                    </h3>
-                  </div>
-                  <div className="p-5 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+                {/* ═══════════ 3. DILIGÊNCIA (Técnico) ═══════════ */}
+                {(() => {
+                  const s = sectionRole('tecnico');
+                  return (
+                  <div className={`rounded-xl shadow-sm overflow-hidden ${s.border} ${s.bg}`}>
+                    <div className={`px-5 py-2.5 flex items-center gap-2 ${s.bg}`}>
+                      <div className={`${s.headerBg} text-white rounded-md w-6 h-6 flex items-center justify-center text-[10px] font-bold`}>3</div>
+                      <h3 className={`text-xs font-bold ${s.headerText} uppercase tracking-wide flex items-center gap-2`}>
+                        <Send className="w-3.5 h-3.5" />
+                        Diligência
+                      </h3>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Técnico</span>
+                    </div>
+                    <div className="p-5 bg-white/80 grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
                       <Input label="Motivo do Retorno da Diligência" name="motivo_retorno_diligencia" defaultValue={editingFormalizacao?.motivo_retorno_diligencia} disabled={isDisabled('motivo_retorno_diligencia')} />
                       <Input label="Data do Retorno da Diligência" name="data_retorno_diligencia" type="date" defaultValue={toInputDate(editingFormalizacao?.data_retorno_diligencia)} disabled={isDisabled('data_retorno_diligencia')} />
                     </div>
                   </div>
-                </div>
+                  );
+                })()}
 
-                {/* 4️⃣ Conferência */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
-                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">4</div>
-                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
-                      <FileText className="w-3.5 h-3.5" />
-                      Conferência (Conferencista)
-                    </h3>
-                  </div>
-                  <div className="p-5 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Conferencista</label>
-                      <select
-                        name="conferencista"
-                        defaultValue={editingFormalizacao?.conferencista || ''}
-                        disabled={isDisabled('conferencista')}
-                        className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all appearance-none ${disabledClass('conferencista')}`}
-                      >
-                        <option value="">-- Selecione o Conferencista --</option>
-                        {tecnicosDisponiveis.map((t: any) => (
-                          <option key={t.id} value={t.nome}>{t.nome} ({t.email})</option>
-                        ))}
-                      </select>
+                {/* ═══════════ 4. CONFERÊNCIA (Conferencista) ═══════════ */}
+                {(() => {
+                  const s = sectionRole('conferencista');
+                  return (
+                  <div className={`rounded-xl shadow-sm overflow-hidden ${s.border} ${s.bg}`}>
+                    <div className={`px-5 py-2.5 flex items-center gap-2 ${s.bg}`}>
+                      <div className={`${s.headerBg} text-white rounded-md w-6 h-6 flex items-center justify-center text-[10px] font-bold`}>4</div>
+                      <h3 className={`text-xs font-bold ${s.headerText} uppercase tracking-wide flex items-center gap-2`}>
+                        <FileText className="w-3.5 h-3.5" />
+                        Conferência
+                      </h3>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Conferencista</span>
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data Liberação da Assinatura - Conferencista</label>
-                      {isAdmin ? (
-                        <Input label="" name="data_liberacao_assinatura_conferencista" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista} />
-                      ) : isDisabled('data_liberacao_assinatura_conferencista') || isDateLocked('data_liberacao_assinatura_conferencista') ? (
-                        <>
-                          <input type="hidden" name="data_liberacao_assinatura_conferencista" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista || ''} />
-                          <span className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center opacity-50">
-                            {editingFormalizacao?.data_liberacao_assinatura_conferencista ? formatDateForDisplay(editingFormalizacao.data_liberacao_assinatura_conferencista) : '—'}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <input type="hidden" name="data_liberacao_assinatura_conferencista" id="data_liberacao_conferencista_hidden" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista || ''} />
-                          <div className="flex items-center gap-2">
-                            <span id="data_liberacao_conferencista_display" className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center">
-                              {editingFormalizacao?.data_liberacao_assinatura_conferencista ? formatDateForDisplay(editingFormalizacao.data_liberacao_assinatura_conferencista) : '—'}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const now = new Date();
-                                const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                                const hiddenInput = document.getElementById('data_liberacao_conferencista_hidden') as HTMLInputElement;
-                                const displaySpan = document.getElementById('data_liberacao_conferencista_display');
-                                if (hiddenInput) hiddenInput.value = dataHoje;
-                                if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
-                            >
-                              <CheckSquare className="w-3.5 h-3.5" />
-                              Liberação Conferência
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                      <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={toInputDate(editingFormalizacao?.data_retorno)} disabled={isDisabled('data_retorno')} />
-                      <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={toInputDate(editingFormalizacao?.data_recebimento_demanda)} disabled={isDisabled('data_recebimento_demanda')} />
-                    </div>
-                    <Input label="Observação - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} disabled={isDisabled('observacao_motivo_retorno')} />
-                  </div>
-                </div>
-
-                {/* 5️⃣ Assinaturas */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
-                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">5</div>
-                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
-                      <PenLine className="w-3.5 h-3.5" />
-                      Assinaturas
-                    </h3>
-                  </div>
-                  <div className="p-5 space-y-4">
-                    {isAdmin && (
+                    <div className="p-5 bg-white/80 space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                        <Input label="Data Liberação de Assinatura" name="data_liberacao_assinatura" type="date" defaultValue={toInputDate(editingFormalizacao?.data_liberacao_assinatura)} disabled={isDisabled('data_liberacao_assinatura')} />
                         <div className="flex flex-col gap-1">
-                          <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Falta Assinatura</label>
-                          <div className={`bg-white border border-gray-200 rounded-lg p-3 space-y-2 ${isDisabled('falta_assinatura') ? 'opacity-50 pointer-events-none bg-gray-50' : ''}`}>
-                            {[
-                              'GESTOR ADMINISTRATIVO DRS',
-                              'GESTOR TÉCNICO DRS',
-                              'DIRETOR DRS',
-                              'COORDENADOR CRS',
-                              'DIRETOR GGCON',
-                              'ORDENADOR DE DESPESAS',
-                              'SECRETÁRIO',
-                              'GESTOR – CONVÊNIO / DEMANDANTE',
-                            ].map((opcao) => {
-                              const checked = editingFormalizacao?.falta_assinatura
-                                ? editingFormalizacao.falta_assinatura.split(',').map((s: string) => s.trim()).includes(opcao)
-                                : false;
-                              return (
-                                <label key={opcao} className="flex items-center gap-2.5 cursor-pointer group">
-                                  <input
-                                    type="checkbox"
-                                    name="falta_assinatura"
-                                    value={opcao}
-                                    defaultChecked={checked}
-                                    className="w-4 h-4 rounded border-gray-300 text-[#1351B4] focus:ring-[#1351B4]/30 accent-[#1351B4]"
-                                  />
-                                  <span className="text-xs text-gray-700 group-hover:text-gray-900">{opcao}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
+                          <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Conferencista</label>
+                          <select
+                            name="conferencista"
+                            defaultValue={editingFormalizacao?.conferencista || ''}
+                            disabled={isDisabled('conferencista')}
+                            className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all appearance-none ${disabledClass('conferencista')}`}
+                          >
+                            <option value="">-- Selecione o Conferencista --</option>
+                            {tecnicosDisponiveis.map((t: any) => (
+                              <option key={t.id} value={t.nome}>{t.nome} ({t.email})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data Liberação da Assinatura - Conferencista</label>
+                          {isAdmin ? (
+                            <Input label="" name="data_liberacao_assinatura_conferencista" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista} />
+                          ) : isDisabled('data_liberacao_assinatura_conferencista') || isDateLocked('data_liberacao_assinatura_conferencista') ? (
+                            <>
+                              <input type="hidden" name="data_liberacao_assinatura_conferencista" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista || ''} />
+                              <span className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center opacity-50">
+                                {editingFormalizacao?.data_liberacao_assinatura_conferencista ? formatDateForDisplay(editingFormalizacao.data_liberacao_assinatura_conferencista) : '—'}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <input type="hidden" name="data_liberacao_assinatura_conferencista" id="data_liberacao_conferencista_hidden" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista || ''} />
+                              <div className="flex items-center gap-2">
+                                <span id="data_liberacao_conferencista_display" className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center">
+                                  {editingFormalizacao?.data_liberacao_assinatura_conferencista ? formatDateForDisplay(editingFormalizacao.data_liberacao_assinatura_conferencista) : '—'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const now = new Date();
+                                    const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                                    const hiddenInput = document.getElementById('data_liberacao_conferencista_hidden') as HTMLInputElement;
+                                    const displaySpan = document.getElementById('data_liberacao_conferencista_display');
+                                    if (hiddenInput) hiddenInput.value = dataHoje;
+                                    if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
+                                  }}
+                                  className="flex items-center gap-1.5 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
+                                >
+                                  <CheckSquare className="w-3.5 h-3.5" />
+                                  Liberação Conferência
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
-                    )}
-                    <input type="hidden" id="demanda_assinada_flag" name="demanda_assinada_flag" defaultValue="" />
-                  </div>
-                </div>
-
-                {/* 6️⃣ Publicação e Finalização */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-5 py-3 bg-[#1351B4]/5 border-b border-[#1351B4]/10 flex items-center gap-2">
-                    <div className="bg-[#1351B4] text-white rounded-md w-6 h-6 flex items-center justify-center text-[11px] font-bold">6</div>
-                    <h3 className="text-xs font-bold text-[#1351B4] uppercase tracking-wide flex items-center gap-2">
-                      <BookOpen className="w-3.5 h-3.5" />
-                      Publicação e Finalização
-                    </h3>
-                  </div>
-                  <div className="p-5 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Assinatura</label>
-                        <input
-                          type="date"
-                          name="assinatura"
-                          defaultValue={toInputDate(editingFormalizacao?.assinatura)}
-                          disabled={isDisabled('assinatura')}
-                          onChange={(e) => {
-                            if (e.target.value && e.target.value.trim() !== '') {
-                              const checkboxes = document.querySelectorAll<HTMLInputElement>('input[name="falta_assinatura"]');
-                              checkboxes.forEach(cb => { cb.checked = false; });
-                              const hiddenDemandaAssinada = document.getElementById('demanda_assinada_flag') as HTMLInputElement;
-                              if (hiddenDemandaAssinada) hiddenDemandaAssinada.value = 'DEMANDA ASSINADA';
-                            } else {
-                              const hiddenDemandaAssinada = document.getElementById('demanda_assinada_flag') as HTMLInputElement;
-                              if (hiddenDemandaAssinada) hiddenDemandaAssinada.value = '';
-                            }
-                          }}
-                          className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#1351B4] focus:ring-2 focus:ring-[#1351B4]/10 outline-none transition-all ${isDisabled('assinatura', true) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
-                        />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+                        <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={toInputDate(editingFormalizacao?.data_retorno)} disabled={isDisabled('data_retorno')} />
+                        <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={toInputDate(editingFormalizacao?.data_recebimento_demanda)} disabled={isDisabled('data_recebimento_demanda')} />
                       </div>
-                      <Input label="Publicação" name="publicacao" type="date" defaultValue={toInputDate(editingFormalizacao?.publicacao)} disabled={isDisabled('publicacao')} />
-                      <Input label="Vigência" name="vigencia" type="date" defaultValue={toInputDate(editingFormalizacao?.vigencia)} disabled={isDisabled('vigencia')} />
-                      <Input label="Encaminhado em" name="encaminhado_em" type="date" defaultValue={toInputDate(editingFormalizacao?.encaminhado_em)} disabled={isDisabled('encaminhado_em')} />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
-                      <Input label="Concluída em" name="concluida_em" type="date" defaultValue={toInputDate(editingFormalizacao?.concluida_em)} disabled={isDisabled('concluida_em')} />
+                      <Input label="Observação - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} disabled={isDisabled('observacao_motivo_retorno')} />
                     </div>
                   </div>
-                </div>
+                  );
+                })()}
+
+                {/* ═══════════ 5. ASSINATURAS (Ambos) ═══════════ */}
+                {(() => {
+                  const s = sectionRole('shared');
+                  return (
+                  <div className={`rounded-xl shadow-sm overflow-hidden ${s.border} ${s.bg}`}>
+                    <div className={`px-5 py-2.5 flex items-center gap-2 ${s.bg}`}>
+                      <div className={`${s.headerBg} text-white rounded-md w-6 h-6 flex items-center justify-center text-[10px] font-bold`}>5</div>
+                      <h3 className={`text-xs font-bold ${s.headerText} uppercase tracking-wide flex items-center gap-2`}>
+                        <PenLine className="w-3.5 h-3.5" />
+                        Assinaturas
+                      </h3>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Técnico + Conferencista</span>
+                    </div>
+                    <div className="p-5 bg-white/80 space-y-4">
+                      {isAdmin && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+                          <Input label="Data Liberação de Assinatura" name="data_liberacao_assinatura" type="date" defaultValue={toInputDate(editingFormalizacao?.data_liberacao_assinatura)} disabled={isDisabled('data_liberacao_assinatura')} />
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Falta Assinatura</label>
+                            <div className={`bg-white border border-gray-200 rounded-lg p-3 space-y-2 ${isDisabled('falta_assinatura') ? 'opacity-50 pointer-events-none bg-gray-50' : ''}`}>
+                              {[
+                                'GESTOR ADMINISTRATIVO DRS',
+                                'GESTOR TÉCNICO DRS',
+                                'DIRETOR DRS',
+                                'COORDENADOR CRS',
+                                'DIRETOR GGCON',
+                                'ORDENADOR DE DESPESAS',
+                                'SECRETÁRIO',
+                                'GESTOR – CONVÊNIO / DEMANDANTE',
+                              ].map((opcao) => {
+                                const checked = editingFormalizacao?.falta_assinatura
+                                  ? editingFormalizacao.falta_assinatura.split(',').map((s: string) => s.trim()).includes(opcao)
+                                  : false;
+                                return (
+                                  <label key={opcao} className="flex items-center gap-2.5 cursor-pointer group">
+                                    <input
+                                      type="checkbox"
+                                      name="falta_assinatura"
+                                      value={opcao}
+                                      defaultChecked={checked}
+                                      className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500/30 accent-emerald-600"
+                                    />
+                                    <span className="text-xs text-gray-700 group-hover:text-gray-900">{opcao}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <input type="hidden" id="demanda_assinada_flag" name="demanda_assinada_flag" defaultValue="" />
+                    </div>
+                  </div>
+                  );
+                })()}
+
+                {/* ═══════════ 6. PUBLICAÇÃO E FINALIZAÇÃO (Ambos) ═══════════ */}
+                {(() => {
+                  const s = sectionRole('shared');
+                  return (
+                  <div className={`rounded-xl shadow-sm overflow-hidden ${s.border} ${s.bg}`}>
+                    <div className={`px-5 py-2.5 flex items-center gap-2 ${s.bg}`}>
+                      <div className={`${s.headerBg} text-white rounded-md w-6 h-6 flex items-center justify-center text-[10px] font-bold`}>6</div>
+                      <h3 className={`text-xs font-bold ${s.headerText} uppercase tracking-wide flex items-center gap-2`}>
+                        <BookOpen className="w-3.5 h-3.5" />
+                        Publicação e Finalização
+                      </h3>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Técnico + Conferencista</span>
+                    </div>
+                    <div className="p-5 bg-white/80 space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Assinatura</label>
+                          <input
+                            type="date"
+                            name="assinatura"
+                            defaultValue={toInputDate(editingFormalizacao?.assinatura)}
+                            disabled={isDisabled('assinatura')}
+                            onChange={(e) => {
+                              if (e.target.value && e.target.value.trim() !== '') {
+                                const checkboxes = document.querySelectorAll<HTMLInputElement>('input[name="falta_assinatura"]');
+                                checkboxes.forEach(cb => { cb.checked = false; });
+                                const hiddenDemandaAssinada = document.getElementById('demanda_assinada_flag') as HTMLInputElement;
+                                if (hiddenDemandaAssinada) hiddenDemandaAssinada.value = 'DEMANDA ASSINADA';
+                              } else {
+                                const hiddenDemandaAssinada = document.getElementById('demanda_assinada_flag') as HTMLInputElement;
+                                if (hiddenDemandaAssinada) hiddenDemandaAssinada.value = '';
+                              }
+                            }}
+                            className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all ${isDisabled('assinatura', true) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                          />
+                        </div>
+                        <Input label="Publicação" name="publicacao" type="date" defaultValue={toInputDate(editingFormalizacao?.publicacao)} disabled={isDisabled('publicacao')} />
+                        <Input label="Vigência" name="vigencia" type="date" defaultValue={toInputDate(editingFormalizacao?.vigencia)} disabled={isDisabled('vigencia')} />
+                        <Input label="Encaminhado em" name="encaminhado_em" type="date" defaultValue={toInputDate(editingFormalizacao?.encaminhado_em)} disabled={isDisabled('encaminhado_em')} />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
+                        <Input label="Concluída em" name="concluida_em" type="date" defaultValue={toInputDate(editingFormalizacao?.concluida_em)} disabled={isDisabled('concluida_em')} />
+                      </div>
+                    </div>
+                  </div>
+                  );
+                })()}
 
                 {/* Footer buttons */}
                 <div className="flex justify-end gap-3 pt-2 pb-1">
