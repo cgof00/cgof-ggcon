@@ -69,8 +69,23 @@ type ColKey = typeof FIXED_COLS[number]['key'];
 const stg = (r: FormalizacaoRow) => (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
 const cls = (r: FormalizacaoRow) => (r.classificacao_emenda_demanda ?? '').trim().toUpperCase();
 
+// Stages that count toward Total GGCON (Diligência excluded)
+const GGCON_STAGES = new Set([
+  'DEMANDA COM O TÉCNICO',
+  'EM ANÁLISE DA DOCUMENTAÇÃO',
+  'EM ANÁLISE DO PLANO DE TRABALHO',
+  'AGUARDANDO DOCUMENTAÇÃO',
+  'EM FORMALIZAÇÃO',
+  'EM CONFERÊNCIA',
+  'CONF / PENDÊNCIA',
+  'EM ASSINATURA',
+  'LAUDAS + PUBLI DOE',
+  'COMITE GESTOR',
+  'OUTRAS PENDÊNCIAS',
+]);
+
 function computeColValues(rows: FormalizacaoRow[]): Record<ColKey, number> {
-  const cTecnico        = rows.filter(r => !!(r.data_liberacao ?? '').trim() && (stg(r) === '' || stg(r) === 'DEMANDA COM O TÉCNICO')).length;
+  const cTecnico        = rows.filter(r => stg(r) === 'DEMANDA COM O TÉCNICO').length;
   const emAnalise       = rows.filter(r => stg(r) === 'EM ANÁLISE DA DOCUMENTAÇÃO' || stg(r) === 'EM ANÁLISE DO PLANO DE TRABALHO').length;
   const agDoc           = rows.filter(r => stg(r) === 'AGUARDANDO DOCUMENTAÇÃO').length;
   const diligencia      = rows.filter(r => stg(r) === 'DEMANDA EM DILIGÊNCIA' || stg(r) === 'DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS').length;
@@ -81,9 +96,10 @@ function computeColValues(rows: FormalizacaoRow[]): Record<ColKey, number> {
   const laudas          = rows.filter(r => stg(r) === 'LAUDAS + PUBLI DOE').length;
   const comite          = rows.filter(r => stg(r) === 'COMITE GESTOR').length;
   const outras          = rows.filter(r => stg(r) === 'OUTRAS PENDÊNCIAS').length;
-  // Total GGCON = C/Técnico + Em Análise + Ag.Doc + Formalização + Em Conferência + Conf/Pend. + Em Assinatura + Laudas + Comitê + Outras Pend. (Diligência NOT included)
-  const totalGgcon      = cTecnico + emAnalise + agDoc + formalizacao + emConferencia + confPendencia + emAssinatura + laudas + comite + outras;
-  const concluida       = rows.filter(r => stg(r) === 'CONCLUÍDA').length;
+  // Total GGCON = soma dos estágios GGCON_STAGES (Diligência NOT included)
+  const totalGgcon      = rows.filter(r => GGCON_STAGES.has(stg(r))).length;
+  // Concluída = tem data preenchida em concluida_em
+  const concluida       = rows.filter(r => !!(r.concluida_em ?? '').trim()).length;
   const transfVol       = rows.filter(r => cls(r).includes('TRANSFER')).length;
   const emendaLoa       = rows.filter(r => cls(r).includes('LOA') || cls(r).includes('EMENDA LOA')).length;
   return {
@@ -97,7 +113,7 @@ function computeColValues(rows: FormalizacaoRow[]): Record<ColKey, number> {
 function getColRows(colKey: ColKey, rows: FormalizacaoRow[]): FormalizacaoRow[] {
   switch (colKey) {
     case 'demandas_recebidas': return rows;
-    case 'c_tecnico':      return rows.filter(r => !!(r.data_liberacao ?? '').trim() && (stg(r) === '' || stg(r) === 'DEMANDA COM O TÉCNICO'));
+    case 'c_tecnico':      return rows.filter(r => stg(r) === 'DEMANDA COM O TÉCNICO');
     case 'em_analise':     return rows.filter(r => stg(r) === 'EM ANÁLISE DA DOCUMENTAÇÃO' || stg(r) === 'EM ANÁLISE DO PLANO DE TRABALHO');
     case 'ag_doc':         return rows.filter(r => stg(r) === 'AGUARDANDO DOCUMENTAÇÃO');
     case 'diligencia':     return rows.filter(r => stg(r) === 'DEMANDA EM DILIGÊNCIA' || stg(r) === 'DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS');
@@ -108,13 +124,8 @@ function getColRows(colKey: ColKey, rows: FormalizacaoRow[]): FormalizacaoRow[] 
     case 'laudas':         return rows.filter(r => stg(r) === 'LAUDAS + PUBLI DOE');
     case 'comite':         return rows.filter(r => stg(r) === 'COMITE GESTOR');
     case 'outras':         return rows.filter(r => stg(r) === 'OUTRAS PENDÊNCIAS');
-    case 'total_ggcon':    return rows.filter(r => {
-      const s = stg(r);
-      if (!!(r.data_liberacao ?? '').trim() && (s === '' || s === 'DEMANDA COM O TÉCNICO')) return true;
-      return ['EM ANÁLISE DA DOCUMENTAÇÃO','EM ANÁLISE DO PLANO DE TRABALHO','AGUARDANDO DOCUMENTAÇÃO',
-        'EM FORMALIZAÇÃO','EM CONFERÊNCIA','CONF / PENDÊNCIA','EM ASSINATURA','LAUDAS + PUBLI DOE','COMITE GESTOR','OUTRAS PENDÊNCIAS'].includes(s);
-    });
-    case 'concluida':      return rows.filter(r => stg(r) === 'CONCLUÍDA');
+    case 'total_ggcon':    return rows.filter(r => GGCON_STAGES.has(stg(r)));
+    case 'concluida':      return rows.filter(r => !!(r.concluida_em ?? '').trim());
     case 'transf_vol':     return rows.filter(r => cls(r).includes('TRANSFER'));
     case 'emenda_loa':     return rows.filter(r => cls(r).includes('LOA') || cls(r).includes('EMENDA LOA'));
     default: return [];
