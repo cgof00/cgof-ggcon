@@ -2482,8 +2482,8 @@ export default function App() {
                 {user?.role === 'admin' && (
                   <>
                     <button 
-                      onClick={() => setActiveTab('dashboard')}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'dashboard' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
+                      onClick={() => setActiveTab('admin')}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'admin' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
                     >
                       <BarChart3 className="w-3.5 h-3.5" />
                       Demonstrativo
@@ -3074,7 +3074,7 @@ export default function App() {
               </motion.div>
             )}
 
-            {activeTab === 'admin' ? (
+            {(activeTab === 'admin' || activeTab === 'dashboard') ? (
               <DashboardTecnico />
             ) : loading && formalizacoes.length === 0 && formalizacaoSearchResult.data.length === 0 ? (
               <div className="flex flex-col justify-center items-center py-16">
