@@ -4,7 +4,8 @@ import {
   BarChart3, Filter, RefreshCw, X, ChevronDown, ChevronUp,
   Users, CheckCircle2, DollarSign, TrendingUp, AlertCircle,
   Search, Download, ArrowUpDown, User, MapPin, Calendar,
-  Clock, FileText, Eye, EyeOff, Maximize2, Minimize2
+  Clock, FileText, Eye, EyeOff, Maximize2, Minimize2,
+  Flame, PieChart, Activity
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
@@ -50,7 +51,7 @@ const FIXED_COLS = [
   { key: 'c_tecnico',          line1: 'Demanda',      line2: 'C/ Técnico', bgHead: 'bg-red-800',    bgTotal: 'bg-red-900' },
   { key: 'em_analise',         line1: 'Em',           line2: 'Análise',    bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
   { key: 'ag_doc',             line1: 'Ag. Doc.',     line2: '',           bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
-  { key: 'diligencia',         line1: 'Diligência',   line2: '',           bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
+  { key: 'diligencia',         line1: 'Diligência',   line2: '',           bgHead: 'bg-amber-700',  bgTotal: 'bg-amber-800', isDiligencia: true },
   { key: 'formalizacao',       line1: 'Formalização', line2: '',           bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
   { key: 'em_conferencia',     line1: 'Em',           line2: 'Conferência',bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
   { key: 'conf_pendencia',     line1: 'Conf /',       line2: 'Pendência',  bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
@@ -252,12 +253,17 @@ function KpiCard({ label, value, sub, color, icon: Icon }: {
 }
 
 // ─── Drilldown Modal ─────────────────────────────────────────────────────────
+const PAGE_SIZE = 100;
 function DrilldownModal({
   title, rows, onClose
 }: { title: string; rows: FormalizacaoRow[]; onClose: () => void }) {
   const [search, setSearch] = useState('');
   const [sortCol, setSortCol] = useState<string>('demandas_formalizacao');
   const [sortAsc, setSortAsc] = useState(true);
+  const [page, setPage] = useState(0);
+  const tableRef = useRef<HTMLDivElement>(null);
+  const [isDraggingScroll, setIsDraggingScroll] = useState(false);
+  const dragStateRef = useRef({ isDown: false, startX: 0, scrollLeft: 0, hasMoved: false });
 
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
@@ -267,9 +273,14 @@ function DrilldownModal({
       String(r.conveniado ?? '').toLowerCase().includes(s) ||
       String(r.regional ?? '').toLowerCase().includes(s) ||
       String(r.classificacao_emenda_demanda ?? '').toLowerCase().includes(s) ||
-      String(r.situacao_demandas_sempapel ?? '').toLowerCase().includes(s)
+      String(r.situacao_demandas_sempapel ?? '').toLowerCase().includes(s) ||
+      String(r.area_estagio_situacao_demanda ?? '').toLowerCase().includes(s) ||
+      String(r.falta_assinatura ?? '').toLowerCase().includes(s)
     );
   }, [rows, search]);
+
+  // Reset page when search changes
+  useEffect(() => { setPage(0); }, [search]);
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -279,13 +290,44 @@ function DrilldownModal({
     });
   }, [filtered, sortCol, sortAsc]);
 
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const paged = useMemo(() => sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), [sorted, page]);
+
+  const handleDrillMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = tableRef.current;
+    if (!el) return;
+    dragStateRef.current = { isDown: true, startX: e.pageX, scrollLeft: el.scrollLeft, hasMoved: false };
+    setIsDraggingScroll(true);
+  };
+  const handleDrillMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!dragStateRef.current.isDown) return;
+    const el = tableRef.current;
+    if (!el) return;
+    const walk = e.pageX - dragStateRef.current.startX;
+    if (Math.abs(walk) > 3) {
+      dragStateRef.current.hasMoved = true;
+      el.scrollLeft = dragStateRef.current.scrollLeft - walk;
+    }
+  };
+  const handleDrillMouseUp = () => {
+    dragStateRef.current.isDown = false;
+    setIsDraggingScroll(false);
+  };
+  const handleDrillMouseLeave = () => {
+    dragStateRef.current.isDown = false;
+    setIsDraggingScroll(false);
+  };
+
   const cols: { key: keyof FormalizacaoRow; label: string; width?: number }[] = [
     { key: 'demandas_formalizacao', label: 'Demanda', width: 90 },
     { key: 'tecnico', label: 'Técnico', width: 110 },
+    { key: 'conferencista', label: 'Conferencista', width: 110 },
     { key: 'classificacao_emenda_demanda', label: 'Classificação', width: 120 },
     { key: 'regional', label: 'Regional', width: 130 },
     { key: 'conveniado', label: 'Conveniado', width: 180 },
+    { key: 'area_estagio_situacao_demanda', label: 'Área / Situação', width: 180 },
     { key: 'situacao_analise_demanda', label: 'Situação Análise', width: 180 },
+    { key: 'falta_assinatura', label: 'Falta Assinatura', width: 150 },
     { key: 'situacao_demandas_sempapel', label: 'SemPapel', width: 200 },
     { key: 'data_liberacao', label: 'Dt. Lib.', width: 90 },
   ];
@@ -336,7 +378,13 @@ function DrilldownModal({
               className="w-full pl-9 pr-4 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#1351B4] bg-white" />
           </div>
         </div>
-        <div className="flex-1 overflow-auto">
+        <div ref={tableRef}
+          onMouseDown={handleDrillMouseDown}
+          onMouseMove={handleDrillMouseMove}
+          onMouseUp={handleDrillMouseUp}
+          onMouseLeave={handleDrillMouseLeave}
+          className={`flex-1 overflow-auto select-none ${isDraggingScroll ? 'cursor-grabbing' : 'cursor-grab'}`}
+          style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
           <table className="w-full text-xs">
             <thead className="bg-slate-50 sticky top-0 z-10">
               <tr>
@@ -356,10 +404,10 @@ function DrilldownModal({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sorted.map((r, i) => (
+              {paged.map((r, i) => (
                 <tr key={r.id ?? i} className="hover:bg-blue-50 transition-colors">
                   {cols.map(col => (
-                    <td key={col.key} className="px-3 py-1.5 text-slate-700 max-w-[220px] truncate"
+                    <td key={col.key} className={`px-3 py-1.5 text-slate-700 max-w-[220px] truncate${col.key === 'tecnico' || col.key === 'conferencista' ? ' font-bold' : ''}`}
                       title={String(r[col.key] ?? '')}>
                       {col.key === 'data_liberacao' ? fmtDate(r[col.key] as string) : (r[col.key] ?? '—')}
                     </td>
@@ -372,13 +420,32 @@ function DrilldownModal({
             </tbody>
           </table>
         </div>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100 bg-slate-50 flex-shrink-0">
+            <span className="text-[11px] text-slate-500">
+              {(page * PAGE_SIZE + 1)}–{Math.min((page + 1) * PAGE_SIZE, sorted.length)} de {sorted.length}
+            </span>
+            <div className="flex items-center gap-1">
+              <button disabled={page === 0} onClick={() => { setPage(0); tableRef.current?.scrollTo(0, 0); }}
+                className="px-2 py-1 text-[11px] font-bold rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition-colors">««</button>
+              <button disabled={page === 0} onClick={() => { setPage(p => p - 1); tableRef.current?.scrollTo(0, 0); }}
+                className="px-2 py-1 text-[11px] font-bold rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition-colors">‹</button>
+              <span className="text-[11px] font-bold text-slate-700 px-2">{page + 1} / {totalPages}</span>
+              <button disabled={page >= totalPages - 1} onClick={() => { setPage(p => p + 1); tableRef.current?.scrollTo(0, 0); }}
+                className="px-2 py-1 text-[11px] font-bold rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition-colors">›</button>
+              <button disabled={page >= totalPages - 1} onClick={() => { setPage(totalPages - 1); tableRef.current?.scrollTo(0, 0); }}
+                className="px-2 py-1 text-[11px] font-bold rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition-colors">»»</button>
+            </div>
+          </div>
+        )}
       </motion.div>
     </>
   );
 }
 
 // ─── Main Dashboard ──────────────────────────────────────────────────────────
-export function DashboardTecnico() {
+export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRow[] } = {}) {
   const { token } = useAuth();
 
   const [loading, setLoading] = useState(false);
@@ -395,6 +462,11 @@ export function DashboardTecnico() {
 
   // Drilldown state
   const [drilldown, setDrilldown] = useState<{ title: string; rows: FormalizacaoRow[] } | null>(null);
+
+  // Matrix horizontal scroll ref
+  const matrixScrollRef = useRef<HTMLDivElement>(null);
+  const [isMatrixDragging, setIsMatrixDragging] = useState(false);
+  const matrixDragRef = useRef({ isDown: false, startX: 0, scrollLeft: 0, hasMoved: false });
 
   // Filters
   const [filtroAno, setFiltroAno] = useState<string[]>([]);
@@ -417,15 +489,26 @@ export function DashboardTecnico() {
       let all: FormalizacaoRow[] = [];
       let offset = 0;
       const batchSize = 1000;
+      const PARALLEL = 6;
+      // Parallel batch fetching for speed
       while (true) {
-        const res = await fetch(`/api/formalizacao?limit=${batchSize}&offset=${offset}`,
-          { headers: { Authorization: `Bearer ${authToken}` } });
-        if (!res.ok) break;
-        const result = await res.json();
-        const batch: FormalizacaoRow[] = Array.isArray(result) ? result : (result.data ?? []);
-        all = all.concat(batch);
-        if (batch.length < batchSize) break;
-        offset += batchSize;
+        const offsets = Array.from({ length: PARALLEL }, (_, i) => offset + i * batchSize);
+        const results = await Promise.all(
+          offsets.map(o =>
+            fetch(`/api/formalizacao?limit=${batchSize}&offset=${o}`,
+              { headers: { Authorization: `Bearer ${authToken}` } })
+              .then(r => r.ok ? r.json() : [])
+              .then(r => Array.isArray(r) ? r : (r.data ?? []))
+              .catch(() => [])
+          )
+        );
+        let done = false;
+        for (const batch of results) {
+          all = all.concat(batch);
+          if (batch.length < batchSize) { done = true; break; }
+        }
+        if (done) break;
+        offset += PARALLEL * batchSize;
       }
       setRawData(all);
       setLastUpdated(new Date());
@@ -436,7 +519,40 @@ export function DashboardTecnico() {
     }
   }, [token]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // Use initialData from parent cache if available
+  useEffect(() => {
+    if (initialData && initialData.length > 0 && rawData.length === 0) {
+      setRawData(initialData as FormalizacaoRow[]);
+      setLastUpdated(new Date());
+    } else if (!initialData || initialData.length === 0) {
+      loadData();
+    }
+  }, [initialData, loadData]);
+
+  const handleMatrixMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = matrixScrollRef.current;
+    if (!el) return;
+    matrixDragRef.current = { isDown: true, startX: e.pageX, scrollLeft: el.scrollLeft, hasMoved: false };
+    setIsMatrixDragging(true);
+  };
+  const handleMatrixMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!matrixDragRef.current.isDown) return;
+    const el = matrixScrollRef.current;
+    if (!el) return;
+    const walk = e.pageX - matrixDragRef.current.startX;
+    if (Math.abs(walk) > 3) {
+      matrixDragRef.current.hasMoved = true;
+      el.scrollLeft = matrixDragRef.current.scrollLeft - walk;
+    }
+  };
+  const handleMatrixMouseUp = () => {
+    matrixDragRef.current.isDown = false;
+    setIsMatrixDragging(false);
+  };
+  const handleMatrixMouseLeave = () => {
+    matrixDragRef.current.isDown = false;
+    setIsMatrixDragging(false);
+  };
 
   // Option lists
   const anoOptions = useMemo(() =>
@@ -676,22 +792,28 @@ export function DashboardTecnico() {
             </div>
 
             {/* Scrollable table wrapper — max height so it fits on screen */}
-            <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 340px)' }}>
-              <table className="border-collapse text-[11px] w-max min-w-full">
+            <div ref={matrixScrollRef}
+              onMouseDown={handleMatrixMouseDown}
+              onMouseMove={handleMatrixMouseMove}
+              onMouseUp={handleMatrixMouseUp}
+              onMouseLeave={handleMatrixMouseLeave}
+              className={`overflow-auto select-none ${isMatrixDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+              style={{ maxHeight: 'calc(100vh - 340px)', WebkitUserSelect: 'none', userSelect: 'none' }}>
+              <table className="border-collapse text-[13px] w-max min-w-full">
                 <thead className="sticky top-0 z-20">
                   <tr>
                     {/* Sticky name column */}
                     <th className="sticky left-0 z-30 bg-slate-800 border-r border-slate-600 px-3 py-2 text-left text-white font-bold align-middle"
                       style={{ minWidth: 180, maxWidth: 220 }}>
-                      <span className="text-xs">{viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}</span>
+                      <span className="text-sm">{viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}</span>
                     </th>
                     {/* Fixed columns — horizontal 2-line headers */}
                     {FIXED_COLS.map(col => (
                       <th key={col.key}
                         className={`${col.bgHead} border-l border-slate-700 px-1.5 py-2 text-center align-middle`}
                         style={{ minWidth: 68 }}>
-                        <span className="block text-[10px] font-bold text-white leading-snug whitespace-nowrap">{col.line1}</span>
-                        {col.line2 && <span className="block text-[10px] font-bold text-white leading-snug whitespace-nowrap">{col.line2}</span>}
+                        <span className="block text-[11px] font-bold text-white leading-snug whitespace-nowrap">{col.line1}</span>
+                        {col.line2 && <span className="block text-[11px] font-bold text-white leading-snug whitespace-nowrap">{col.line2}</span>}
                       </th>
                     ))}
                   </tr>
@@ -707,7 +829,7 @@ export function DashboardTecnico() {
                           style={{ minWidth: 180, maxWidth: 220 }}>
                           <button
                             onClick={() => openDrilldown(`${row.person} — Todas (${row.cols.demandas_recebidas})`, row.rows)}
-                            className="font-semibold text-slate-800 text-left hover:text-[#1351B4] transition-colors w-full truncate text-[11px]"
+                            className="font-semibold text-slate-800 text-left hover:text-[#1351B4] transition-colors w-full truncate text-[13px]"
                             title={row.person}>
                             {row.person}
                           </button>
@@ -722,18 +844,20 @@ export function DashboardTecnico() {
                           const isTransf = col.key === 'transf_vol';
                           const isEmenda = col.key === 'emenda_loa';
                           const isRecebidas = col.key === 'demandas_recebidas';
+                          const isDiligencia = col.key === 'diligencia';
                           const badgeClass = isGgcon ? 'bg-blue-700 hover:bg-blue-800'
                             : isConcluida ? 'bg-emerald-600 hover:bg-emerald-700'
                             : isTransf ? 'bg-teal-600 hover:bg-teal-700'
                             : isEmenda ? 'bg-violet-600 hover:bg-violet-700'
+                            : isDiligencia ? 'bg-amber-600 hover:bg-amber-700'
                             : isRecebidas ? 'bg-slate-600 hover:bg-slate-700'
                             : 'bg-red-600 hover:bg-red-700';
                           return (
-                            <td key={col.key} className={`py-1 px-0.5 text-center border-l border-slate-100 ${isGgcon ? 'bg-blue-50/60' : isConcluida || isTransf || isEmenda ? 'bg-emerald-50/30' : ''}`}>
+                            <td key={col.key} className={`py-1 px-0.5 text-center border-l border-slate-100 ${isGgcon ? 'bg-blue-50/60' : isDiligencia ? 'bg-amber-50/50' : isConcluida || isTransf || isEmenda ? 'bg-emerald-50/30' : ''}`}>
                               {count > 0 ? (
                                 <button
                                   onClick={() => openDrilldown(`${row.person} — ${colLabel} (${count})`, getColRows(col.key, row.rows))}
-                                  className={`inline-flex items-center justify-center ${badgeClass} text-white font-bold rounded text-[11px] px-1.5 py-0.5 min-w-[28px] active:scale-95 transition-all shadow-sm`}>
+                                  className={`inline-flex items-center justify-center ${badgeClass} text-white font-bold rounded text-[13px] px-2 py-0.5 min-w-[30px] active:scale-95 transition-all shadow-sm`}>
                                   {count}
                                 </button>
                               ) : (
@@ -748,7 +872,7 @@ export function DashboardTecnico() {
 
                   {/* Totals row — sticky bottom */}
                   <tr className="bg-slate-900 border-t-2 border-slate-600 sticky bottom-0 z-10">
-                    <td className="sticky left-0 z-20 bg-slate-900 px-3 py-1.5 text-white font-black text-[11px] border-r border-slate-600"
+                    <td className="sticky left-0 z-20 bg-slate-900 px-3 py-1.5 text-white font-black text-[13px] border-r border-slate-600"
                       style={{ minWidth: 180 }}>
                       TOTAL
                     </td>
@@ -759,13 +883,14 @@ export function DashboardTecnico() {
                         : col.key === 'concluida' ? 'text-emerald-400'
                         : col.key === 'transf_vol' ? 'text-teal-300'
                         : col.key === 'emenda_loa' ? 'text-violet-300'
+                        : col.key === 'diligencia' ? 'text-amber-300'
                         : col.key === 'demandas_recebidas' ? 'text-white'
                         : 'text-red-300';
                       return (
                         <td key={col.key} className={`py-1.5 px-0.5 text-center border-l border-slate-700 ${col.bgTotal}`}>
                           {t > 0 ? (
                             <button onClick={() => openDrilldown(`Total — ${colLabel} (${t})`, getColRows(col.key, filtered))}
-                              className={`font-black ${textClass} hover:underline text-[11px] transition-colors`}>
+                              className={`font-black ${textClass} hover:underline text-[13px] transition-colors`}>
                               {t.toLocaleString('pt-BR')}
                             </button>
                           ) : <span className="text-slate-600 text-[9px]">·</span>}
@@ -794,6 +919,7 @@ export function DashboardTecnico() {
                     : col.key === 'concluida' ? 'from-emerald-500 to-emerald-700'
                     : col.key === 'transf_vol' ? 'from-teal-500 to-teal-700'
                     : col.key === 'emenda_loa' ? 'from-violet-500 to-violet-700'
+                    : col.key === 'diligencia' ? 'from-amber-500 to-amber-700'
                     : 'from-red-500 to-red-700';
                   return (
                     <motion.button
@@ -809,7 +935,7 @@ export function DashboardTecnico() {
                         <div className="text-[10px] font-bold text-slate-500 uppercase leading-tight flex-1 pr-1">
                           {colLabel}
                         </div>
-                        <span className={`text-xs font-black px-1.5 py-0.5 rounded flex-shrink-0 text-white ${col.key === 'total_ggcon' ? 'bg-blue-600' : col.key === 'concluida' ? 'bg-emerald-600' : col.key === 'transf_vol' ? 'bg-teal-600' : col.key === 'emenda_loa' ? 'bg-violet-600' : 'bg-red-600'}`}>
+                        <span className={`text-xs font-black px-1.5 py-0.5 rounded flex-shrink-0 text-white ${col.key === 'total_ggcon' ? 'bg-blue-600' : col.key === 'concluida' ? 'bg-emerald-600' : col.key === 'transf_vol' ? 'bg-teal-600' : col.key === 'emenda_loa' ? 'bg-violet-600' : col.key === 'diligencia' ? 'bg-amber-600' : 'bg-red-600'}`}>
                           {count.toLocaleString('pt-BR')}
                         </span>
                       </div>
@@ -846,7 +972,7 @@ export function DashboardTecnico() {
                     .sort((a, b) => b.cols[col.key] - a.cols[col.key])
                     .slice(0, 5);
                   const maxVal = top5[0]?.cols[col.key] || 1;
-                  const headerColor = col.key === 'total_ggcon' ? 'bg-blue-700' : col.key === 'concluida' ? 'bg-emerald-600' : col.key === 'transf_vol' ? 'bg-teal-600' : col.key === 'emenda_loa' ? 'bg-violet-600' : 'bg-red-600';
+                  const headerColor = col.key === 'total_ggcon' ? 'bg-blue-700' : col.key === 'concluida' ? 'bg-emerald-600' : col.key === 'transf_vol' ? 'bg-teal-600' : col.key === 'emenda_loa' ? 'bg-violet-600' : col.key === 'diligencia' ? 'bg-amber-600' : 'bg-red-600';
                   return (
                     <div key={col.key} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                       <div className={`px-4 py-2.5 ${headerColor} flex items-center justify-between`}>
@@ -882,6 +1008,127 @@ export function DashboardTecnico() {
               </div>
             </div>
           )}
+
+          {/* ── Demandas Mais Atrasadas por Técnico ─────────────────── */}
+          {!compact && (() => {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            // Only non-completed demands with a liberação date
+            const pending = filtered.filter(r => !(r.concluida_em ?? '').trim() && (r.data_liberacao ?? '').trim());
+            // Compute days since liberação for each
+            const withDays = pending.map(r => {
+              const d = new Date(r.data_liberacao + 'T00:00:00');
+              const dias = isNaN(d.getTime()) ? 0 : Math.floor((today.getTime() - d.getTime()) / 86400000);
+              return { ...r, dias_atraso: Math.max(0, dias) };
+            }).filter(r => r.dias_atraso > 0);
+            // Group by técnico
+            const byTecnico = new Map<string, { total: number; soma_dias: number; max_dias: number; count_critico: number; rows: FormalizacaoRow[] }>();
+            for (const r of withDays) {
+              const tec = String(r[personField] ?? '').trim() || '(não atribuído)';
+              if (!byTecnico.has(tec)) byTecnico.set(tec, { total: 0, soma_dias: 0, max_dias: 0, count_critico: 0, rows: [] });
+              const g = byTecnico.get(tec)!;
+              g.total++; g.soma_dias += r.dias_atraso; g.max_dias = Math.max(g.max_dias, r.dias_atraso);
+              if (r.dias_atraso > 90) g.count_critico++;
+              g.rows.push(r);
+            }
+            const ranked = Array.from(byTecnico.entries())
+              .map(([name, d]) => ({ name, ...d, media: Math.round(d.soma_dias / d.total) }))
+              .sort((a, b) => b.media - a.media)
+              .slice(0, 15);
+            const maxMedia = ranked[0]?.media || 1;
+            // Global aging buckets
+            const faixas = [
+              { label: '0–30 dias', min: 0, max: 30, color: 'bg-emerald-500' },
+              { label: '31–60 dias', min: 31, max: 60, color: 'bg-yellow-500' },
+              { label: '61–90 dias', min: 61, max: 90, color: 'bg-orange-500' },
+              { label: '91–180 dias', min: 91, max: 180, color: 'bg-red-500' },
+              { label: '180+ dias', min: 181, max: 99999, color: 'bg-red-800' },
+            ];
+            const faixaCounts = faixas.map(f => ({
+              ...f,
+              count: withDays.filter(r => r.dias_atraso >= f.min && r.dias_atraso <= f.max).length,
+            }));
+            const maxFaixaCount = Math.max(...faixaCounts.map(f => f.count), 1);
+
+            return (
+            <div>
+              <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                <Flame className="w-4 h-4 text-red-500" />
+                Demandas Mais Atrasadas — por {viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}
+                <span className="text-[10px] text-slate-400 font-normal">({withDays.length.toLocaleString('pt-BR')} demandas pendentes)</span>
+              </h3>
+
+              {/* Aging distribution bar */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+                <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">Distribuição por Tempo de Espera (dias desde liberação)</h4>
+                <div className="grid grid-cols-5 gap-3">
+                  {faixaCounts.map(f => (
+                    <div key={f.label} className="text-center">
+                      <div className="h-24 flex items-end justify-center mb-1">
+                        <motion.div
+                          initial={{ height: 0 }}
+                          animate={{ height: `${Math.max(4, (f.count / maxFaixaCount) * 100)}%` }}
+                          transition={{ duration: 0.6, ease: 'easeOut' }}
+                          className={`${f.color} rounded-t-md w-10`}
+                        />
+                      </div>
+                      <p className="text-sm font-black text-slate-800">{f.count.toLocaleString('pt-BR')}</p>
+                      <p className="text-[10px] text-slate-500 font-semibold">{f.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ranking by average delay */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-4 py-2.5 bg-gradient-to-r from-red-700 to-red-900 flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5" />
+                    Ranking — Média de Dias Pendentes
+                  </h4>
+                  <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full font-bold">
+                    Top {ranked.length}
+                  </span>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {ranked.map((r, i) => (
+                    <button key={r.name}
+                      onClick={() => openDrilldown(`${r.name} — Pendentes (${r.total})`, r.rows)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 transition-colors text-left group">
+                      <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white ${i < 3 ? 'bg-red-600' : 'bg-slate-400'}`}>
+                        {i + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-xs font-semibold text-slate-700 truncate group-hover:text-red-700 transition-colors">{r.name}</span>
+                          <div className="flex items-center gap-3 flex-shrink-0 text-[11px]">
+                            <span className="text-slate-400">{r.total} demandas</span>
+                            {r.count_critico > 0 && (
+                              <span className="text-red-600 font-bold">{r.count_critico} críticas (&gt;90d)</span>
+                            )}
+                            <span className="font-black text-red-700">{r.media} dias</span>
+                            <span className="text-slate-400">máx {r.max_dias}d</span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(r.media / maxMedia) * 100}%` }}
+                            transition={{ duration: 0.6, ease: 'easeOut' }}
+                            className={`h-full rounded-full ${r.media > 90 ? 'bg-gradient-to-r from-red-500 to-red-700' : r.media > 60 ? 'bg-gradient-to-r from-orange-400 to-orange-600' : 'bg-gradient-to-r from-yellow-400 to-yellow-600'}`}
+                          />
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                  {ranked.length === 0 && <p className="text-xs text-slate-400 text-center py-6">Nenhuma demanda pendente com data de liberação</p>}
+                </div>
+              </div>
+            </div>
+            );
+          })()}
+
+
         </>
       )}
     </div>

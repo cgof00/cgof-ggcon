@@ -537,6 +537,8 @@ export default function App() {
   const [adminAlertas, setAdminAlertas] = useState<{id: number, tipo: string, descricao: string, data: string}[]>([]);
   const [tecnicoAlertas, setTecnicoAlertas] = useState<{id: number, tipo: string, descricao: string, data: string}[]>([]);
   const [showAlertasDropdown, setShowAlertasDropdown] = useState(false);
+  const [showAlertaModal, setShowAlertaModal] = useState(false);
+  const alertaModalShownRef = useRef<Set<string>>(new Set());
   const [refreshProgress, setRefreshProgress] = useState<{ active: boolean; loaded: number; total: number; startTime: number } | null>(null);
   // emendas removido do frontend - dados apenas no Supabase
   const [formalizacoes, setFormalizacoes] = useState<Formalizacao[]>([]);
@@ -1196,33 +1198,38 @@ export default function App() {
   }, [user]);
 
   // 🔔 Alertas para admin: demandas analisadas E conferidas
-  // Persist seen IDs in localStorage so alerts survive page reloads
-  const alertasVistosRef = useRef<Set<number>>(new Set<number>());
+  // Persist seen keys in localStorage so alerts survive page reloads
+  // Key format: "id:data_analise:data_lib_conf" to detect when dates CHANGE
+  const alertasVistosRef = useRef<Set<string>>(new Set<string>());
   const alertasInitRef = useRef(false);
   if (!alertasInitRef.current) {
     alertasInitRef.current = true;
+    // Clean up old format localStorage
+    try { localStorage.removeItem('alertas_vistos_ids'); } catch {}
     try {
-      const saved = localStorage.getItem('alertas_vistos_ids');
-      if (saved) { (JSON.parse(saved) as number[]).forEach(id => alertasVistosRef.current.add(id)); }
+      const saved = localStorage.getItem('alertas_vistos_keys');
+      if (saved) { (JSON.parse(saved) as string[]).forEach(k => alertasVistosRef.current.add(k)); }
     } catch {}
   }
-  const saveAlertasVistos = (ids: Set<number>) => {
-    try { localStorage.setItem('alertas_vistos_ids', JSON.stringify([...ids])); } catch {}
+  const saveAlertasVistos = (keys: Set<string>) => {
+    try { localStorage.setItem('alertas_vistos_keys', JSON.stringify([...keys])); } catch {}
   };
+  const makeAlertKey = (f: Formalizacao) => `${f.id}:${f.data_analise_demanda || ''}:${f.data_liberacao_assinatura_conferencista || ''}`;
   useEffect(() => {
     if (!isAdmin || formalizacoes.length === 0) return;
     // Alertas: demandas com data_analise_demanda OU data_liberacao_assinatura_conferencista
     const comDatas = formalizacoes.filter(
       (f: Formalizacao) => f.data_analise_demanda || f.data_liberacao_assinatura_conferencista
     );
-    const seenIds = alertasVistosRef.current;
-    const novas = comDatas.filter((f: Formalizacao) => !seenIds.has(f.id));
+    const seenKeys = alertasVistosRef.current;
+    const novas = comDatas.filter((f: Formalizacao) => !seenKeys.has(makeAlertKey(f)));
     if (novas.length > 0) {
       setAdminAlertas(prev => {
         const existingIds = new Set(prev.map(a => a.id));
-        const reallyNew = novas.filter(f => !existingIds.has(f.id));
-        if (reallyNew.length === 0) return prev;
-        return [...prev, ...reallyNew.map((f: Formalizacao) => {
+        // Remove old alerts for same ID (date changed) + add new
+        const updatedIds = new Set(novas.map(f => f.id));
+        const cleaned = prev.filter(a => !updatedIds.has(a.id));
+        const newAlerts = novas.map((f: Formalizacao) => {
           const partes: string[] = [];
           if (f.data_analise_demanda) {
             partes.push(`Técnico: ${f.tecnico || '(n/a)'} — Data Análise: ${formatDateForDisplay(f.data_analise_demanda)}`);
@@ -1236,10 +1243,22 @@ export default function App() {
             descricao: `Demanda ${f.demandas_formalizacao || f.demanda || `#${f.id}`} — ${partes.join(' | ')}`,
             data: f.data_liberacao_assinatura_conferencista || f.data_analise_demanda || ''
           };
-        })];
+        });
+        if (newAlerts.length === 0 && cleaned.length === prev.length) return prev;
+        return [...cleaned, ...newAlerts];
       });
     }
   }, [formalizacoes, isAdmin]);
+
+  // 🔔 Auto-show modal when new admin alerts arrive
+  useEffect(() => {
+    if (!isAdmin || adminAlertas.length === 0) return;
+    const hasNew = adminAlertas.some(a => !alertaModalShownRef.current.has(`${a.id}:${a.data}`));
+    if (hasNew) {
+      adminAlertas.forEach(a => alertaModalShownRef.current.add(`${a.id}:${a.data}`));
+      setShowAlertaModal(true);
+    }
+  }, [adminAlertas, isAdmin]);
 
   // 🔔 Alertas para técnicos: conferencista liberou assinatura na demanda do técnico
   const tecnicoAlertasVistosRef = useRef<Set<number>>(new Set<number>());
@@ -1270,12 +1289,19 @@ export default function App() {
         const existingIds = new Set(prev.map(a => a.id));
         const reallyNew = novas.filter(f => !existingIds.has(f.id));
         if (reallyNew.length === 0) return prev;
-        return [...prev, ...reallyNew.map((f: Formalizacao) => ({
+        const updated = [...prev, ...reallyNew.map((f: Formalizacao) => ({
           id: f.id,
           tipo: 'Liberação Conferencista',
           descricao: `Demanda ${f.demandas_formalizacao || f.demanda || `#${f.id}`} — Conferencista: ${f.conferencista || '(n/a)'} liberou assinatura em ${formatDateForDisplay(f.data_liberacao_assinatura_conferencista || '')}${f.observacao_motivo_retorno ? ` — Obs: ${f.observacao_motivo_retorno}` : ''}`,
           data: f.data_liberacao_assinatura_conferencista || ''
         }))];
+        // Auto-show modal for técnico alerts
+        const hasNew2 = reallyNew.some(f => !alertaModalShownRef.current.has(`${f.id}:${f.data_liberacao_assinatura_conferencista || ''}`));
+        if (hasNew2) {
+          reallyNew.forEach(f => alertaModalShownRef.current.add(`${f.id}:${f.data_liberacao_assinatura_conferencista || ''}`));
+          setShowAlertaModal(true);
+        }
+        return updated;
       });
     }
   }, [formalizacoes, user?.nome]);
@@ -1845,9 +1871,7 @@ export default function App() {
           const selected = filtersToUse.ano.map(getAnoNorm).filter(Boolean);
           if (!selected.includes(anoNorm)) return false;
         } else {
-          // 🔒 Padrão: ocultar anos antigos (sem filtro explícito de ano)
-          const anoNorm = getAnoNorm(f.ano);
-          if (anoNorm === '2019' || anoNorm === '2020' || anoNorm === '2021' || anoNorm === '2022') return false;
+          // Todos os anos visíveis por padrão
         }
 
         if (Array.isArray(filtersToUse.demandas_formalizacao) && filtersToUse.demandas_formalizacao.length > 0) {
@@ -2558,20 +2582,39 @@ export default function App() {
                   ...tecnicoAlertas
                 ];
                 if (allAlertas.length === 0) return null;
+
+                const handleAlertClick = (alertId: number) => {
+                  const f = allDataCacheRef.current.find(x => x.id === alertId) || formalizacoes.find(x => x.id === alertId);
+                  if (f) {
+                    setActiveTab('formalizacao');
+                    setEditingFormalizacao(f);
+                    setIsFormalizacaoFormOpen(true);
+                  }
+                  setShowAlertaModal(false);
+                  setShowAlertasDropdown(false);
+                };
+
+                const handleClearAll = () => {
+                  if (isAdmin) {
+                    adminAlertas.forEach(a => {
+                      const f = allDataCacheRef.current.find(x => x.id === a.id) || formalizacoes.find(x => x.id === a.id);
+                      if (f) alertasVistosRef.current.add(makeAlertKey(f));
+                    });
+                    saveAlertasVistos(alertasVistosRef.current);
+                    setAdminAlertas([]);
+                  }
+                  tecnicoAlertas.forEach(a => tecnicoAlertasVistosRef.current.add(a.id));
+                  saveTecnicoAlertasVistos(tecnicoAlertasVistosRef.current);
+                  setTecnicoAlertas([]);
+                  setShowAlertasDropdown(false);
+                  setShowAlertaModal(false);
+                };
+
                 return (
+                <>
                 <div className="relative">
                   <button
-                    onClick={() => {
-                      setShowAlertasDropdown(!showAlertasDropdown);
-                      if (!showAlertasDropdown && allAlertas.length > 0) {
-                        if (isAdmin) {
-                          adminAlertas.forEach(a => alertasVistosRef.current.add(a.id));
-                          saveAlertasVistos(alertasVistosRef.current);
-                        }
-                        tecnicoAlertas.forEach(a => tecnicoAlertasVistosRef.current.add(a.id));
-                        saveTecnicoAlertasVistos(tecnicoAlertasVistosRef.current);
-                      }
-                    }}
+                    onClick={() => setShowAlertaModal(true)}
                     className="relative p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/20 transition-colors"
                     title="Alertas de demandas"
                   >
@@ -2580,38 +2623,78 @@ export default function App() {
                       {allAlertas.length}
                     </span>
                   </button>
-                  {showAlertasDropdown && (
-                    <div className="absolute right-0 mt-2 w-96 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-80 overflow-y-auto">
-                      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                        <span className="text-sm font-bold text-[#1351B4]">Alertas</span>
-                        <button
-                          onClick={() => {
-                            if (isAdmin) {
-                              adminAlertas.forEach(a => alertasVistosRef.current.add(a.id));
-                              saveAlertasVistos(alertasVistosRef.current);
-                              setAdminAlertas([]);
-                            }
-                            tecnicoAlertas.forEach(a => tecnicoAlertasVistosRef.current.add(a.id));
-                            saveTecnicoAlertasVistos(tecnicoAlertasVistosRef.current);
-                            setTecnicoAlertas([]);
-                            setShowAlertasDropdown(false);
-                          }}
-                          className="text-[10px] text-gray-400 hover:text-red-500 font-semibold"
-                        >
-                          Limpar tudo
-                        </button>
-                      </div>
-                      {allAlertas.map(a => (
-                        <div key={`${a.tipo}-${a.id}`} className="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${a.tipo === 'Liberação Conferencista' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>{a.tipo}</span>
-                          </div>
-                          <p className="text-xs text-gray-600">{a.descricao}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
+
+                {/* 🔔 MODAL DE ALERTAS — Destaque na tela */}
+                <AnimatePresence>
+                  {showAlertaModal && (
+                    <>
+                      <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        onClick={() => setShowAlertaModal(false)}
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998]"
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9, y: -30 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: -30 }}
+                        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                        className="fixed inset-x-4 top-16 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[520px] max-h-[80vh] z-[9999] bg-white rounded-2xl shadow-2xl border border-red-200 overflow-hidden flex flex-col"
+                      >
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-red-600 to-red-700 px-5 py-4 flex items-center justify-between flex-shrink-0">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-white/20 p-2 rounded-xl">
+                              <Bell className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                              <h3 className="text-white font-bold text-base">Alertas de Demandas</h3>
+                              <p className="text-white/70 text-[11px]">{allAlertas.length} alerta{allAlertas.length !== 1 ? 's' : ''} — clique para abrir a demanda</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={handleClearAll}
+                              className="text-[11px] font-bold text-white/70 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-all">
+                              Limpar tudo
+                            </button>
+                            <button onClick={() => setShowAlertaModal(false)}
+                              className="p-1.5 hover:bg-white/20 rounded-lg transition-all text-white/80 hover:text-white">
+                              <X className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </div>
+                        {/* Alert items */}
+                        <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+                          {allAlertas.map(a => (
+                            <button
+                              key={`${a.tipo}-${a.id}`}
+                              onClick={() => handleAlertClick(a.id)}
+                              className="w-full text-left px-5 py-4 hover:bg-blue-50 transition-colors group cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                                  a.tipo === 'Liberação Conferencista'
+                                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                    : a.tipo === 'Conferida'
+                                    ? 'bg-sky-100 text-sky-700 border border-sky-200'
+                                    : a.tipo === 'Analisada'
+                                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                    : 'bg-violet-100 text-violet-700 border border-violet-200'
+                                }`}>{a.tipo}</span>
+                                {a.data && <span className="text-[10px] text-gray-400">{formatDateForDisplay(a.data)}</span>}
+                              </div>
+                              <p className="text-sm text-gray-700 group-hover:text-[#1351B4] transition-colors leading-relaxed">{a.descricao}</p>
+                              <span className="text-[10px] text-gray-400 group-hover:text-[#1351B4] mt-1 inline-flex items-center gap-1 transition-colors">
+                                Clique para abrir →
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+                </>
                 );
               })()}
 
@@ -3131,7 +3214,7 @@ export default function App() {
             )}
 
             {(activeTab === 'admin' || activeTab === 'dashboard') ? (
-              <DashboardTecnico />
+              <DashboardTecnico initialData={allDataCacheRef.current} />
             ) : loading && formalizacoes.length === 0 && formalizacaoSearchResult.data.length === 0 ? (
               <div className="flex flex-col justify-center items-center py-16">
                 <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-b-red-600 mb-4"></div>
@@ -3181,66 +3264,6 @@ export default function App() {
                             </span>
                           )}
                         </span>
-                        {totalPaginas > 1 && (
-                          <>
-                            <div className="w-px h-4 bg-gray-300" />
-                            <button
-                              onClick={() => fetchFormalizacoesComFiltros(0)}
-                              disabled={paginaAtual === 0 || formalizacaoSearchResult.loading}
-                              className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
-                              title="Primeira página"
-                            >
-                              ⏮
-                            </button>
-                            <button
-                              onClick={() => fetchFormalizacoesComFiltros(Math.max(0, paginaAtual - 1))}
-                              disabled={paginaAtual === 0 || formalizacaoSearchResult.loading}
-                              className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
-                              title="Página anterior"
-                            >
-                              ◀
-                            </button>
-                            <div className="flex items-center gap-0.5">
-                              {Array.from({ length: Math.min(5, totalPaginas) }).map((_, i) => {
-                                const startPage = Math.max(0, Math.min(paginaAtual - 2, totalPaginas - 5));
-                                const pagina = startPage + i;
-                                return (
-                                  <button
-                                    key={`page-top-${pagina}`}
-                                    onClick={() => fetchFormalizacoesComFiltros(pagina)}
-                                    disabled={formalizacaoSearchResult.loading}
-                                    className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${
-                                      paginaAtual === pagina
-                                        ? 'text-white bg-[#1351B4]'
-                                        : 'bg-white text-gray-600 border border-gray-300 hover:border-[#1351B4] hover:text-[#1351B4]'
-                                    } disabled:opacity-40 disabled:cursor-not-allowed`}
-                                  >
-                                    {pagina + 1}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            <button
-                              onClick={() => fetchFormalizacoesComFiltros(Math.min(totalPaginas - 1, paginaAtual + 1))}
-                              disabled={paginaAtual >= totalPaginas - 1 || formalizacaoSearchResult.loading}
-                              className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
-                              title="Próxima página"
-                            >
-                              ▶
-                            </button>
-                            <button
-                              onClick={() => fetchFormalizacoesComFiltros(totalPaginas - 1)}
-                              disabled={paginaAtual >= totalPaginas - 1 || formalizacaoSearchResult.loading}
-                              className="px-2 py-1 text-[10px] font-bold text-white bg-[#1351B4] rounded disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#0C326F]"
-                              title="Última página"
-                            >
-                              ⏭
-                            </button>
-                            <span className="text-[10px] text-gray-500 ml-1">
-                              Pág. {paginaAtual + 1}/{totalPaginas}
-                            </span>
-                          </>
-                        )}
                       </div>
                     )}
                     
@@ -4086,12 +4109,16 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   ];
                   const conferencistaEditableFields = [
                     'area_estagio_situacao_demanda', 'situacao_analise_demanda', 'conferencista',
-                    'data_liberacao_assinatura_conferencista', 'data_retorno', 'observacao_motivo_retorno',
+                    'data_liberacao_assinatura_conferencista', 'data_retorno', 'data_recebimento_demanda', 'observacao_motivo_retorno',
                     'falta_assinatura', 'assinatura',
                     'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em'
                   ];
                   const isFieldDisabled = (fieldName: string): boolean => {
                     if (isAdmin) return false;
+                    // When user is BOTH técnico AND conferencista, allow fields from either list
+                    if (isTecnicoAtribuido && isConferencistaAtribuido) {
+                      return !tecnicoEditableFields.includes(fieldName) && !conferencistaEditableFields.includes(fieldName);
+                    }
                     if (isTecnicoAtribuido) return !tecnicoEditableFields.includes(fieldName);
                     if (isConferencistaAtribuido) return !conferencistaEditableFields.includes(fieldName);
                     if (isUsuario) return true;
@@ -4127,12 +4154,13 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   };
 
                   // Estilo de seção por role
-                  const sectionRole = (role: 'tecnico' | 'conferencista' | 'shared' | 'readonly') => {
+                  const sectionRole = (role: 'tecnico' | 'conferencista' | 'shared' | 'readonly' | 'admin') => {
                     const styles = {
                       tecnico:       { border: 'border-l-4 border-l-violet-500 border border-violet-200', bg: 'bg-violet-50/40',  headerBg: 'bg-violet-600',  headerText: 'text-violet-700',  badge: 'bg-violet-100 text-violet-700 border-violet-300' },
                       conferencista: { border: 'border-l-4 border-l-sky-500 border border-sky-200',       bg: 'bg-sky-50/40',     headerBg: 'bg-sky-600',     headerText: 'text-sky-700',     badge: 'bg-sky-100 text-sky-700 border-sky-300' },
                       shared:        { border: 'border-l-4 border-l-emerald-500 border border-emerald-200', bg: 'bg-emerald-50/40', headerBg: 'bg-emerald-600', headerText: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
                       readonly:      { border: 'border border-gray-200',                                  bg: 'bg-gray-50/60',   headerBg: 'bg-gray-500',    headerText: 'text-gray-600',    badge: 'bg-gray-100 text-gray-600 border-gray-300' },
+                      admin:         { border: 'border-l-4 border-l-rose-500 border border-rose-200',     bg: 'bg-rose-50/40',    headerBg: 'bg-rose-600',    headerText: 'text-rose-700',    badge: 'bg-rose-100 text-rose-700 border-rose-300' },
                     };
                     return styles[role];
                   };
@@ -4145,34 +4173,74 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-violet-500"></span> Técnico pode editar</span>
                   <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-sky-500"></span> Conferencista pode editar</span>
                   <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500"></span> Ambos podem editar</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-rose-500"></span> Somente Admin</span>
                   <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-gray-400"></span> Somente leitura</span>
                 </div>
 
-                {/* ═══════════ DADOS DA EMENDA (Somente leitura) ═══════════ */}
+                {/* ═══════════ DADOS DA EMENDA (Somente leitura — expansível) ═══════════ */}
                 {editingFormalizacao && (() => {
                   const s = sectionRole('readonly');
+                  const f = editingFormalizacao;
+                  const detailFields: { label: string; value: string }[] = [
+                    { label: 'Ano', value: f.ano || '—' },
+                    { label: 'Parlamentar', value: f.parlamentar || '—' },
+                    { label: 'Partido', value: f.partido || '—' },
+                    { label: 'Emenda', value: formatEmendaNumber(f.emenda) || '—' },
+                    { label: 'Emendas Agregadoras', value: f.emendas_agregadoras || '—' },
+                    { label: 'Demanda', value: f.demanda || f.demandas_formalizacao || '—' },
+                    { label: 'Nº Convênio', value: f.numero_convenio || '—' },
+                    { label: 'Classificação', value: f.classificacao_emenda_demanda || '—' },
+                    { label: 'Tipo Formalização', value: f.tipo_formalizacao || '—' },
+                    { label: 'Regional', value: f.regional || '—' },
+                    { label: 'Município', value: f.municipio || '—' },
+                    { label: 'Conveniado', value: f.conveniado || '—' },
+                    { label: 'Objeto', value: f.objeto || '—' },
+                    { label: 'Portfólio', value: f.portfolio || '—' },
+                    { label: 'Valor', value: formatCurrency(f.valor) },
+                    { label: 'Posição Anterior', value: f.posicao_anterior || '—' },
+                    { label: 'Situação SemPapel', value: f.situacao_demandas_sempapel || '—' },
+                    { label: 'Área - Estágio', value: f.area_estagio || '—' },
+                    { label: 'Recurso', value: f.recurso || '—' },
+                  ];
+                  // First 3 always visible, rest collapsible
+                  const mainFields = detailFields.slice(0, 6);
+                  const extraFields = detailFields.slice(6);
                   return (
                   <div className={`rounded-xl shadow-sm overflow-hidden ${s.border} ${s.bg}`}>
-                    <div className={`px-5 py-2.5 flex items-center gap-2 ${s.bg}`}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const el = document.getElementById('emenda-details-extra');
+                        if (el) el.classList.toggle('hidden');
+                        const chevron = document.getElementById('emenda-details-chevron');
+                        if (chevron) chevron.classList.toggle('rotate-90');
+                      }}
+                      className={`w-full px-5 py-2.5 flex items-center gap-2 ${s.bg} hover:brightness-95 transition-all cursor-pointer`}
+                    >
                       <div className={`${s.headerBg} text-white rounded-md w-6 h-6 flex items-center justify-center text-[10px] font-bold`}>
                         <Lock className="w-3 h-3" />
                       </div>
-                      <h3 className={`text-xs font-bold ${s.headerText} uppercase tracking-wide`}>Dados da Emenda</h3>
+                      <h3 className={`text-xs font-bold ${s.headerText} uppercase tracking-wide`}>Detalhes da Emenda</h3>
                       <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Somente Leitura</span>
-                    </div>
-                    <div className="p-5 bg-white/80">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Parlamentar</span>
-                          <p className="text-sm font-semibold text-gray-800 mt-0.5">{editingFormalizacao.parlamentar || '—'}</p>
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Emenda</span>
-                          <p className="text-sm font-semibold text-gray-800 mt-0.5">{editingFormalizacao.emenda || '—'}</p>
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Demanda</span>
-                          <p className="text-sm font-semibold text-gray-800 mt-0.5">{editingFormalizacao.demanda || editingFormalizacao.demandas_formalizacao || '—'}</p>
+                      <ChevronRight id="emenda-details-chevron" className={`w-3.5 h-3.5 ml-auto text-gray-400 transition-transform duration-200`} />
+                    </button>
+                    <div className="px-5 py-3 bg-white/80">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-x-4 gap-y-2">
+                        {mainFields.map(({ label, value }) => (
+                          <div key={label} className="min-w-0">
+                            <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider block truncate">{label}</span>
+                            <p className="text-xs font-semibold text-gray-800 mt-0.5 truncate" title={value}>{value}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div id="emenda-details-extra" className="hidden mt-3 pt-3 border-t border-gray-100">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2">
+                          {extraFields.map(({ label, value }) => (
+                            <div key={label} className="min-w-0">
+                              <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider block truncate">{label}</span>
+                              <p className="text-xs font-semibold text-gray-800 mt-0.5 truncate" title={value}>{value}</p>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -4221,9 +4289,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   );
                 })()}
 
-                {/* ═══════════ 1. ATRIBUIÇÃO (Somente leitura) ═══════════ */}
+                {/* ═══════════ 1. ATRIBUIÇÃO (Somente Admin) ═══════════ */}
                 {(() => {
-                  const s = sectionRole('readonly');
+                  const s = sectionRole('admin');
                   return (
                   <div className={`rounded-xl shadow-sm overflow-hidden ${s.border} ${s.bg}`}>
                     <div className={`px-5 py-2.5 flex items-center gap-2 ${s.bg}`}>
@@ -4232,7 +4300,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         <ClipboardList className="w-3.5 h-3.5" />
                         Atribuição da Demanda
                       </h3>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Somente Leitura</span>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Somente Admin</span>
                     </div>
                     <div className="p-5 bg-white/80 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
                       <div className="flex flex-col gap-1">
@@ -4349,72 +4417,74 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Conferencista</span>
                     </div>
                     <div className="p-5 bg-white/80 space-y-4">
+                      {/* Conferencista */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Conferencista</label>
+                        <select
+                          name="conferencista"
+                          defaultValue={editingFormalizacao?.conferencista || ''}
+                          disabled={isDisabled('conferencista')}
+                          className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all appearance-none ${disabledClass('conferencista')}`}
+                        >
+                          <option value="">-- Selecione o Conferencista --</option>
+                          {tecnicosDisponiveis.map((t: any) => (
+                            <option key={t.id} value={t.nome}>{t.nome} ({t.email})</option>
+                          ))}
+                        </select>
+                      </div>
+                      {/* Data Recebimento + Data Retorno */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Conferencista</label>
-                          <select
-                            name="conferencista"
-                            defaultValue={editingFormalizacao?.conferencista || ''}
-                            disabled={isDisabled('conferencista')}
-                            className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all appearance-none ${disabledClass('conferencista')}`}
-                          >
-                            <option value="">-- Selecione o Conferencista --</option>
-                            {tecnicosDisponiveis.map((t: any) => (
-                              <option key={t.id} value={t.nome}>{t.nome} ({t.email})</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data Liberação da Assinatura - Conferencista</label>
-                          {isAdmin ? (
-                            <Input label="" name="data_liberacao_assinatura_conferencista" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista} />
-                          ) : isDisabled('data_liberacao_assinatura_conferencista') || isDateLocked('data_liberacao_assinatura_conferencista') ? (
-                            <>
-                              <input type="hidden" name="data_liberacao_assinatura_conferencista" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista || ''} />
-                              <span className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center opacity-50">
+                        <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={toInputDate(editingFormalizacao?.data_recebimento_demanda)} disabled={isDisabled('data_recebimento_demanda')} />
+                        <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={toInputDate(editingFormalizacao?.data_retorno)} disabled={isDisabled('data_retorno')} />
+                      </div>
+                      {/* Observação */}
+                      <Input label="Observação - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} disabled={isDisabled('observacao_motivo_retorno')} />
+                      {/* Data Liberação da Assinatura - Conferencista (com botão) */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Data Liberação da Assinatura - Conferencista</label>
+                        {isAdmin ? (
+                          <Input label="" name="data_liberacao_assinatura_conferencista" type="date" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista} />
+                        ) : isDisabled('data_liberacao_assinatura_conferencista') || isDateLocked('data_liberacao_assinatura_conferencista') ? (
+                          <>
+                            <input type="hidden" name="data_liberacao_assinatura_conferencista" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista || ''} />
+                            <span className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center opacity-50">
+                              {editingFormalizacao?.data_liberacao_assinatura_conferencista ? formatDateForDisplay(editingFormalizacao.data_liberacao_assinatura_conferencista) : '—'}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <input type="hidden" name="data_liberacao_assinatura_conferencista" id="data_liberacao_conferencista_hidden" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista || ''} />
+                            <div className="flex items-center gap-2">
+                              <span id="data_liberacao_conferencista_display" className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center">
                                 {editingFormalizacao?.data_liberacao_assinatura_conferencista ? formatDateForDisplay(editingFormalizacao.data_liberacao_assinatura_conferencista) : '—'}
                               </span>
-                            </>
-                          ) : (
-                            <>
-                              <input type="hidden" name="data_liberacao_assinatura_conferencista" id="data_liberacao_conferencista_hidden" defaultValue={editingFormalizacao?.data_liberacao_assinatura_conferencista || ''} />
-                              <div className="flex items-center gap-2">
-                                <span id="data_liberacao_conferencista_display" className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 min-h-[38px] flex items-center">
-                                  {editingFormalizacao?.data_liberacao_assinatura_conferencista ? formatDateForDisplay(editingFormalizacao.data_liberacao_assinatura_conferencista) : '—'}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const now = new Date();
-                                    const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                                    const hiddenInput = document.getElementById('data_liberacao_conferencista_hidden') as HTMLInputElement;
-                                    const displaySpan = document.getElementById('data_liberacao_conferencista_display');
-                                    if (hiddenInput) hiddenInput.value = dataHoje;
-                                    if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
-                                  }}
-                                  className="flex items-center gap-1.5 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
-                                >
-                                  <CheckSquare className="w-3.5 h-3.5" />
-                                  Liberação Conferência
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const now = new Date();
+                                  const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                                  const hiddenInput = document.getElementById('data_liberacao_conferencista_hidden') as HTMLInputElement;
+                                  const displaySpan = document.getElementById('data_liberacao_conferencista_display');
+                                  if (hiddenInput) hiddenInput.value = dataHoje;
+                                  if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
+                              >
+                                <CheckSquare className="w-3.5 h-3.5" />
+                                Liberação Conferência
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-                        <Input label="Data do Retorno" name="data_retorno" type="date" defaultValue={toInputDate(editingFormalizacao?.data_retorno)} disabled={isDisabled('data_retorno')} />
-                        <Input label="Data Recebimento Demanda" name="data_recebimento_demanda" type="date" defaultValue={toInputDate(editingFormalizacao?.data_recebimento_demanda)} disabled={isDisabled('data_recebimento_demanda')} />
-                      </div>
-                      <Input label="Observação - Motivo do Retorno" name="observacao_motivo_retorno" defaultValue={editingFormalizacao?.observacao_motivo_retorno} disabled={isDisabled('observacao_motivo_retorno')} />
                     </div>
                   </div>
                   );
                 })()}
 
-                {/* ═══════════ 5. ASSINATURAS (Ambos) ═══════════ */}
+                {/* ═══════════ 5. ASSINATURAS (Somente Admin) ═══════════ */}
                 {(() => {
-                  const s = sectionRole('shared');
+                  const s = sectionRole('admin');
                   return (
                   <div className={`rounded-xl shadow-sm overflow-hidden ${s.border} ${s.bg}`}>
                     <div className={`px-5 py-2.5 flex items-center gap-2 ${s.bg}`}>
@@ -4423,7 +4493,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         <PenLine className="w-3.5 h-3.5" />
                         Assinaturas
                       </h3>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Técnico + Conferencista</span>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${s.badge}`}>Somente Admin</span>
                     </div>
                     <div className="p-5 bg-white/80 space-y-4">
                       {isAdmin && (
