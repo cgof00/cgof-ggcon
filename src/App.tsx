@@ -2220,6 +2220,8 @@ export default function App() {
     setSearchTerm('');
     setHideEmptyFields({});
     setShowOnlyEmptyFields({});
+    setShowSomenteMinhas(false);
+    fetchFormalizacoesComFiltros(0, { ano: [], demandas_formalizacao: [], area_estagio: [], recurso: [], tecnico: [], data_liberacao: [], area_estagio_situacao_demanda: [], situacao_analise_demanda: [], data_analise_demanda: [], conferencista: [], data_recebimento_demanda: [], data_retorno: [], falta_assinatura: [], publicacao: [], vigencia: [], encaminhado_em: [], concluida_em: [], parlamentar: [], partido: [], regional: [], municipio: [], conveniado: [], objeto: [] }, undefined, false);
   };
 
   // Silent background refresh: invalidate cache and reload data with progress bar (preserva filtros)
