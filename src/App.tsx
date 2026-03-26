@@ -263,20 +263,38 @@ function MultiSelectFilter({
                 Nenhuma opção encontrada
               </div>
             ) : (
-              filteredOptions.map(option => (
-                <label
-                  key={option}
-                  className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700"
-                >
+              <>
+                <label className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm text-gray-700 border-b border-gray-100 font-medium">
                   <input
                     type="checkbox"
-                    checked={selectedValues.includes(option)}
-                    onChange={() => toggleSelection(option)}
+                    checked={filteredOptions.length > 0 && filteredOptions.every(o => selectedValues.includes(o))}
+                    ref={el => { if (el) el.indeterminate = filteredOptions.some(o => selectedValues.includes(o)) && !filteredOptions.every(o => selectedValues.includes(o)); }}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        onSelectionChange([...selectedValues, ...filteredOptions.filter(o => !selectedValues.includes(o))]);
+                      } else {
+                        onSelectionChange(selectedValues.filter(v => !filteredOptions.includes(v)));
+                      }
+                    }}
                     className="rounded cursor-pointer accent-[#1351B4]"
                   />
-                  <span>{option}</span>
+                  <span>Selecionar todos</span>
                 </label>
-              ))
+                {filteredOptions.map(option => (
+                  <label
+                    key={option}
+                    className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedValues.includes(option)}
+                      onChange={() => toggleSelection(option)}
+                      className="rounded cursor-pointer accent-[#1351B4]"
+                    />
+                    <span>{option}</span>
+                  </label>
+                ))}
+              </>
             )}
           </div>
 
@@ -443,20 +461,38 @@ function MultiSelectDateFilter({
                 Nenhuma data encontrada
               </div>
             ) : (
-              filteredOptions.map(option => (
-                <label
-                  key={option}
-                  className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700"
-                >
+              <>
+                <label className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm text-gray-700 border-b border-gray-100 font-medium">
                   <input
                     type="checkbox"
-                    checked={selectedValues.includes(option)}
-                    onChange={() => toggleSelection(option)}
+                    checked={filteredOptions.length > 0 && filteredOptions.every(o => selectedValues.includes(o))}
+                    ref={el => { if (el) el.indeterminate = filteredOptions.some(o => selectedValues.includes(o)) && !filteredOptions.every(o => selectedValues.includes(o)); }}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        onSelectionChange([...selectedValues, ...filteredOptions.filter(o => !selectedValues.includes(o))]);
+                      } else {
+                        onSelectionChange(selectedValues.filter(v => !filteredOptions.includes(v)));
+                      }
+                    }}
                     className="rounded cursor-pointer accent-[#1351B4]"
                   />
-                  <span>{formatDate(option)}</span>
+                  <span>Selecionar todos</span>
                 </label>
-              ))
+                {filteredOptions.map(option => (
+                  <label
+                    key={option}
+                    className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedValues.includes(option)}
+                      onChange={() => toggleSelection(option)}
+                      className="rounded cursor-pointer accent-[#1351B4]"
+                    />
+                    <span>{formatDate(option)}</span>
+                  </label>
+                ))}
+              </>
             )}
           </div>
 
@@ -1992,15 +2028,7 @@ export default function App() {
       // Aplicar filtros em modo cache
       let filteredData = allData.filter(matchesAllFilters);
 
-      // 👤 Usuários comuns veem apenas demandas atribuídas a eles (técnico ou conferencista)
-      if (isUsuario && user?.nome) {
-        const nomeUsuario = user.nome.toLowerCase().trim();
-        filteredData = filteredData.filter(f => {
-          const tecnico = String(f.tecnico || '').toLowerCase().trim();
-          const conferencista = String(f.conferencista || '').toLowerCase().trim();
-          return tecnico === nomeUsuario || conferencista === nomeUsuario;
-        });
-      }
+      // Usuários comuns podem visualizar todas as emendas
       
       // Aplicar "Ocultar Vazias" - genérico para todas as colunas
       filteredData = filteredData.filter(f => {
@@ -3553,22 +3581,41 @@ export default function App() {
                                               if (filtered.length === 0) {
                                                 return <div className="p-2 text-[10px] text-gray-400 text-center">Nenhuma opção</div>;
                                               }
-                                              return filtered.slice(0, 300).map(opt => (
-                                                <label key={opt} className="flex items-center gap-1.5 px-2 py-1 hover:bg-blue-50 cursor-pointer text-[11px] text-gray-700">
+                                              const sliced = filtered.slice(0, 300);
+                                              return [
+                                                <label key="__select_all__" className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-blue-50 cursor-pointer text-[11px] text-gray-700 border-b border-gray-100 font-semibold sticky top-0 bg-white">
                                                   <input
                                                     type="checkbox"
-                                                    checked={selectedVals.includes(opt)}
-                                                    onChange={() => {
-                                                      const newValues = selectedVals.includes(opt)
-                                                        ? selectedVals.filter((v: string) => v !== opt)
-                                                        : [...selectedVals, opt];
-                                                      setColumnFilterValues(col.key, newValues);
+                                                    checked={sliced.length > 0 && sliced.every((o: string) => selectedVals.includes(o))}
+                                                    ref={el => { if (el) el.indeterminate = sliced.some((o: string) => selectedVals.includes(o)) && !sliced.every((o: string) => selectedVals.includes(o)); }}
+                                                    onChange={(e) => {
+                                                      if (e.target.checked) {
+                                                        setColumnFilterValues(col.key, [...selectedVals, ...sliced.filter((o: string) => !selectedVals.includes(o))]);
+                                                      } else {
+                                                        setColumnFilterValues(col.key, selectedVals.filter((v: string) => !sliced.includes(v)));
+                                                      }
                                                     }}
                                                     className="rounded cursor-pointer accent-[#1351B4] w-3 h-3 flex-shrink-0"
                                                   />
-                                                  <span className="truncate">{col.key === 'emenda' ? formatEmendaNumber(opt) : (opt || '(vazio)')}</span>
-                                                </label>
-                                              ));
+                                                  <span>Selecionar todos</span>
+                                                </label>,
+                                                ...sliced.map((opt: string) => (
+                                                  <label key={opt} className="flex items-center gap-1.5 px-2 py-1 hover:bg-blue-50 cursor-pointer text-[11px] text-gray-700">
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={selectedVals.includes(opt)}
+                                                      onChange={() => {
+                                                        const newValues = selectedVals.includes(opt)
+                                                          ? selectedVals.filter((v: string) => v !== opt)
+                                                          : [...selectedVals, opt];
+                                                        setColumnFilterValues(col.key, newValues);
+                                                      }}
+                                                      className="rounded cursor-pointer accent-[#1351B4] w-3 h-3 flex-shrink-0"
+                                                    />
+                                                    <span className="truncate">{col.key === 'emenda' ? formatEmendaNumber(opt) : (opt || '(vazio)')}</span>
+                                                  </label>
+                                                ))
+                                              ];
                                             })()}
                                           </div>
                                           <div className="border-t border-gray-100 px-2 py-1.5 flex gap-1">
