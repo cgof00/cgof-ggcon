@@ -718,6 +718,7 @@ export default function App() {
   const [showOnlyEmptyFields, setShowOnlyEmptyFields] = useState<{ [key: string]: boolean }>({});
   // Estado para ocultar demandas concluídas (padrão false para mostrar TODOS os registros)
   const [hideConcluidas, setHideConcluidas] = useState(false);
+  const [showSomenteMinhas, setShowSomenteMinhas] = useState(false);
   // Estado para larguras de colunas (redimensionamento estilo Excel)
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
   const resizingColRef = useRef<string | null>(null);
@@ -1762,7 +1763,7 @@ export default function App() {
 
   // Função para buscar formalizações com filtros do servidor
   // ⚡ TOTAL CACHE: Carrega TUDO (não há limite de batches)
-  const fetchFormalizacoesComFiltros = async (page: number = 0, filtersParam?: any, hideConcluidasOverride?: boolean) => {
+  const fetchFormalizacoesComFiltros = async (page: number = 0, filtersParam?: any, hideConcluidasOverride?: boolean, showSomenteMinhasOverride?: boolean) => {
     try {
       setFormalizacaoSearchResult(prev => ({ ...prev, loading: true }));
       
@@ -2049,6 +2050,17 @@ export default function App() {
         }
         return true;
       });
+
+      // Filtrar somente minhas demandas
+      const showSomenteMinhasAtual = showSomenteMinhasOverride !== undefined ? showSomenteMinhasOverride : showSomenteMinhas;
+      if (showSomenteMinhasAtual && user?.nome) {
+        const nomeUsuario = user.nome.toLowerCase().trim();
+        filteredData = filteredData.filter(f => {
+          const tecnico = String(f.tecnico || '').toLowerCase().trim();
+          const conferencista = String(f.conferencista || '').toLowerCase().trim();
+          return tecnico === nomeUsuario || conferencista === nomeUsuario;
+        });
+      }
 
       // Aplicar "Ocultar Concluídas" para usuário comum
       const hideConcluidasAtual = hideConcluidasOverride !== undefined ? hideConcluidasOverride : hideConcluidas;
@@ -3284,6 +3296,21 @@ export default function App() {
                           />
                           <span className="text-gray-600 font-medium">Mostrar Concluídas</span>
                         </label>
+                        {/* Somente Minhas Demandas */}
+                        {user?.nome && (
+                          <label className="flex items-center gap-1.5 text-[10px] cursor-pointer hover:bg-gray-100 px-1.5 py-0.5 rounded mr-2">
+                            <input
+                              type="checkbox"
+                              checked={showSomenteMinhas}
+                              onChange={(e) => {
+                                setShowSomenteMinhas(e.target.checked);
+                                fetchFormalizacoesComFiltros(0, undefined, undefined, e.target.checked);
+                              }}
+                              className="rounded cursor-pointer accent-[#1351B4] w-3 h-3"
+                            />
+                            <span className="text-gray-600 font-medium">Somente minhas demandas</span>
+                          </label>
+                        )}
                         <span className="text-[10px] text-gray-500">
                           {formalizacaoSearchResult.total.toLocaleString('pt-BR')} registros
                           {hideConcluidas && allDataCacheRef.current && allDataCacheRef.current.length > formalizacaoSearchResult.total && (
