@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Plus, Trash2, Shield, UserCheck, AlertCircle, Copy, CheckCircle, X, Key, Lock, Edit3, Loader2 } from 'lucide-react';
+import { Users, Plus, Trash2, Shield, UserCheck, AlertCircle, Copy, CheckCircle, X, Key, Lock, Edit3, Loader2, MoreVertical } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
 interface Usuario {
@@ -42,6 +42,21 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
   const [showEditModal, setShowEditModal] = useState(false);
   const [editFormData, setEditFormData] = useState({ nome: '', email: '', role: 'usuario' as 'admin' | 'usuario' });
   const [editUsuarioId, setEditUsuarioId] = useState<number | null>(null);
+
+  // Hamburger menu state
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // Apenas admins podem acessar esse painel
   if (user?.role !== 'admin') {
@@ -408,19 +423,81 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
                   {usuarios.map((u) => (
                     <div key={u.id} className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all">
                       <div className="flex items-start justify-between mb-2">
-                        <div>
+                        <div className="flex-1 min-w-0 pr-2">
                           <p className="font-bold text-slate-900">{u.nome}</p>
                           <p className="text-xs text-slate-600">{u.email}</p>
                         </div>
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                          u.ativo 
-                            ? 'bg-green-100 text-green-700' 
-                            : 'bg-red-100 text-red-700'
-                        }`}>
-                          {u.ativo ? 'Ativo' : 'Inativo'}
-                        </span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                            u.ativo
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {u.ativo ? 'Ativo' : 'Inativo'}
+                          </span>
+                          {/* Hamburger menu */}
+                          <div className="relative" ref={openMenuId === u.id ? menuRef : undefined}>
+                            <button
+                              onClick={() => setOpenMenuId(openMenuId === u.id ? null : u.id)}
+                              className="p-1.5 rounded-md hover:bg-slate-200 transition-colors text-slate-500 hover:text-slate-800"
+                              title="Ações"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                            <AnimatePresence>
+                              {openMenuId === u.id && (
+                                <motion.div
+                                  initial={{ opacity: 0, scale: 0.9, y: -4 }}
+                                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                                  exit={{ opacity: 0, scale: 0.9, y: -4 }}
+                                  transition={{ duration: 0.12 }}
+                                  className="absolute right-0 top-8 z-50 bg-white rounded-xl shadow-lg border border-slate-200 w-44 py-1 overflow-hidden"
+                                >
+                                  <button
+                                    onClick={() => { setOpenMenuId(null); abrirEditModal(u); }}
+                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-indigo-700 hover:bg-indigo-50 transition-colors"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                    Editar
+                                  </button>
+                                  <button
+                                    onClick={() => { setOpenMenuId(null); handleToggleAtivo(u.id, !u.ativo); }}
+                                    className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
+                                      u.ativo ? 'text-red-700 hover:bg-red-50' : 'text-green-700 hover:bg-green-50'
+                                    }`}
+                                  >
+                                    <UserCheck className="w-3.5 h-3.5" />
+                                    {u.ativo ? 'Desativar' : 'Ativar'}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setOpenMenuId(null);
+                                      setUsuarioSelecionado(u);
+                                      setNovaSenha('');
+                                      setErro('');
+                                      setSuccessMessage('');
+                                      setShowSenhaModal(true);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-blue-700 hover:bg-blue-50 transition-colors"
+                                  >
+                                    <Key className="w-3.5 h-3.5" />
+                                    Alterar Senha
+                                  </button>
+                                  <div className="border-t border-slate-100 my-1" />
+                                  <button
+                                    onClick={() => { setOpenMenuId(null); handleDeletarUsuario(u.id); }}
+                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-700 hover:bg-red-50 transition-colors"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Deletar
+                                  </button>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 mb-3">
+                      <div className="flex items-center gap-2">
                         {u.role === 'admin' ? (
                           <>
                             <Shield className="w-4 h-4 text-orange-600" />
@@ -432,45 +509,6 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
                             <span className="text-xs font-medium text-blue-600">Padrão</span>
                           </>
                         )}
-                      </div>
-                      <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={() => abrirEditModal(u)}
-                          className="flex-1 text-xs font-bold py-1.5 px-2 rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors flex items-center justify-center gap-1"
-                        >
-                          <Edit3 className="w-3 h-3" />
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleToggleAtivo(u.id, !u.ativo)}
-                          className={`flex-1 text-xs font-bold py-1.5 px-2 rounded transition-colors ${
-                            u.ativo
-                              ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                              : 'bg-green-100 text-green-700 hover:bg-green-200'
-                          }`}
-                        >
-                          {u.ativo ? 'Desativar' : 'Ativar'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setUsuarioSelecionado(u);
-                            setNovaSenha('');
-                            setErro('');
-                            setSuccessMessage('');
-                            setShowSenhaModal(true);
-                          }}
-                          className="flex-1 text-xs font-bold py-1.5 px-2 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors flex items-center justify-center gap-1"
-                        >
-                          <Key className="w-3 h-3" />
-                          Senha
-                        </button>
-                        <button
-                          onClick={() => handleDeletarUsuario(u.id)}
-                          className="flex-1 text-xs font-bold py-1.5 px-2 rounded bg-red-100 text-red-700 hover:bg-red-200 transition-colors flex items-center justify-center gap-1"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          Deletar
-                        </button>
                       </div>
                     </div>
                   ))}
