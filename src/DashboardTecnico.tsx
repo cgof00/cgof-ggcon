@@ -479,25 +479,30 @@ function DrilldownModal({
 }
 
 // ─── Timeline helpers & constants ──────────────────────────────────────────
+// Ordered stages of a demand's lifecycle (last = concluded, excluded from pending view)
 const TIMELINE_STAGES = [
-  { key: 'data_liberacao'                       as keyof FormalizacaoRow, label: 'Liberação',        short: 'Lib.',    dot: 'bg-blue-500',    ring: 'border-blue-300'    },
-  { key: 'data_analise_demanda'                 as keyof FormalizacaoRow, label: 'Análise Téc.',     short: 'Anál.',   dot: 'bg-indigo-500',  ring: 'border-indigo-300'  },
-  { key: 'data_recebimento_demanda'             as keyof FormalizacaoRow, label: 'Receb. Conf.',     short: 'R.Conf.', dot: 'bg-violet-500',  ring: 'border-violet-300'  },
-  { key: 'data_liberacao_assinatura_conferencista' as keyof FormalizacaoRow, label: 'Lib. Assin. Conf.', short: 'L.Conf.', dot: 'bg-purple-500',  ring: 'border-purple-300'  },
-  { key: 'data_liberacao_assinatura'            as keyof FormalizacaoRow, label: 'Lib. Assinatura', short: 'L.Ass.', dot: 'bg-orange-500',  ring: 'border-orange-300'  },
-  { key: 'assinatura'                           as keyof FormalizacaoRow, label: 'Assinatura',       short: 'Assin.',  dot: 'bg-amber-500',   ring: 'border-amber-300'   },
-  { key: 'publicacao'                           as keyof FormalizacaoRow, label: 'Publicação',       short: 'Publ.',   dot: 'bg-teal-500',    ring: 'border-teal-300'    },
-  { key: 'concluida_em'                         as keyof FormalizacaoRow, label: 'Concluída',        short: 'Conc.',   dot: 'bg-emerald-500', ring: 'border-emerald-300' },
+  { key: 'data_liberacao'                          as keyof FormalizacaoRow, label: 'Liberação',                  short: 'Liberação',      dot: 'bg-blue-600'    },
+  { key: 'data_analise_demanda'                    as keyof FormalizacaoRow, label: 'Análise Técnica',             short: 'Anál. Técnica',  dot: 'bg-indigo-500'  },
+  { key: 'data_recebimento_demanda'                as keyof FormalizacaoRow, label: 'Atrib. Conferencista',        short: 'Atrib. Conf.',   dot: 'bg-violet-500'  },
+  { key: 'data_liberacao_assinatura_conferencista' as keyof FormalizacaoRow, label: 'Conferência Concluída',       short: 'Conf. Concl.',   dot: 'bg-purple-500'  },
+  { key: 'data_liberacao_assinatura'               as keyof FormalizacaoRow, label: 'Lib. para Assinatura',        short: 'Lib. Assin.',    dot: 'bg-orange-500'  },
+  { key: 'assinatura'                              as keyof FormalizacaoRow, label: 'Assinado',                    short: 'Assinado',       dot: 'bg-amber-500'   },
+  { key: 'publicacao'                              as keyof FormalizacaoRow, label: 'Publicado no DOE',             short: 'Publicado',      dot: 'bg-teal-500'    },
+  { key: 'concluida_em'                            as keyof FormalizacaoRow, label: 'Concluído',                   short: 'Concluído',      dot: 'bg-emerald-500' },
 ] as const;
+
+// Stages shown in the pending view (all except 'Concluído')
+const ACTIVE_STAGES = TIMELINE_STAGES.slice(0, -1);
 
 function parseDateTL(s?: string | null): Date | null {
   if (!s?.trim()) return null;
   const d = new Date(s.includes('T') ? s : `${s}T00:00:00`);
   return isNaN(d.getTime()) ? null : d;
 }
-function daysTL(a: Date | null, b: Date | null): number | null {
-  if (!a || !b || b < a) return null;
-  return Math.round((b.getTime() - a.getTime()) / 86400000);
+function daysSinceTL(s?: string | null): number {
+  const d = parseDateTL(s);
+  if (!d) return 0;
+  return Math.max(0, Math.round((Date.now() - d.getTime()) / 86400000));
 }
 
 // ─── Timeline Section component ──────────────────────────────────────────────
@@ -511,81 +516,106 @@ function TimelineSection({
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const toggle = (name: string) =>
-    setExpanded(prev => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n; });
+  // Only include demands that are NOT yet concluded
+  const pending = useMemo(
+    () => filtered.filter(r => !(r.concluida_em ?? '').trim()),
+    [filtered]
+  );
+
+  // Determine which ACTIVE_STAGES index is the current stage for a demand
+  // = last ACTIVE stage that has a date filled
+  const getCurrentStageIdx = (r: FormalizacaoRow): number => {
+    for (let i = ACTIVE_STAGES.length - 1; i >= 0; i--) {
+      if ((r[ACTIVE_STAGES[i].key] as string)?.trim()) return i;
+    }
+    return -1;
+  };
 
   const grouped = useMemo(() => {
     const map = new Map<string, FormalizacaoRow[]>();
-    for (const r of filtered) {
+    for (const r of pending) {
       const p = String(r[personField] ?? '').trim() || '(não atribuído)';
       if (!map.has(p)) map.set(p, []);
       map.get(p)!.push(r);
     }
     return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
-  }, [filtered, personField]);
+  }, [pending, personField]);
 
-  if (grouped.length === 0) return null;
+  if (pending.length === 0) return (
+    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center">
+      <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+      <p className="text-emerald-700 font-bold text-sm">Todas as demandas estão concluídas!</p>
+    </div>
+  );
 
   return (
     <div>
-      <h3 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+      <h3 className="text-sm font-bold text-slate-700 mb-1 flex items-center gap-2">
         <Calendar className="w-4 h-4 text-[#1351B4]" />
-        Linha do Tempo — Ciclo de Vida das Demandas
-        <span className="text-[10px] text-slate-400 font-normal">({filtered.length.toLocaleString('pt-BR')} demandas · por {viewMode === 'tecnico' ? 'técnico' : 'conferencista'} · clique para expandir)</span>
+        Linha do Tempo — Demandas em Andamento
+        <span className="text-[10px] text-slate-400 font-normal">
+          ({pending.length.toLocaleString('pt-BR')} pendentes · concluídas ocultadas · por {viewMode === 'tecnico' ? 'técnico' : 'conferencista'})
+        </span>
       </h3>
+      <p className="text-[11px] text-slate-400 mb-3">
+        Mostra em qual etapa do processo cada demanda está. Clique no nome para ver o detalhe de cada uma.
+      </p>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-x-3 gap-y-1 mb-3">
-        {TIMELINE_STAGES.map(s => (
-          <div key={String(s.key)} className="flex items-center gap-1">
-            <span className={`w-2 h-2 rounded-full ${s.dot} flex-shrink-0`} />
-            <span className="text-[10px] text-slate-500">{s.label}</span>
+      {/* Stage legend — numbered for easy reference */}
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {ACTIVE_STAGES.map((s, i) => (
+          <div key={String(s.key)} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold text-white ${s.dot}`}>
+            <span className="opacity-60 text-[9px] font-black">{i + 1}</span>
+            {s.short}
           </div>
         ))}
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         {grouped.map(([person, rows]) => {
           const isOpen = expanded.has(person);
-          const concluidas = rows.filter(r => (r.concluida_em ?? '').trim()).length;
-          const pct = rows.length > 0 ? Math.round((concluidas / rows.length) * 100) : 0;
 
-          // Average days per consecutive-stage transition
-          const transitions = TIMELINE_STAGES.slice(0, -1).map((s, i) => {
-            const next = TIMELINE_STAGES[i + 1];
-            const pairs = rows
-              .map(r => ({ a: parseDateTL(r[s.key] as string), b: parseDateTL(r[next.key] as string) }))
-              .filter(p => p.a && p.b);
-            if (!pairs.length) return null;
-            const avg = Math.round(pairs.reduce((acc, p) => acc + daysTL(p.a, p.b)!, 0) / pairs.length);
-            return { from: s.short, to: next.short, fromDot: s.dot, avg, count: pairs.length };
-          }).filter(Boolean) as { from: string; to: string; fromDot: string; avg: number; count: number }[];
+          // Count how many demands are at each stage
+          const stageCounts = ACTIVE_STAGES.map((s, i) => ({
+            ...s, idx: i,
+            count: rows.filter(r => getCurrentStageIdx(r) === i).length,
+          })).filter(sc => sc.count > 0);
+
+          const maxDays = Math.max(0, ...rows.map(r => daysSinceTL(r.data_liberacao)));
 
           return (
             <div key={person} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              {/* ── Accordion header ─────────────────────────────── */}
               <button
-                onClick={() => toggle(person)}
-                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors text-left"
+                onClick={() => { const n = new Set(expanded); n.has(person) ? n.delete(person) : n.add(person); setExpanded(n); }}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
               >
                 {isOpen
-                  ? <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                  : <ChevronRight className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />}
-                <span className="text-sm font-bold text-slate-800 flex-1 truncate">{person}</span>
-                <div className="flex items-center gap-3 flex-shrink-0 text-[11px]">
-                  <span className="text-slate-500">{rows.length} dem.</span>
-                  <span className={`font-bold px-2 py-0.5 rounded-full ${
-                    pct >= 80 ? 'bg-emerald-100 text-emerald-700'
-                    : pct >= 40 ? 'bg-amber-100 text-amber-700'
-                    : 'bg-slate-100 text-slate-600'
-                  }`}>{pct}% concl.</span>
-                  {transitions.length > 0 && (
-                    <span className="text-slate-400 hidden sm:inline">
-                      Total médio: {transitions.reduce((a, t) => a + t.avg, 0)}d
-                    </span>
-                  )}
+                  ? <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  : <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                    <span className="text-sm font-bold text-slate-800">{person}</span>
+                    <span className="text-xs text-slate-400">{rows.length} demanda{rows.length !== 1 ? 's' : ''} pendente{rows.length !== 1 ? 's' : ''}</span>
+                    {maxDays > 90 && (
+                      <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                        ⚠ mais antiga aguarda há {maxDays} dias
+                      </span>
+                    )}
+                  </div>
+                  {/* Stage chips — "quantas estão em cada etapa" */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {stageCounts.map(sc => (
+                      <div key={String(sc.key)} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold text-white ${sc.dot}`}>
+                        <span>{sc.count}</span>
+                        <span className="opacity-90">em {sc.short}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </button>
 
+              {/* ── Expanded detail ───────────────────────────────── */}
               <AnimatePresence initial={false}>
                 {isOpen && (
                   <motion.div
@@ -595,112 +625,97 @@ function TimelineSection({
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden"
                   >
-                    {/* Avg transitions strip */}
-                    {transitions.length > 0 && (
-                      <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 flex flex-wrap gap-2">
-                        {transitions.map(t => (
-                          <div key={`${t.from}-${t.to}`} className="flex items-center gap-1 text-[10px]">
-                            <span className={`w-2 h-2 rounded-full ${t.fromDot} flex-shrink-0`} />
-                            <span className="text-slate-500">{t.from}→{t.to}:</span>
-                            <span className={`font-black px-1 rounded ${
-                              t.avg > 30 ? 'text-red-600 bg-red-50'
-                              : t.avg > 14 ? 'text-amber-700 bg-amber-50'
-                              : 'text-emerald-700 bg-emerald-50'
-                            }`}>{t.avg}d</span>
-                            <span className="text-slate-300">({t.count})</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Per-demand rows */}
                     <div className="border-t border-slate-100 overflow-x-auto">
                       {/* Column header */}
-                      <div className="flex items-center gap-3 px-4 py-1 bg-slate-100 min-w-max">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase w-32 flex-shrink-0">Demanda</span>
-                        <div className="flex items-center gap-0 flex-1 min-w-[200px]">
-                          {TIMELINE_STAGES.map((s, i) => (
-                            <React.Fragment key={String(s.key)}>
-                              <span className="text-[9px] font-bold text-slate-400 w-3 text-center flex-shrink-0">{s.short[0]}</span>
-                              {i < TIMELINE_STAGES.length - 1 && <div className="flex-1 min-w-[6px]" />}
-                            </React.Fragment>
-                          ))}
-                        </div>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase w-12 text-right flex-shrink-0">Dias</span>
+                      <div className="flex gap-3 px-4 py-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wide min-w-max border-b border-slate-100">
+                        <span className="w-36 flex-shrink-0">Nº / Nome da Demanda</span>
+                        <span className="w-52 flex-shrink-0">Etapa Atual (há quantos dias)</span>
+                        <span className="w-36 flex-shrink-0">Progresso no Processo</span>
+                        <span className="w-24 flex-shrink-0 text-right">Aguardando há</span>
                       </div>
 
-                      {rows.slice(0, 30).map((r, idx) => {
-                        const dates = TIMELINE_STAGES.map(s => ({
-                          stage: s,
-                          val: (r[s.key] as string | undefined)?.trim() || null,
-                        }));
-                        const libDate = parseDateTL(r.data_liberacao);
-                        const concDate = parseDateTL(r.concluida_em);
-                        const today = new Date();
-                        const totalDias = libDate
-                          ? Math.max(0, Math.round(((concDate ?? today).getTime() - libDate.getTime()) / 86400000))
-                          : null;
+                      {[...rows]
+                        .sort((a, b) => daysSinceTL(b.data_liberacao) - daysSinceTL(a.data_liberacao))
+                        .slice(0, 50)
+                        .map((r, idx) => {
+                          const si = getCurrentStageIdx(r);
+                          const stage = si >= 0 ? ACTIVE_STAGES[si] : null;
+                          const daysAtStage = stage ? daysSinceTL(r[stage.key] as string) : 0;
+                          const daysTotal = daysSinceTL(r.data_liberacao);
+                          // Progress: fraction of stages completed
+                          const pct = si >= 0 ? Math.round(((si + 1) / ACTIVE_STAGES.length) * 100) : 0;
+                          const demandaLabel = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`);
 
-                        return (
-                          <div
-                            key={r.id ?? idx}
-                            className={`flex items-center gap-3 px-4 py-1.5 border-b border-slate-50 last:border-0 min-w-max ${
-                              idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
-                            }`}
-                          >
-                            <button
-                              onClick={() => openDrilldown(
-                                `${String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`)} — ${person}`, [r]
-                              )}
-                              className="text-[11px] font-medium text-slate-700 hover:text-[#1351B4] w-32 flex-shrink-0 truncate text-left transition-colors"
-                              title={String(r.demandas_formalizacao ?? r.demanda ?? '')}
+                          return (
+                            <div
+                              key={r.id ?? idx}
+                              className={`flex gap-3 items-center px-4 py-2.5 border-b border-slate-50 last:border-0 min-w-max ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}
                             >
-                              {String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`)}
-                            </button>
+                              {/* Demand name */}
+                              <button
+                                onClick={() => openDrilldown(`${demandaLabel} — ${person}`, [r])}
+                                className="w-36 flex-shrink-0 text-[12px] font-semibold text-slate-700 hover:text-[#1351B4] text-left truncate transition-colors"
+                                title={demandaLabel}
+                              >
+                                {demandaLabel}
+                              </button>
 
-                            {/* Timeline dots + connectors */}
-                            <div className="flex items-center gap-0 flex-1 min-w-[200px]">
-                              {dates.map((d, di) => (
-                                <React.Fragment key={di}>
+                              {/* Current stage as a clear badge */}
+                              <div className="w-52 flex-shrink-0">
+                                {stage ? (
+                                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-[11px] font-bold leading-none ${stage.dot}`}>
+                                    <span className="opacity-60 text-[9px] font-black">{si + 1}.</span>
+                                    <span>{stage.label}</span>
+                                    {daysAtStage > 0 && (
+                                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${daysAtStage > 30 ? 'bg-black/30' : 'bg-black/15'}`}>
+                                        {daysAtStage}d
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-slate-400 italic">sem etapa registrada</span>
+                                )}
+                              </div>
+
+                              {/* Progress bar + fraction */}
+                              <div className="w-36 flex-shrink-0 flex items-center gap-2">
+                                <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
                                   <div
-                                    title={`${d.stage.label}: ${d.val ?? 'não preenchido'}`}
-                                    className={`w-3 h-3 rounded-full flex-shrink-0 border-2 transition-all ${
-                                      d.val
-                                        ? `${d.stage.dot} border-transparent`
-                                        : 'bg-white border-slate-300'
+                                    className={`h-full rounded-full transition-all ${
+                                      pct >= 85 ? 'bg-emerald-500'
+                                      : pct >= 55 ? 'bg-blue-500'
+                                      : pct >= 30 ? 'bg-amber-500'
+                                      : 'bg-slate-400'
                                     }`}
+                                    style={{ width: `${pct}%` }}
                                   />
-                                  {di < dates.length - 1 && (
-                                    <div className={`flex-1 h-0.5 min-w-[6px] ${
-                                      d.val && dates[di + 1].val ? 'bg-slate-400' : 'bg-slate-200'
-                                    }`} />
-                                  )}
-                                </React.Fragment>
-                              ))}
-                            </div>
-
-                            <div className="flex-shrink-0 text-[11px] font-bold text-right w-12">
-                              {totalDias !== null ? (
-                                <span className={
-                                  concDate ? 'text-emerald-600'
-                                  : totalDias > 90 ? 'text-red-600'
-                                  : totalDias > 30 ? 'text-amber-600'
-                                  : 'text-slate-500'
-                                }>
-                                  {totalDias}d{concDate ? ' ✓' : ''}
+                                </div>
+                                <span className="text-[10px] text-slate-500 flex-shrink-0 whitespace-nowrap">
+                                  etapa {si >= 0 ? si + 1 : '?'} de {ACTIVE_STAGES.length}
                                 </span>
-                              ) : '—'}
-                            </div>
-                          </div>
-                        );
-                      })}
+                              </div>
 
-                      {rows.length > 30 && (
+                              {/* Total waiting time */}
+                              <div className="w-24 flex-shrink-0 text-right">
+                                <span className={`text-[12px] font-bold ${
+                                  daysTotal > 90 ? 'text-red-600'
+                                  : daysTotal > 30 ? 'text-amber-600'
+                                  : 'text-slate-500'
+                                }`}>
+                                  {daysTotal > 0 ? `${daysTotal} dias` : '—'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      }
+
+                      {rows.length > 50 && (
                         <button
-                          onClick={() => openDrilldown(`${person} — Todas as demandas (${rows.length})`, rows)}
-                          className="w-full py-2 text-xs font-bold text-[#1351B4] hover:bg-blue-50 transition-colors border-t border-slate-100"
+                          onClick={() => openDrilldown(`${person} — Todas as pendências (${rows.length})`, rows)}
+                          className="w-full py-2.5 text-xs font-bold text-[#1351B4] hover:bg-blue-50 transition-colors border-t border-slate-100"
                         >
-                          Ver todas as {rows.length} demandas →
+                          + Ver todas as {rows.length} demandas →
                         </button>
                       )}
                     </div>
