@@ -1287,6 +1287,44 @@ export default function App() {
     }
   }, [formalizacoes, isAdmin]);
 
+  // 🔔 Alertas de Encaminhamento ao Financeiro: encaminhado_em <= hoje e não concluída
+  useEffect(() => {
+    if (!isAdmin || formalizacoes.length === 0) return;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const parseD = (s: string): Date | null => {
+      if (!s) return null;
+      const br = s.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (br) return new Date(+br[3], +br[2] - 1, +br[1]);
+      const iso = s.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]);
+      return null;
+    };
+    const pending = formalizacoes.filter((f: Formalizacao) => {
+      if (!f.encaminhado_em || String(f.encaminhado_em).trim() === '') return false;
+      if (f.concluida_em && String(f.concluida_em).trim() !== '') return false;
+      const encDate = parseD(f.encaminhado_em);
+      if (!encDate) return false;
+      encDate.setHours(0, 0, 0, 0);
+      return encDate <= today;
+    }).filter((f: Formalizacao) => !alertasVistosRef.current.has(`encaminhar:${f.id}:${f.encaminhado_em}`));
+    if (pending.length > 0) {
+      setAdminAlertas(prev => {
+        const existingIds = new Set(prev.filter(a => a.tipo === 'Encaminhar ao Financeiro').map(a => a.id));
+        const pendingIds = new Set(pending.map((f: Formalizacao) => f.id));
+        if (existingIds.size === pendingIds.size && [...pendingIds].every(id => existingIds.has(id))) return prev;
+        const cleaned = prev.filter(a => a.tipo !== 'Encaminhar ao Financeiro');
+        const newAlerts = pending.map((f: Formalizacao) => ({
+          id: f.id,
+          tipo: 'Encaminhar ao Financeiro',
+          descricao: `Demanda ${f.demandas_formalizacao || f.demanda || `#${f.id}`} — Encaminhar desde ${formatDateForDisplay(f.encaminhado_em || '')}`,
+          data: f.encaminhado_em || ''
+        }));
+        return [...cleaned, ...newAlerts];
+      });
+    }
+  }, [formalizacoes, isAdmin]);
+
   // 🔔 Auto-show modal when new admin alerts arrive
   useEffect(() => {
     if (!isAdmin || adminAlertas.length === 0) return;
@@ -2639,8 +2677,12 @@ export default function App() {
                 const handleClearAll = () => {
                   if (isAdmin) {
                     adminAlertas.forEach(a => {
-                      const f = allDataCacheRef.current.find(x => x.id === a.id) || formalizacoes.find(x => x.id === a.id);
-                      if (f) alertasVistosRef.current.add(makeAlertKey(f));
+                      if (a.tipo === 'Encaminhar ao Financeiro') {
+                        alertasVistosRef.current.add(`encaminhar:${a.id}:${a.data}`);
+                      } else {
+                        const f = allDataCacheRef.current.find(x => x.id === a.id) || formalizacoes.find(x => x.id === a.id);
+                        if (f) alertasVistosRef.current.add(makeAlertKey(f));
+                      }
                     });
                     saveAlertasVistos(alertasVistosRef.current);
                     setAdminAlertas([]);
@@ -2721,6 +2763,8 @@ export default function App() {
                                     ? 'bg-sky-100 text-sky-700 border border-sky-200'
                                     : a.tipo === 'Analisada'
                                     ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                    : a.tipo === 'Encaminhar ao Financeiro'
+                                    ? 'bg-amber-100 text-amber-700 border border-amber-200'
                                     : 'bg-violet-100 text-violet-700 border border-violet-200'
                                 }`}>{a.tipo}</span>
                                 {a.data && <span className="text-[10px] text-gray-400">{formatDateForDisplay(a.data)}</span>}
@@ -3403,7 +3447,14 @@ export default function App() {
                           { key: 'publicacao', label: 'Publicação', render: (f: any) => formatDateForDisplay(f.publicacao || '—') },
                           { key: 'vigencia', label: 'Vigência', render: (f: any) => formatDateForDisplay(f.vigencia || '—') },
                           { key: 'encaminhado_em', label: 'Encaminhado em', render: (f: any) => formatDateForDisplay(f.encaminhado_em || '—') },
-                          { key: 'concluida_em', label: 'Concluída em', render: (f: any) => formatDateForDisplay(f.concluida_em || '—') }
+                          { key: 'concluida_em', label: 'Concluída em', render: (f: any) => {
+                            if (!f.concluida_em || String(f.concluida_em).trim() === '' || f.concluida_em === '—') return '—';
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold border border-emerald-200 whitespace-nowrap">
+                                <CheckCircle2 className="w-3 h-3" /> Concluída
+                              </span>
+                            );
+                          } }
                         ];
                         
                         const visibleCols = columnDefinitions.filter(col => visibleColumns[col.key as keyof typeof visibleColumns]);
@@ -4650,12 +4701,69 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                             className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all ${isDisabled('assinatura', true) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
                           />
                         </div>
-                        <Input label="Publicação" name="publicacao" type="date" defaultValue={toInputDate(editingFormalizacao?.publicacao)} disabled={isDisabled('publicacao')} />
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Publicação</label>
+                          <input
+                            type="date"
+                            name="publicacao"
+                            defaultValue={toInputDate(editingFormalizacao?.publicacao)}
+                            disabled={isDisabled('publicacao')}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                const pub = new Date(e.target.value + 'T12:00:00');
+                                const day = pub.getDay();
+                                const daysToAdd = ((3 - day + 7) % 7) || 7;
+                                const nextWed = new Date(pub);
+                                nextWed.setDate(pub.getDate() + daysToAdd);
+                                const enc = document.getElementById('encaminhado_em_input') as HTMLInputElement;
+                                if (enc && !enc.disabled && !enc.value) {
+                                  enc.value = nextWed.toISOString().split('T')[0];
+                                }
+                              }
+                            }}
+                            className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all ${isDisabled('publicacao', true) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                          />
+                        </div>
                         <Input label="Vigência" name="vigencia" type="date" defaultValue={toInputDate(editingFormalizacao?.vigencia)} disabled={isDisabled('vigencia')} />
-                        <Input label="Encaminhado em" name="encaminhado_em" type="date" defaultValue={toInputDate(editingFormalizacao?.encaminhado_em)} disabled={isDisabled('encaminhado_em')} />
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Encaminhado em</label>
+                          <input
+                            id="encaminhado_em_input"
+                            type="date"
+                            name="encaminhado_em"
+                            defaultValue={toInputDate(editingFormalizacao?.encaminhado_em)}
+                            disabled={isDisabled('encaminhado_em')}
+                            className={`w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all ${isDisabled('encaminhado_em', true) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                          />
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
-                        <Input label="Concluída em" name="concluida_em" type="date" defaultValue={toInputDate(editingFormalizacao?.concluida_em)} disabled={isDisabled('concluida_em')} />
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[11px] font-semibold text-gray-500 ml-0.5">Concluída em</label>
+                          <div className="flex gap-2 items-center">
+                            <input
+                              id="concluida_em_input"
+                              type="date"
+                              name="concluida_em"
+                              defaultValue={toInputDate(editingFormalizacao?.concluida_em)}
+                              disabled={isDisabled('concluida_em')}
+                              className={`flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all ${isDisabled('concluida_em') ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                            />
+                            {!isDisabled('concluida_em') && !(editingFormalizacao?.concluida_em) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const inp = document.getElementById('concluida_em_input') as HTMLInputElement;
+                                  if (inp) inp.value = new Date().toISOString().split('T')[0];
+                                }}
+                                className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-semibold rounded-lg transition-colors flex items-center gap-1 flex-shrink-0"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Concluir
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
