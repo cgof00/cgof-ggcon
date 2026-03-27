@@ -70,6 +70,37 @@ type ColKey = typeof FIXED_COLS[number]['key'];
 const stg = (r: FormalizacaoRow) => (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
 const cls = (r: FormalizacaoRow) => (r.classificacao_emenda_demanda ?? '').trim().toUpperCase();
 
+// ─── Situação color mapping ───────────────────────────────────────────────
+function getSituacaoStyle(label: string): { bar: string; badge: string; border: string } {
+  const u = label.toUpperCase();
+  if (u.includes('CANCELAD'))       return { bar: 'from-red-500 to-red-700',         badge: 'bg-red-600',     border: 'border-red-300' };
+  if (u.includes('EXCLUÍD') || u.includes('EXCLUIDA') || u.includes('EXCLUÍDO'))
+                                    return { bar: 'from-rose-700 to-red-900',         badge: 'bg-rose-700',    border: 'border-rose-300' };
+  if (u.includes('IMPEDID') || u.includes('IMPEDIMENTO') || u.includes('BLOQUEADA'))
+                                    return { bar: 'from-orange-600 to-red-600',       badge: 'bg-orange-600',  border: 'border-orange-300' };
+  if (u.includes('DEVOLVID') || u.includes('DEVOLUÇÃO'))
+                                    return { bar: 'from-orange-400 to-orange-600',   badge: 'bg-orange-500',  border: 'border-orange-200' };
+  if (u.includes('SUSPENS') || u.includes('PARALISAD'))
+                                    return { bar: 'from-amber-500 to-amber-700',      badge: 'bg-amber-600',   border: 'border-amber-300' };
+  if (u.includes('ARQUIVAD') || u.includes('INAPTA') || u.includes('INAPTO'))
+                                    return { bar: 'from-gray-500 to-gray-700',        badge: 'bg-gray-600',    border: 'border-gray-300' };
+  if (u.includes('CONCLUÍD') || u.includes('CONCLUIDA') || u.includes('CONCLUÍDO'))
+                                    return { bar: 'from-emerald-500 to-emerald-700',  badge: 'bg-emerald-600', border: 'border-emerald-300' };
+  if (u.includes('APROVAD') || u.includes('REGULAR'))
+                                    return { bar: 'from-blue-500 to-blue-700',        badge: 'bg-blue-600',    border: 'border-blue-300' };
+  if (u.includes('DILIGÊNCIA') || u.includes('DILIGENCIA'))
+                                    return { bar: 'from-amber-600 to-orange-600',     badge: 'bg-amber-700',   border: 'border-amber-300' };
+  if (u.includes('ANÁLISE') || u.includes('ANALISE'))
+                                    return { bar: 'from-indigo-500 to-indigo-700',    badge: 'bg-indigo-600',  border: 'border-indigo-300' };
+  if (u.includes('PENDÊNCIA') || u.includes('PENDENCIA') || u.includes('AGUARDAND'))
+                                    return { bar: 'from-amber-400 to-amber-600',      badge: 'bg-amber-500',   border: 'border-amber-200' };
+  if (u.includes('FORMALIZ'))       return { bar: 'from-cyan-500 to-cyan-700',        badge: 'bg-cyan-600',    border: 'border-cyan-300' };
+  if (u.includes('CONFERÊN') || u.includes('CONFERENCIA'))
+                                    return { bar: 'from-sky-500 to-sky-700',          badge: 'bg-sky-600',     border: 'border-sky-300' };
+  if (u.includes('ASSINATURA'))     return { bar: 'from-teal-500 to-teal-700',        badge: 'bg-teal-600',    border: 'border-teal-300' };
+  return                              { bar: 'from-slate-500 to-slate-700',        badge: 'bg-slate-600',   border: 'border-slate-300' };
+}
+
 // Stages that count toward Total GGCON (Diligência excluded)
 const GGCON_STAGES = new Set([
   'DEMANDA COM O TÉCNICO',
@@ -903,59 +934,173 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             </div>
           </div>
 
-          {/* ── Stage Summary Cards ───────────────────────────────────── */}
-          {!compact && (
-            <div>
-              <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-[#1351B4]" />
-                Resumo por Estágio / Situação da Demanda
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 gap-2">
-                {FIXED_COLS.map(col => {
-                  const count = matrixData.totalCols[col.key] || 0;
-                  const pct = filtered.length > 0 ? Math.round((count / filtered.length) * 100) : 0;
-                  const colLabel = `${col.line1}${col.line2 ? ' ' + col.line2 : ''}`;
-                  const barColor = col.key === 'total_ggcon' ? 'from-blue-500 to-blue-700'
-                    : col.key === 'concluida' ? 'from-emerald-500 to-emerald-700'
-                    : col.key === 'transf_vol' ? 'from-teal-500 to-teal-700'
-                    : col.key === 'emenda_loa' ? 'from-violet-500 to-violet-700'
-                    : col.key === 'diligencia' ? 'from-amber-500 to-amber-700'
-                    : 'from-red-500 to-red-700';
-                  return (
-                    <motion.button
-                      key={col.key}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => openDrilldown(`${colLabel} (${count})`, getColRows(col.key, filtered))}
-                      className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 text-left hover:shadow-md hover:border-[#1351B4]/40 transition-all group"
-                    >
-                      <div className="flex items-start justify-between mb-1.5">
-                        <div className="text-[10px] font-bold text-slate-500 uppercase leading-tight flex-1 pr-1">
-                          {colLabel}
+          {/* ── Demonstrativo por Situação Análise ───────────────────── */}
+          {!compact && (() => {
+            const gruposSitAnaliseSorted = Object.entries(
+              filtered.reduce<Record<string, FormalizacaoRow[]>>((acc, r) => {
+                const key = (r.situacao_analise_demanda ?? '').trim() || '(não informado)';
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(r);
+                return acc;
+              }, {})
+            ).sort((a, b) => b[1].length - a[1].length);
+            if (gruposSitAnaliseSorted.length === 0) return null;
+            return (
+              <div>
+                <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-[#1351B4]" />
+                  Demonstrativo por Situação Análise
+                  <span className="text-[10px] text-slate-400 font-normal">({gruposSitAnaliseSorted.length} situações · {filtered.length.toLocaleString('pt-BR')} demandas)</span>
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
+                  {gruposSitAnaliseSorted.map(([situacao, rows]) => {
+                    const count = rows.length;
+                    const pct = filtered.length > 0 ? Math.round((count / filtered.length) * 100) : 0;
+                    const sty = getSituacaoStyle(situacao);
+                    return (
+                      <motion.button
+                        key={situacao}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => openDrilldown(`Situação Análise: ${situacao} (${count})`, rows)}
+                        className={`bg-white rounded-xl border ${sty.border} shadow-sm p-3 text-left hover:shadow-md transition-all group`}
+                      >
+                        <div className="flex items-start justify-between mb-1.5">
+                          <div className="text-[10px] font-bold text-slate-600 uppercase leading-tight flex-1 pr-1">{situacao}</div>
+                          <span className={`text-xs font-black px-1.5 py-0.5 rounded flex-shrink-0 text-white ${sty.badge}`}>
+                            {count.toLocaleString('pt-BR')}
+                          </span>
                         </div>
-                        <span className={`text-xs font-black px-1.5 py-0.5 rounded flex-shrink-0 text-white ${col.key === 'total_ggcon' ? 'bg-blue-600' : col.key === 'concluida' ? 'bg-emerald-600' : col.key === 'transf_vol' ? 'bg-teal-600' : col.key === 'emenda_loa' ? 'bg-violet-600' : col.key === 'diligencia' ? 'bg-amber-600' : 'bg-red-600'}`}>
-                          {count.toLocaleString('pt-BR')}
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${pct}%` }}
-                          transition={{ duration: 0.8, ease: 'easeOut' }}
-                          className={`h-full bg-gradient-to-r ${barColor} rounded-full`}
-                        />
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1 group-hover:text-[#1351B4] transition-colors">
-                        {pct}% do total
-                      </p>
-                    </motion.button>
-                  );
-                })}
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${pct}%` }}
+                            transition={{ duration: 0.8, ease: 'easeOut' }}
+                            className={`h-full bg-gradient-to-r ${sty.bar} rounded-full`}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1 group-hover:text-[#1351B4] transition-colors">{pct}% do total</p>
+                      </motion.button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
+
+          {/* ── Demonstrativo por Situação SemPapel ──────────────────── */}
+          {!compact && (() => {
+            const gruposSemPapel = Object.entries(
+              filtered.reduce<Record<string, FormalizacaoRow[]>>((acc, r) => {
+                const key = (r.situacao_demandas_sempapel ?? '').trim() || '(não informado)';
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(r);
+                return acc;
+              }, {})
+            ).sort((a, b) => b[1].length - a[1].length);
+            if (gruposSemPapel.length === 0) return null;
+            return (
+              <div>
+                <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#1351B4]" />
+                  Demonstrativo por Situação SemPapel
+                  <span className="text-[10px] text-slate-400 font-normal">({gruposSemPapel.length} situações)</span>
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
+                  {gruposSemPapel.map(([situacao, rows]) => {
+                    const count = rows.length;
+                    const pct = filtered.length > 0 ? Math.round((count / filtered.length) * 100) : 0;
+                    const sty = getSituacaoStyle(situacao);
+                    return (
+                      <motion.button
+                        key={situacao}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => openDrilldown(`SemPapel: ${situacao} (${count})`, rows)}
+                        className={`bg-white rounded-xl border ${sty.border} shadow-sm p-3 text-left hover:shadow-md transition-all group`}
+                      >
+                        <div className="flex items-start justify-between mb-1.5">
+                          <div className="text-[10px] font-bold text-slate-600 uppercase leading-tight flex-1 pr-1">{situacao}</div>
+                          <span className={`text-xs font-black px-1.5 py-0.5 rounded flex-shrink-0 text-white ${sty.badge}`}>
+                            {count.toLocaleString('pt-BR')}
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${pct}%` }}
+                            transition={{ duration: 0.8, ease: 'easeOut' }}
+                            className={`h-full bg-gradient-to-r ${sty.bar} rounded-full`}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1 group-hover:text-[#1351B4] transition-colors">{pct}% do total</p>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Demonstrativo por Área / Estágio / Situação ──────────── */}
+          {!compact && (() => {
+            const gruposArea = Object.entries(
+              filtered.reduce<Record<string, FormalizacaoRow[]>>((acc, r) => {
+                const key = (r.area_estagio_situacao_demanda ?? '').trim() || '(não informado)';
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(r);
+                return acc;
+              }, {})
+            ).sort((a, b) => b[1].length - a[1].length);
+            if (gruposArea.length === 0) return null;
+            return (
+              <div>
+                <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                  <PieChart className="w-4 h-4 text-[#1351B4]" />
+                  Demonstrativo por Área / Estágio / Situação
+                  <span className="text-[10px] text-slate-400 font-normal">({gruposArea.length} situações)</span>
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
+                  {gruposArea.map(([situacao, rows]) => {
+                    const count = rows.length;
+                    const pct = filtered.length > 0 ? Math.round((count / filtered.length) * 100) : 0;
+                    const sty = getSituacaoStyle(situacao);
+                    return (
+                      <motion.button
+                        key={situacao}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => openDrilldown(`Área/Situação: ${situacao} (${count})`, rows)}
+                        className={`bg-white rounded-xl border ${sty.border} shadow-sm p-3 text-left hover:shadow-md transition-all group`}
+                      >
+                        <div className="flex items-start justify-between mb-1.5">
+                          <div className="text-[10px] font-bold text-slate-600 uppercase leading-tight flex-1 pr-1">{situacao}</div>
+                          <span className={`text-xs font-black px-1.5 py-0.5 rounded flex-shrink-0 text-white ${sty.badge}`}>
+                            {count.toLocaleString('pt-BR')}
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${pct}%` }}
+                            transition={{ duration: 0.8, ease: 'easeOut' }}
+                            className={`h-full bg-gradient-to-r ${sty.bar} rounded-full`}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1 group-hover:text-[#1351B4] transition-colors">{pct}% do total</p>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ── Top 5 per column ─────────────────────────────────────── */}
           {!compact && (
