@@ -934,166 +934,56 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             </div>
           </div>
 
-          {/* ── Demonstrativo por Situação Análise ───────────────────── */}
+          {/* ── Demonstrativo de Situações Críticas ──────────────────── */}
           {!compact && (() => {
-            const gruposSitAnaliseSorted = Object.entries(
-              filtered.reduce<Record<string, FormalizacaoRow[]>>((acc, r) => {
-                const key = (r.situacao_analise_demanda ?? '').trim() || '(não informado)';
-                if (!acc[key]) acc[key] = [];
-                acc[key].push(r);
-                return acc;
-              }, {})
-            ).sort((a, b) => b[1].length - a[1].length);
-            if (gruposSitAnaliseSorted.length === 0) return null;
+            const isMatch = (r: FormalizacaoRow, keyword: string) => {
+              const u = keyword.toUpperCase();
+              return [r.situacao_analise_demanda, r.situacao_demandas_sempapel, r.area_estagio_situacao_demanda]
+                .some(v => (v ?? '').toUpperCase().includes(u));
+            };
+            const grupos = [
+              { label: 'Canceladas',  keyword: 'CANCELAD', sty: getSituacaoStyle('CANCELADA') },
+              { label: 'Impedidas',   keyword: 'IMPEDID',  sty: getSituacaoStyle('IMPEDIDA')  },
+              { label: 'Excluídas',   keyword: 'EXCLUÍD',  sty: getSituacaoStyle('EXCLUÍDA')  },
+            ].map(g => ({ ...g, rows: filtered.filter(r => isMatch(r, g.keyword)) }))
+             .filter(g => g.rows.length > 0);
+            if (grupos.length === 0) return null;
             return (
               <div>
                 <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-[#1351B4]" />
-                  Demonstrativo por Situação Análise
-                  <span className="text-[10px] text-slate-400 font-normal">({gruposSitAnaliseSorted.length} situações · {filtered.length.toLocaleString('pt-BR')} demandas)</span>
+                  <AlertCircle className="w-4 h-4 text-red-500" />
+                  Demonstrativo de Situações Críticas
+                  <span className="text-[10px] text-slate-400 font-normal">(Canceladas · Impedidas · Excluídas)</span>
                 </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
-                  {gruposSitAnaliseSorted.map(([situacao, rows]) => {
-                    const count = rows.length;
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {grupos.map(g => {
+                    const count = g.rows.length;
                     const pct = filtered.length > 0 ? Math.round((count / filtered.length) * 100) : 0;
-                    const sty = getSituacaoStyle(situacao);
                     return (
                       <motion.button
-                        key={situacao}
+                        key={g.label}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => openDrilldown(`Situação Análise: ${situacao} (${count})`, rows)}
-                        className={`bg-white rounded-xl border ${sty.border} shadow-sm p-3 text-left hover:shadow-md transition-all group`}
+                        onClick={() => openDrilldown(`${g.label} (${count})`, g.rows)}
+                        className={`bg-white rounded-xl border ${g.sty.border} shadow-sm p-4 text-left hover:shadow-md transition-all group`}
                       >
-                        <div className="flex items-start justify-between mb-1.5">
-                          <div className="text-[10px] font-bold text-slate-600 uppercase leading-tight flex-1 pr-1">{situacao}</div>
-                          <span className={`text-xs font-black px-1.5 py-0.5 rounded flex-shrink-0 text-white ${sty.badge}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-bold text-slate-700">{g.label}</span>
+                          <span className={`text-base font-black px-2 py-0.5 rounded text-white ${g.sty.badge}`}>
                             {count.toLocaleString('pt-BR')}
                           </span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                           <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${pct}%` }}
                             transition={{ duration: 0.8, ease: 'easeOut' }}
-                            className={`h-full bg-gradient-to-r ${sty.bar} rounded-full`}
+                            className={`h-full bg-gradient-to-r ${g.sty.bar} rounded-full`}
                           />
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-1 group-hover:text-[#1351B4] transition-colors">{pct}% do total</p>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* ── Demonstrativo por Situação SemPapel ──────────────────── */}
-          {!compact && (() => {
-            const gruposSemPapel = Object.entries(
-              filtered.reduce<Record<string, FormalizacaoRow[]>>((acc, r) => {
-                const key = (r.situacao_demandas_sempapel ?? '').trim() || '(não informado)';
-                if (!acc[key]) acc[key] = [];
-                acc[key].push(r);
-                return acc;
-              }, {})
-            ).sort((a, b) => b[1].length - a[1].length);
-            if (gruposSemPapel.length === 0) return null;
-            return (
-              <div>
-                <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-[#1351B4]" />
-                  Demonstrativo por Situação SemPapel
-                  <span className="text-[10px] text-slate-400 font-normal">({gruposSemPapel.length} situações)</span>
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
-                  {gruposSemPapel.map(([situacao, rows]) => {
-                    const count = rows.length;
-                    const pct = filtered.length > 0 ? Math.round((count / filtered.length) * 100) : 0;
-                    const sty = getSituacaoStyle(situacao);
-                    return (
-                      <motion.button
-                        key={situacao}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => openDrilldown(`SemPapel: ${situacao} (${count})`, rows)}
-                        className={`bg-white rounded-xl border ${sty.border} shadow-sm p-3 text-left hover:shadow-md transition-all group`}
-                      >
-                        <div className="flex items-start justify-between mb-1.5">
-                          <div className="text-[10px] font-bold text-slate-600 uppercase leading-tight flex-1 pr-1">{situacao}</div>
-                          <span className={`text-xs font-black px-1.5 py-0.5 rounded flex-shrink-0 text-white ${sty.badge}`}>
-                            {count.toLocaleString('pt-BR')}
-                          </span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${pct}%` }}
-                            transition={{ duration: 0.8, ease: 'easeOut' }}
-                            className={`h-full bg-gradient-to-r ${sty.bar} rounded-full`}
-                          />
-                        </div>
-                        <p className="text-[10px] text-slate-400 mt-1 group-hover:text-[#1351B4] transition-colors">{pct}% do total</p>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* ── Demonstrativo por Área / Estágio / Situação ──────────── */}
-          {!compact && (() => {
-            const gruposArea = Object.entries(
-              filtered.reduce<Record<string, FormalizacaoRow[]>>((acc, r) => {
-                const key = (r.area_estagio_situacao_demanda ?? '').trim() || '(não informado)';
-                if (!acc[key]) acc[key] = [];
-                acc[key].push(r);
-                return acc;
-              }, {})
-            ).sort((a, b) => b[1].length - a[1].length);
-            if (gruposArea.length === 0) return null;
-            return (
-              <div>
-                <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-                  <PieChart className="w-4 h-4 text-[#1351B4]" />
-                  Demonstrativo por Área / Estágio / Situação
-                  <span className="text-[10px] text-slate-400 font-normal">({gruposArea.length} situações)</span>
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
-                  {gruposArea.map(([situacao, rows]) => {
-                    const count = rows.length;
-                    const pct = filtered.length > 0 ? Math.round((count / filtered.length) * 100) : 0;
-                    const sty = getSituacaoStyle(situacao);
-                    return (
-                      <motion.button
-                        key={situacao}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => openDrilldown(`Área/Situação: ${situacao} (${count})`, rows)}
-                        className={`bg-white rounded-xl border ${sty.border} shadow-sm p-3 text-left hover:shadow-md transition-all group`}
-                      >
-                        <div className="flex items-start justify-between mb-1.5">
-                          <div className="text-[10px] font-bold text-slate-600 uppercase leading-tight flex-1 pr-1">{situacao}</div>
-                          <span className={`text-xs font-black px-1.5 py-0.5 rounded flex-shrink-0 text-white ${sty.badge}`}>
-                            {count.toLocaleString('pt-BR')}
-                          </span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${pct}%` }}
-                            transition={{ duration: 0.8, ease: 'easeOut' }}
-                            className={`h-full bg-gradient-to-r ${sty.bar} rounded-full`}
-                          />
-                        </div>
-                        <p className="text-[10px] text-slate-400 mt-1 group-hover:text-[#1351B4] transition-colors">{pct}% do total</p>
+                        <p className="text-[11px] text-slate-400 mt-1.5 group-hover:text-[#1351B4] transition-colors">{pct}% do total · clique para detalhar</p>
                       </motion.button>
                     );
                   })}
