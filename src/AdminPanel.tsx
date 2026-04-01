@@ -150,6 +150,7 @@ function getSituacaoCategoryColor(key: string): { text: string; badge: string; b
 }
 
 function TechnicianCard({ row, idx }: { row: any; idx: number }) {
+  const [showDemandas, setShowDemandas] = useState(false);
   const pctConcluido = row.recebidas > 0 ? Math.round((row.concluida / row.recebidas) * 100) : 0;
   const activeSituacoes = SITUACAO_CATEGORIAS.filter(c => (row[c.key] || 0) > 0);
   const diligCount = row.diligencia || 0;
@@ -236,6 +237,48 @@ function TechnicianCard({ row, idx }: { row: any; idx: number }) {
           })}
         </div>
       )}
+
+      {/* Demandas atribuídas não concluídas - accordion */}
+      {row.demandasPendentes?.length > 0 && (
+        <div className="border-t border-slate-100">
+          <button
+            onClick={() => setShowDemandas(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-2.5 bg-blue-50 hover:bg-blue-100/70 transition-colors"
+          >
+            <span className="text-xs font-semibold text-blue-700 flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5" />
+              Demandas atribuídas não concluídas ({row.demandasPendentes.length})
+            </span>
+            {showDemandas ? <ChevronDown className="w-3.5 h-3.5 text-blue-400" /> : <ChevronRight className="w-3.5 h-3.5 text-blue-400" />}
+          </button>
+          <AnimatePresence initial={false}>
+            {showDemandas && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                <div className="overflow-x-auto max-h-60 overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-blue-50">
+                      <tr className="border-b border-blue-200">
+                        <th className="text-left px-3 py-2 font-bold text-slate-700">Nº Demanda</th>
+                        <th className="text-center px-3 py-2 font-bold text-slate-700">Dt. Atribuição</th>
+                        <th className="text-left px-3 py-2 font-bold text-slate-700">Situação</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {row.demandasPendentes.map((d: any, di: number) => (
+                        <tr key={di} className={`border-b border-slate-100 hover:bg-blue-50/50 ${di % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}>
+                          <td className="px-3 py-2 text-slate-700 max-w-[160px] truncate" title={d.demanda}>{d.demanda}</td>
+                          <td className="px-3 py-2 text-center text-slate-600 whitespace-nowrap">{d.data_atribuicao}</td>
+                          <td className="px-3 py-2 text-slate-500 max-w-[140px] truncate" title={d.situacao}>{d.situacao}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -274,6 +317,8 @@ export function AdminPanel() {
   };
 
   const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({
+    filtros: false,
+    resumo: false,
     quadroTecnico: true,
     panoramaSituacao: true,
     detalheSituacao: true,
@@ -295,6 +340,7 @@ export function AdminPanel() {
 
   const [expandedSituacoes, setExpandedSituacoes] = useState<Set<string>>(new Set());
   const [expandedConfs, setExpandedConfs] = useState<Set<string>>(new Set());
+  const [expandedConfDemandas, setExpandedConfDemandas] = useState<Set<string>>(new Set());
 
   const [filtroTecnico, setFiltroTecnico] = useState('');
   const [filtroRegional, setFiltroRegional] = useState('');
@@ -410,6 +456,7 @@ export function AdminPanel() {
         municipio: f.municipio || '—',
         data_liberacao: f.data_liberacao || '—',
         data_analise_demanda: f.data_analise_demanda || '—',
+        data_liberacao_assinatura: f.data_liberacao_assinatura || '—',
         data_liberacao_assinatura_conferencista: f.data_liberacao_assinatura_conferencista || '—',
       });
     });
@@ -429,7 +476,7 @@ export function AdminPanel() {
         tecnicoMap.set(tecnico, {
           tecnico, recebidas: 0,
           ...Object.fromEntries(SITUACAO_CATEGORIAS.map(c => [c.key, 0])),
-          totalGGCON: 0, concluida: 0, transfVol: 0, emendaLOA: 0,
+          totalGGCON: 0, concluida: 0, transfVol: 0, emendaLOA: 0, demandasPendentes: [] as any[],
         });
       }
       const row = tecnicoMap.get(tecnico)!;
@@ -456,6 +503,11 @@ export function AdminPanel() {
         }
         if (!matched) row.outrasPend++;
         row.totalGGCON++;
+        row.demandasPendentes.push({
+          demanda: f.demandas_formalizacao || f.demanda || f.emenda || '—',
+          data_atribuicao: f.data_liberacao || '—',
+          situacao: f.area_estagio_situacao_demanda || '—',
+        });
       }
     });
     const rows = Array.from(tecnicoMap.values()).sort((a, b) => b.recebidas - a.recebidas);
@@ -540,18 +592,26 @@ export function AdminPanel() {
 
   // Demandas por Conferencista
   const demandasConferencista = useMemo(() => {
-    const confMap = new Map<string, { total: number; conferidas: number; pendentes: number; motivosPendentes: Map<string, number> }>();
+    const confMap = new Map<string, { total: number; conferidas: number; pendentes: number; motivosPendentes: Map<string, number>; demandasNaoConcluidas: any[] }>();
     filtered.forEach((f: any) => {
       const conf = f.conferencista || 'Sem Conferencista';
-      if (!confMap.has(conf)) confMap.set(conf, { total: 0, conferidas: 0, pendentes: 0, motivosPendentes: new Map() });
+      if (!confMap.has(conf)) confMap.set(conf, { total: 0, conferidas: 0, pendentes: 0, motivosPendentes: new Map(), demandasNaoConcluidas: [] });
       const c = confMap.get(conf)!;
       c.total++;
+      const concluida = f.concluida_em && String(f.concluida_em).trim() !== '';
       if (f.data_liberacao_assinatura_conferencista && String(f.data_liberacao_assinatura_conferencista).trim() !== '') {
         c.conferidas++;
       } else {
         c.pendentes++;
         const stage = (f.area_estagio_situacao_demanda || '').trim() || 'Sem situação definida';
         c.motivosPendentes.set(stage, (c.motivosPendentes.get(stage) || 0) + 1);
+      }
+      if (!concluida) {
+        c.demandasNaoConcluidas.push({
+          demanda: f.demandas_formalizacao || f.demanda || f.emenda || '—',
+          data_atribuicao: f.data_liberacao || '—',
+          situacao: f.area_estagio_situacao_demanda || '—',
+        });
       }
     });
     return Array.from(confMap.entries()).map(([conferencista, data]) => ({
@@ -562,6 +622,7 @@ export function AdminPanel() {
       motivosPendentes: Array.from(data.motivosPendentes.entries())
         .map(([motivo, count]) => ({ motivo, count }))
         .sort((a, b) => b.count - a.count),
+      demandasNaoConcluidas: data.demandasNaoConcluidas,
     })).sort((a, b) => b.total - a.total);
   }, [filtered]);
 
@@ -701,20 +762,15 @@ export function AdminPanel() {
   return (
     <div className="space-y-6">
       {/* Filtros */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Filter className="w-5 h-5 text-[#1351B4]" />
-          <h3 className="text-base font-bold text-slate-800">Filtros do Dashboard</h3>
-          {filtrosAtivos && (
-            <span className="ml-2 text-xs bg-[#1351B4] text-white px-2.5 py-0.5 rounded-full font-semibold">
-              {[filtroTecnico, filtroRegional, filtroConferencista, filtroSituacao, filtroAno, filtroDataInicial, filtroDataFinal].filter(Boolean).length} filtro(s) ativo(s)
-            </span>
-          )}
-          <span className="ml-auto text-xs text-slate-500 font-medium bg-slate-100 px-3 py-1 rounded-full">
-            {filtrosAtivos ? filtered.length.toLocaleString() + ' / ' : ''}{totalRecords.toLocaleString()} registros
-          </span>
-        </div>
-
+      <CollapsibleCard
+        id="filtros"
+        title={`Filtros do Dashboard — ${filtrosAtivos ? filtered.length.toLocaleString() + ' / ' : ''}${totalRecords.toLocaleString()} registros`}
+        icon={Filter}
+        count={filtrosAtivos ? [filtroTecnico, filtroRegional, filtroConferencista, filtroSituacao, filtroAno, filtroDataInicial, filtroDataFinal].filter(Boolean).length : undefined}
+        color="bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800"
+        collapsed={collapsedCards.filtros}
+        toggle={() => toggle('filtros')}
+      >
         {/* Linha 1: Técnico, Regional, Conferencista, Ano */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
           <div>
@@ -795,7 +851,7 @@ export function AdminPanel() {
             </button>
           </div>
         </div>
-      </div>
+      </CollapsibleCard>
 
       {/* Dashboard */}
       {dashboardLoading ? (
@@ -807,6 +863,7 @@ export function AdminPanel() {
         <div className="space-y-5">
 
           {/* ===== CARDS RESUMO ===== */}
+          <CollapsibleCard id="resumo" title="Resumo Geral" icon={BarChart3} color="bg-gradient-to-r from-[#1351B4] to-[#0C326F] hover:from-[#0C326F] hover:to-[#1351B4]" collapsed={collapsedCards.resumo} toggle={() => toggle('resumo')}>
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-[#1351B4]/5 to-[#1351B4]/15 rounded-2xl p-4 border border-[#1351B4]/20 shadow-md">
               <p className="text-[10px] font-bold text-[#1351B4] uppercase tracking-wider mb-1">Total Demandas</p>
@@ -829,6 +886,7 @@ export function AdminPanel() {
               <p className="text-[10px] text-slate-400 mt-1">aguardando retorno</p>
             </motion.div>
           </div>
+          </CollapsibleCard>
 
           {/* ===== PANORAMA VISUAL POR SITUAÇÃO/ETAPA ===== */}
           <CollapsibleCard id="panoramaSituacao" title="Panorama Geral por Situação / Etapa" icon={PieChart} count={displayData.distribuicaoSituacao.length} color="bg-gradient-to-r from-[#1351B4] to-[#2670E8] hover:from-[#0C326F] hover:to-[#1351B4]" collapsed={collapsedCards.panoramaSituacao} toggle={() => toggle('panoramaSituacao')}>
@@ -1020,6 +1078,7 @@ export function AdminPanel() {
                                     <th className="text-left px-3 py-2 font-bold text-slate-700">Município</th>
                                     <th className="text-center px-3 py-2 font-bold text-slate-700">Dt. Liberação</th>
                                     <th className="text-center px-3 py-2 font-bold text-slate-700">Dt. Análise</th>
+                                    <th className="text-center px-3 py-2 font-bold text-slate-700">Dt. Lib. Assinatura</th>
                                     <th className="text-center px-3 py-2 font-bold text-slate-700">Dt. Lib. Assin. Conf.</th>
                                   </tr>
                                 </thead>
@@ -1031,6 +1090,7 @@ export function AdminPanel() {
                                       <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{d.municipio}</td>
                                       <td className="px-3 py-2 text-center text-slate-600 whitespace-nowrap">{d.data_liberacao}</td>
                                       <td className="px-3 py-2 text-center text-slate-600 whitespace-nowrap">{d.data_analise_demanda}</td>
+                                      <td className="px-3 py-2 text-center text-slate-600 whitespace-nowrap">{d.data_liberacao_assinatura}</td>
                                       <td className="px-3 py-2 text-center text-slate-600 whitespace-nowrap">{d.data_liberacao_assinatura_conferencista}</td>
                                     </tr>
                                   ))}
@@ -1174,6 +1234,52 @@ export function AdminPanel() {
                                       </div>
                                     );
                                   })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      )}
+
+                      {/* Demandas atribuídas não concluídas (expandível) */}
+                      {item.demandasNaoConcluidas?.length > 0 && (
+                        <div className="border-t border-slate-100">
+                          <button
+                            onClick={() => setExpandedConfDemandas(prev => {
+                              const next = new Set(prev);
+                              if (next.has(item.conferencista)) next.delete(item.conferencista); else next.add(item.conferencista);
+                              return next;
+                            })}
+                            className="w-full flex items-center justify-between px-4 py-2.5 bg-violet-50 hover:bg-violet-100/70 transition-colors"
+                          >
+                            <span className="text-xs font-semibold text-violet-700 flex items-center gap-1.5">
+                              <FileText className="w-3.5 h-3.5" />
+                              Demandas atribuídas não concluídas ({item.demandasNaoConcluidas.length})
+                            </span>
+                            {expandedConfDemandas.has(item.conferencista) ? <ChevronDown className="w-3.5 h-3.5 text-violet-400" /> : <ChevronRight className="w-3.5 h-3.5 text-violet-400" />}
+                          </button>
+                          <AnimatePresence initial={false}>
+                            {expandedConfDemandas.has(item.conferencista) && (
+                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                                <div className="overflow-x-auto max-h-60 overflow-y-auto">
+                                  <table className="w-full text-xs">
+                                    <thead className="sticky top-0 bg-violet-50">
+                                      <tr className="border-b border-violet-200">
+                                        <th className="text-left px-3 py-2 font-bold text-slate-700">Nº Demanda</th>
+                                        <th className="text-center px-3 py-2 font-bold text-slate-700">Dt. Atribuição</th>
+                                        <th className="text-left px-3 py-2 font-bold text-slate-700">Situação</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {item.demandasNaoConcluidas.map((d: any, di: number) => (
+                                        <tr key={di} className={`border-b border-slate-100 hover:bg-violet-50/50 ${di % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}>
+                                          <td className="px-3 py-2 text-slate-700 max-w-[160px] truncate" title={d.demanda}>{d.demanda}</td>
+                                          <td className="px-3 py-2 text-center text-slate-600 whitespace-nowrap">{d.data_atribuicao}</td>
+                                          <td className="px-3 py-2 text-slate-500 max-w-[140px] truncate" title={d.situacao}>{d.situacao}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
                                 </div>
                               </motion.div>
                             )}
