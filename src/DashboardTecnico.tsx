@@ -763,6 +763,27 @@ function CollapsibleSection({ title, icon: Icon, count, headerBg = 'bg-slate-800
 const MESES_PT_PROD = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const fmtMesProd = (m: string) => { const p = m.split('-'); return p.length >= 2 ? `${MESES_PT_PROD[parseInt(p[1]) - 1]}/${p[0].substring(2)}` : m; };
 
+/** Parses DD/MM/YYYY or YYYY-MM-DD (or ISO) safely, returns null on failure. */
+function parseDateProd(str: string): Date | null {
+  if (!str) return null;
+  const t = str.trim();
+  if (!t) return null;
+  if (t.includes('/')) {
+    const p = t.split('/');
+    if (p.length >= 3) {
+      const d = new Date(+p[2], +p[1] - 1, +p[0]);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+  }
+  const d = new Date(t.includes('T') ? t : `${t}T00:00:00`);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function toMes(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 type PessoaProd = {
   nome: string;
   rows: { mes: string; lib: number; pub: number; conc: number; mediaDias: number | null }[];
@@ -778,27 +799,42 @@ function perfScore(taxa: number, medG: number | null) {
 
 // ─── Professional Productivity Analysis Component ────────────────────────────
 function ProdutividadeAnalise({ pessoas, label, allMeses }: { pessoas: PessoaProd[]; label: string; allMeses: string[] }) {
-  const [mesSel, setMesSel]   = useState<string>('all');
+  const [anoSel, setAnoSel]   = useState<string>('all');
+  const [mesSel, setMesSel]   = useState<string>('all'); // 'all' | '01'..'12'
   const [sortBy, setSortBy]   = useState<'lib' | 'taxa' | 'dias'>('lib');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
+  // Distinct years and months derived from allMeses
+  const anosDisp = useMemo(() => [...new Set(allMeses.map(m => m.split('-')[0]))].sort().reverse(), [allMeses]);
+  const mesesDisp = useMemo(() => {
+    const base = anoSel === 'all' ? allMeses : allMeses.filter(m => m.startsWith(anoSel));
+    return [...new Set(base.map(m => m.split('-')[1]))].sort();
+  }, [allMeses, anoSel]);
+
+  // Reset month when year changes to avoid invalid combinations
+  const handleAnoChange = (ano: string) => { setAnoSel(ano); setMesSel('all'); };
+
   // When switching month, recompute per-person aggregates for that month only
   const pessoasFiltradas: PessoaProd[] = useMemo(() => {
-    if (mesSel === 'all') return pessoas;
+    const matchesMes = (mes: string) => {
+      const [y, m] = mes.split('-');
+      if (anoSel !== 'all' && y !== anoSel) return false;
+      if (mesSel !== 'all' && m !== mesSel) return false;
+      return true;
+    };
+    const isFiltered = anoSel !== 'all' || mesSel !== 'all';
+    if (!isFiltered) return pessoas;
     return pessoas.flatMap(p => {
-      const row = p.rows.find(r => r.mes === mesSel);
-      if (!row || row.lib === 0) return [];
-      return [{
-        ...p,
-        rows: [row],
-        totLib: row.lib,
-        totPub: row.pub,
-        totConc: row.conc,
-        taxa: row.lib > 0 ? Math.round((row.pub / row.lib) * 100) : 0,
-        medG: row.mediaDias,
-      }];
+      const rows = p.rows.filter(r => matchesMes(r.mes));
+      if (rows.length === 0) return [];
+      const totLib  = rows.reduce((s, r) => s + r.lib, 0);
+      const totPub  = rows.reduce((s, r) => s + r.pub, 0);
+      const totConc = rows.reduce((s, r) => s + r.conc, 0);
+      const dr = rows.filter(r => r.mediaDias !== null);
+      const medG = dr.length > 0 ? Math.round(dr.reduce((s, r) => s + r.mediaDias!, 0) / dr.length) : null;
+      return [{ ...p, rows, totLib, totPub, totConc, taxa: totLib > 0 ? Math.round((totPub / totLib) * 100) : 0, medG }];
     });
-  }, [pessoas, mesSel]);
+  }, [pessoas, anoSel, mesSel]);
 
   const sorted = useMemo(() => {
     const arr = [...pessoasFiltradas];
@@ -833,17 +869,29 @@ function ProdutividadeAnalise({ pessoas, label, allMeses }: { pessoas: PessoaPro
 
       {/* ── Toolbar ───────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-teal-600 flex-shrink-0" />
-          <select
-            value={mesSel}
-            onChange={e => setMesSel(e.target.value)}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium focus:ring-2 focus:ring-teal-400 focus:border-teal-400 outline-none cursor-pointer min-w-[160px]"
-          >
-            <option value="all">Todos os meses</option>
-            {allMeses.map(m => <option key={m} value={m}>{fmtMesProd(m)}</option>)}
-          </select>
-        </div>
+        <Calendar className="w-4 h-4 text-teal-600 flex-shrink-0" />
+        {/* Year selector */}
+        <select
+          value={anoSel}
+          onChange={e => handleAnoChange(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium focus:ring-2 focus:ring-teal-400 focus:border-teal-400 outline-none cursor-pointer"
+        >
+          <option value="all">Todos os anos</option>
+          {anosDisp.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        {/* Month selector */}
+        <select
+          value={mesSel}
+          onChange={e => setMesSel(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium focus:ring-2 focus:ring-teal-400 focus:border-teal-400 outline-none cursor-pointer"
+        >
+          <option value="all">Todos os meses</option>
+          {mesesDisp.map(m => (
+            <option key={m} value={m}>
+              {MESES_PT_PROD[parseInt(m) - 1]}
+            </option>
+          ))}
+        </select>
         <div className="h-5 w-px bg-slate-200 hidden sm:block" />
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-slate-500 font-semibold mr-1">Ordenar:</span>
@@ -854,9 +902,9 @@ function ProdutividadeAnalise({ pessoas, label, allMeses }: { pessoas: PessoaPro
             </button>
           ))}
         </div>
-        {mesSel !== 'all' && (
+        {(anoSel !== 'all' || mesSel !== 'all') && (
           <span className="ml-auto text-xs bg-teal-100 text-teal-800 px-3 py-1 rounded-full font-bold border border-teal-200">
-            {fmtMesProd(mesSel)}
+            {mesSel !== 'all' ? `${MESES_PT_PROD[parseInt(mesSel) - 1]}` : ''}{mesSel !== 'all' && anoSel !== 'all' ? '/' : ''}{anoSel !== 'all' ? anoSel.substring(2) : ''}
           </span>
         )}
       </div>
@@ -1037,7 +1085,9 @@ function ProdutividadeAnalise({ pessoas, label, allMeses }: { pessoas: PessoaPro
         })}
         {sorted.length === 0 && (
           <p className="text-center text-sm text-slate-400 py-8">
-            Nenhum dado para {mesSel !== 'all' ? fmtMesProd(mesSel) : 'o período selecionado'}.
+            Nenhum dado para {anoSel !== 'all' || mesSel !== 'all'
+              ? [mesSel !== 'all' ? MESES_PT_PROD[parseInt(mesSel) - 1] : '', anoSel !== 'all' ? anoSel : ''].filter(Boolean).join('/')
+              : 'o período selecionado'}.
           </p>
         )}
       </div>
@@ -1245,18 +1295,10 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
       'publicacao', 'concluida_em', 'data_retorno', 'encaminhado_em',
     ];
     filtered.forEach(r => {
-      // Try each date field in priority order; use first valid one
       for (const f of DATE_FIELDS) {
-        const dtStr = (r[f] as string ?? '').trim();
-        if (!dtStr) continue;
-        const d = new Date(dtStr.includes('T') ? dtStr : `${dtStr}T00:00:00`);
-        if (!isNaN(d.getTime())) {
-          allMesesGlobal.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-          break;
-        }
+        const d = parseDateProd((r[f] as string) ?? '');
+        if (d) { allMesesGlobal.add(toMes(d)); break; }
       }
-      // If no date at all but we have `ano`, synthesise Jan of that year so the
-      // year at least appears even for fully undated records
       if (r.ano) {
         const yr = String(r.ano).trim();
         if (/^\d{4}$/.test(yr)) allMesesGlobal.add(`${yr}-01`);
@@ -1264,27 +1306,26 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
     });
     const allMeses = [...allMesesGlobal].sort();
 
-    const buildMap = (field: keyof FormalizacaoRow) => {
+    // personField = 'tecnico' | 'conferencista'
+    // dateField   = the "start" date for that role:
+    //   técnico       → data_liberacao
+    //   conferencista → data_recebimento_demanda
+    const buildMap = (personField: keyof FormalizacaoRow, dateField: keyof FormalizacaoRow) => {
       const personMap = new Map<string, Map<string, MR>>();
       filtered.forEach(r => {
-        const person = String(r[field] ?? '').trim(); if (!person) return;
-        const dtStr = (r.data_liberacao ?? '').trim(); if (!dtStr) return;
-        const d = new Date(dtStr.includes('T') ? dtStr : `${dtStr}T00:00:00`);
-        if (isNaN(d.getTime())) return;
-        const mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const person = String(r[personField] ?? '').trim(); if (!person) return;
+        const d = parseDateProd((r[dateField] as string) ?? ''); if (!d) return;
+        const mes = toMes(d);
         if (!personMap.has(person)) personMap.set(person, new Map());
         const mm = personMap.get(person)!;
         if (!mm.has(mes)) mm.set(mes, { lib: 0, pub: 0, conc: 0, td: 0, cd: 0 });
         const row = mm.get(mes)!;
         row.lib++;
-        const pubStr = (r.publicacao ?? '').trim();
-        if (pubStr) {
-          const dp = new Date(pubStr.includes('T') ? pubStr : `${pubStr}T00:00:00`);
-          if (!isNaN(dp.getTime())) {
-            row.pub++;
-            const dias = Math.round((dp.getTime() - d.getTime()) / 86400000);
-            if (dias >= 0 && dias <= 730) { row.td += dias; row.cd++; }
-          }
+        const dp = parseDateProd((r.publicacao as string) ?? '');
+        if (dp) {
+          row.pub++;
+          const dias = Math.round((dp.getTime() - d.getTime()) / 86400000);
+          if (dias >= 0 && dias <= 730) { row.td += dias; row.cd++; }
         }
         if ((r.concluida_em ?? '').trim()) row.conc++;
       });
@@ -1306,7 +1347,11 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
         return { nome, rows, totLib, totPub, totConc, taxa: totLib > 0 ? Math.round((totPub / totLib) * 100) : 0, medG };
       }).filter(p => p.totLib > 0);
     };
-    return { tecnicos: buildMap('tecnico'), conferencistas: buildMap('conferencista'), allMeses };
+    return {
+      tecnicos:       buildMap('tecnico',       'data_liberacao'),           // técnico: liberação
+      conferencistas: buildMap('conferencista', 'data_recebimento_demanda'), // conferencista: recebimento
+      allMeses,
+    };
   }, [filtered]);
 
   const clearFilters = () => {
