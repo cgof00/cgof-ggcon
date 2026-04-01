@@ -8,6 +8,7 @@ import {
   Flame, PieChart, Activity
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
+import * as XLSX from 'xlsx';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface FormalizacaoRow {
@@ -123,7 +124,7 @@ function computeColValues(rows: FormalizacaoRow[]): Record<ColKey, number> {
   const cTecnico        = rows.filter(r => stg(r) === 'DEMANDA COM O TÉCNICO').length;
   const emAnalise       = rows.filter(r => stg(r) === 'EM ANÁLISE DA DOCUMENTAÇÃO' || stg(r) === 'EM ANÁLISE DO PLANO DE TRABALHO').length;
   const agDoc           = rows.filter(r => stg(r) === 'AGUARDANDO DOCUMENTAÇÃO').length;
-  const diligencia      = rows.filter(r => stg(r) === 'DEMANDA EM DILIGÊNCIA' || stg(r) === 'DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS').length;
+  const diligencia      = rows.filter(r => stg(r).startsWith('DEMANDA EM DILIGÊNCIA')).length;
   const formalizacao    = rows.filter(r => stg(r) === 'EM FORMALIZAÇÃO').length;
   const emConferencia   = rows.filter(r => stg(r) === 'EM CONFERÊNCIA').length;
   const confPendencia   = rows.filter(r => stg(r) === 'CONF / PENDÊNCIA').length;
@@ -151,7 +152,7 @@ function getColRows(colKey: ColKey, rows: FormalizacaoRow[]): FormalizacaoRow[] 
     case 'c_tecnico':      return rows.filter(r => stg(r) === 'DEMANDA COM O TÉCNICO');
     case 'em_analise':     return rows.filter(r => stg(r) === 'EM ANÁLISE DA DOCUMENTAÇÃO' || stg(r) === 'EM ANÁLISE DO PLANO DE TRABALHO');
     case 'ag_doc':         return rows.filter(r => stg(r) === 'AGUARDANDO DOCUMENTAÇÃO');
-    case 'diligencia':     return rows.filter(r => stg(r) === 'DEMANDA EM DILIGÊNCIA' || stg(r) === 'DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS');
+    case 'diligencia':     return rows.filter(r => stg(r).startsWith('DEMANDA EM DILIGÊNCIA'));
     case 'formalizacao':   return rows.filter(r => stg(r) === 'EM FORMALIZAÇÃO');
     case 'em_conferencia': return rows.filter(r => stg(r) === 'EM CONFERÊNCIA');
     case 'conf_pendencia': return rows.filter(r => stg(r) === 'CONF / PENDÊNCIA');
@@ -352,24 +353,31 @@ function DrilldownModal({
     setIsDraggingScroll(false);
   };
 
-  const cols: { key: keyof FormalizacaoRow; label: string; width?: number }[] = [
-    { key: 'demandas_formalizacao', label: 'Demanda', width: 90 },
-    { key: 'tecnico', label: 'Técnico', width: 110 },
-    { key: 'conferencista', label: 'Conferencista', width: 110 },
-    { key: 'classificacao_emenda_demanda', label: 'Classificação', width: 120 },
-    { key: 'regional', label: 'Regional', width: 130 },
-    { key: 'conveniado', label: 'Conveniado', width: 180 },
-    { key: 'area_estagio_situacao_demanda', label: 'Área / Situação', width: 180 },
-    { key: 'situacao_analise_demanda', label: 'Situação Análise', width: 180 },
-    { key: 'falta_assinatura', label: 'Falta Assinatura', width: 150 },
-    { key: 'situacao_demandas_sempapel', label: 'SemPapel', width: 200 },
-    { key: 'data_liberacao', label: 'Dt. Lib.', width: 90 },
+  const cols: { key: keyof FormalizacaoRow | '_demanda'; label: string; width?: number }[] = [
+    { key: '_demanda',                        label: 'Demanda',          width: 130 },
+    { key: 'tecnico',                         label: 'Técnico',          width: 110 },
+    { key: 'conferencista',                   label: 'Conferencista',    width: 110 },
+    { key: 'classificacao_emenda_demanda',    label: 'Classificação',    width: 120 },
+    { key: 'regional',                        label: 'Regional',         width: 130 },
+    { key: 'conveniado',                      label: 'Conveniado',       width: 180 },
+    { key: 'area_estagio_situacao_demanda',   label: 'Área / Situação',  width: 180 },
+    { key: 'situacao_analise_demanda',        label: 'Situação Análise', width: 180 },
+    { key: 'falta_assinatura',                label: 'Falta Assinatura', width: 150 },
+    { key: 'situacao_demandas_sempapel',      label: 'SemPapel',         width: 200 },
+    { key: 'data_liberacao',                  label: 'Dt. Lib.',         width: 90 },
+    { key: 'data_recebimento_demanda',        label: 'Dt. Receb.',       width: 90 },
+    { key: 'publicacao',                      label: 'Publicação',       width: 90 },
   ];
+
+  const getCellValue = (r: FormalizacaoRow, key: string): string => {
+    if (key === '_demanda') return r.demandas_formalizacao || r.demanda || r.emenda || String(r.id ?? '') || '—';
+    return String((r as any)[key] ?? '—') || '—';
+  };
 
   // Export CSV
   const exportCSV = () => {
     const header = cols.map(c => c.label).join(';');
-    const body = sorted.map(r => cols.map(c => `"${String(r[c.key] ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
+    const body = sorted.map(r => cols.map(c => `"${getCellValue(r, c.key).replace(/"/g, '""')}"`).join(';')).join('\n');
     const blob = new Blob(['\uFEFF' + header + '\n' + body], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'drilldown.csv'; a.click();
@@ -440,12 +448,16 @@ function DrilldownModal({
             <tbody className="divide-y divide-slate-100">
               {paged.map((r, i) => (
                 <tr key={r.id ?? i} className="hover:bg-blue-50 transition-colors">
-                  {cols.map(col => (
-                    <td key={col.key} className={`px-3 py-1.5 text-slate-700 max-w-[220px] truncate${col.key === 'tecnico' || col.key === 'conferencista' ? ' font-bold' : ''}`}
-                      title={String(r[col.key] ?? '')}>
-                      {col.key === 'data_liberacao' ? fmtDate(r[col.key] as string) : (r[col.key] ?? '—')}
-                    </td>
-                  ))}
+                  {cols.map(col => {
+                    const val = getCellValue(r, col.key);
+                    const isDate = col.key === 'data_liberacao' || col.key === 'data_recebimento_demanda' || col.key === 'publicacao';
+                    return (
+                      <td key={col.key} className={`px-3 py-1.5 text-slate-700 max-w-[220px] truncate${col.key === 'tecnico' || col.key === 'conferencista' ? ' font-bold' : ''}`}
+                        title={val}>
+                        {isDate ? fmtDate(val === '—' ? '' : val) : val}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
               {sorted.length === 0 && (
@@ -786,8 +798,8 @@ function toMes(d: Date): string {
 
 type PessoaProd = {
   nome: string;
-  rows: { mes: string; lib: number; pub: number; conc: number; mediaDias: number | null }[];
-  totLib: number; totPub: number; totConc: number; taxa: number; medG: number | null;
+  rows: { mes: string; lib: number; pub: number; conc: number; naoConcl: number; dilig: number; mediaDias: number | null }[];
+  totLib: number; totPub: number; totConc: number; totNaoConcl: number; totDilig: number; taxa: number; medG: number | null;
 };
 
 function perfScore(taxa: number, medG: number | null) {
@@ -837,9 +849,11 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
       const totLib  = rows.reduce((s, r) => s + r.lib, 0);
       const totPub  = rows.reduce((s, r) => s + r.pub, 0);
       const totConc = rows.reduce((s, r) => s + r.conc, 0);
+      const totNaoConcl = rows.reduce((s, r) => s + r.naoConcl, 0);
+      const totDilig = rows.reduce((s, r) => s + r.dilig, 0);
       const dr = rows.filter(r => r.mediaDias !== null);
       const medG = dr.length > 0 ? Math.round(dr.reduce((s, r) => s + r.mediaDias!, 0) / dr.length) : null;
-      return [{ ...p, rows, totLib, totPub, totConc, taxa: totLib > 0 ? Math.round((totPub / totLib) * 100) : 0, medG }];
+      return [{ ...p, rows, totLib, totPub, totConc, totNaoConcl, totDilig, taxa: totLib > 0 ? Math.round((totPub / totLib) * 100) : 0, medG }];
     });
   }, [pessoas, anoSel, mesSel]);
 
@@ -855,12 +869,14 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
     const totLib  = sorted.reduce((s, p) => s + p.totLib, 0);
     const totPub  = sorted.reduce((s, p) => s + p.totPub, 0);
     const totConc = sorted.reduce((s, p) => s + p.totConc, 0);
+    const totNaoConcl = sorted.reduce((s, p) => s + p.totNaoConcl, 0);
+    const totDilig = sorted.reduce((s, p) => s + p.totDilig, 0);
     const comDias = sorted.filter(p => p.medG !== null);
     const medG    = comDias.length > 0 ? Math.round(comDias.reduce((s, p) => s + p.medG!, 0) / comDias.length) : null;
     const taxa    = totLib > 0 ? Math.round((totPub / totLib) * 100) : 0;
     const scores  = sorted.map(p => perfScore(p.taxa, p.medG).label);
     const scoreCount = { A: scores.filter(s => s === 'A').length, B: scores.filter(s => s === 'B').length, C: scores.filter(s => s === 'C').length, D: scores.filter(s => s === 'D').length };
-    return { totLib, totPub, totConc, medG, taxa, scoreCount };
+    return { totLib, totPub, totConc, totNaoConcl, totDilig, medG, taxa, scoreCount };
   }, [sorted]);
 
   const maxLib = Math.max(1, ...sorted.map(p => p.totLib));
@@ -928,11 +944,13 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
       </div>
 
       {/* ── KPI Summary Strip ────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
         {[
           { lbl: 'Liberadas',  val: kpis.totLib,  cls: 'bg-blue-50 text-blue-700 border-blue-200' },
           { lbl: 'Publicadas', val: kpis.totPub,  cls: 'bg-violet-50 text-violet-700 border-violet-200' },
           { lbl: 'Concluídas', val: kpis.totConc, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+          { lbl: 'Pendentes',  val: kpis.totNaoConcl, cls: kpis.totNaoConcl === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-orange-50 text-orange-700 border-orange-200' },
+          { lbl: 'Diligência', val: kpis.totDilig, cls: kpis.totDilig === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-amber-50 text-amber-700 border-amber-200' },
           { lbl: 'Taxa Geral', val: `${kpis.taxa}%`, cls: kpis.taxa >= 70 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : kpis.taxa >= 40 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200' },
           { lbl: 'Média Dias', val: kpis.medG !== null ? `${kpis.medG}d` : '—', cls: kpis.medG === null ? 'bg-slate-50 text-slate-400 border-slate-200' : kpis.medG <= 30 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : kpis.medG <= 60 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200' },
           { lbl: label,        val: `${sorted.length}`,  cls: 'bg-slate-50 text-slate-700 border-slate-200' },
@@ -996,6 +1014,8 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
                       <span className="text-xs font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">{p.totLib} lib.</span>
                       <span className="text-xs font-bold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-md">{p.totPub} pub.</span>
                       {p.totConc > 0 && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">{p.totConc} conc.</span>}
+                      {p.totNaoConcl > 0 && <span className="text-xs font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-md">{p.totNaoConcl} pend.</span>}
+                      {p.totDilig > 0 && <span className="text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">{p.totDilig} dilig.</span>}
                       {p.medG !== null && (
                         <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${p.medG <= 30 ? 'bg-emerald-100 text-emerald-700' : p.medG <= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
                           ⌀ {p.medG}d
@@ -1067,6 +1087,16 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
                                     : <span className="text-slate-300">—</span>}
                                 </td>
                                 <td className="px-3 py-1.5 text-center">
+                                  {r.naoConcl > 0
+                                    ? <button onClick={() => { const rws = getRows(p.nome, r.mes).filter(x => !(x.concluida_em ?? '').trim()); openDrilldown(`${p.nome} — Pend. ${fmtMesProd(r.mes)} (${rws.length})`, rws); }} className="inline-flex items-center justify-center w-7 bg-orange-100 text-orange-700 rounded font-bold hover:bg-orange-200 transition-colors">{r.naoConcl}</button>
+                                    : <span className="text-slate-300">—</span>}
+                                </td>
+                                <td className="px-3 py-1.5 text-center">
+                                  {r.dilig > 0
+                                    ? <button onClick={() => { const rws = getRows(p.nome, r.mes).filter(x => (x.area_estagio_situacao_demanda ?? '').trim().toUpperCase().startsWith('DEMANDA EM DILIGÊNCIA')); openDrilldown(`${p.nome} — Dilig. ${fmtMesProd(r.mes)} (${rws.length})`, rws); }} className="inline-flex items-center justify-center w-7 bg-amber-100 text-amber-700 rounded font-bold hover:bg-amber-200 transition-colors border border-amber-300">{r.dilig}</button>
+                                    : <span className="text-slate-300">—</span>}
+                                </td>
+                                <td className="px-3 py-1.5 text-center">
                                   {r.mediaDias !== null
                                     ? <span className={`inline-block px-2 py-0.5 rounded font-bold ${r.mediaDias <= 30 ? 'bg-emerald-100 text-emerald-700' : r.mediaDias <= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{r.mediaDias}d</span>
                                     : <span className="text-slate-300">—</span>}
@@ -1091,6 +1121,8 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
                             <td className="px-3 py-2 text-center">{p.totLib}</td>
                             <td className="px-3 py-2 text-center">{p.totPub}</td>
                             <td className="px-3 py-2 text-center">{p.totConc}</td>
+                            <td className="px-3 py-2 text-center">{p.totNaoConcl > 0 ? p.totNaoConcl : '—'}</td>
+                            <td className="px-3 py-2 text-center">{p.totDilig > 0 ? p.totDilig : '—'}</td>
                             <td className="px-3 py-2 text-center">{p.medG !== null ? `${p.medG}d` : '—'}</td>
                             <td className="px-3 py-2 text-center">{p.taxa}%</td>
                             <td className="px-3 py-2">
@@ -1312,7 +1344,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
 
   // Produtividade mês a mês (data_liberacao → publicacao) por técnico e conferencista
   const produtividadeData = useMemo(() => {
-    type MR = { lib: number; pub: number; conc: number; td: number; cd: number };
+    type MR = { lib: number; pub: number; conc: number; dilig: number; td: number; cd: number };
 
     // Compute ALL months from ALL filtered records (any date field), so the
     // month selector shows every month that exists in the system.
@@ -1345,9 +1377,12 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
         const mes = toMes(d);
         if (!personMap.has(person)) personMap.set(person, new Map());
         const mm = personMap.get(person)!;
-        if (!mm.has(mes)) mm.set(mes, { lib: 0, pub: 0, conc: 0, td: 0, cd: 0 });
+        if (!mm.has(mes)) mm.set(mes, { lib: 0, pub: 0, conc: 0, dilig: 0, td: 0, cd: 0 });
         const row = mm.get(mes)!;
         row.lib++;
+        // diligência
+        const estagioUp = (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
+        if (estagioUp.startsWith('DEMANDA EM DILIGÊNCIA')) row.dilig++;
         const dp = parseDateProd((r.publicacao as string) ?? '');
         if (dp) {
           row.pub++;
@@ -1364,14 +1399,16 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
         const mm = personMap.get(nome)!;
         const rows = meses.map(mes => {
           const d2 = mm.get(mes) ?? { lib: 0, pub: 0, conc: 0, td: 0, cd: 0 };
-          return { mes, lib: d2.lib, pub: d2.pub, conc: d2.conc, mediaDias: d2.cd > 0 ? Math.round(d2.td / d2.cd) : null };
+          return { mes, lib: d2.lib, pub: d2.pub, conc: d2.conc, naoConcl: d2.lib - d2.conc, dilig: d2.dilig, mediaDias: d2.cd > 0 ? Math.round(d2.td / d2.cd) : null };
         }).filter(rr => rr.lib > 0);
         const totLib = rows.reduce((s, rr) => s + rr.lib, 0);
         const totPub = rows.reduce((s, rr) => s + rr.pub, 0);
         const totConc = rows.reduce((s, rr) => s + rr.conc, 0);
+        const totNaoConcl = rows.reduce((s, rr) => s + rr.naoConcl, 0);
+        const totDilig = rows.reduce((s, rr) => s + rr.dilig, 0);
         const dr = rows.filter(rr => rr.mediaDias !== null);
         const medG = dr.length > 0 ? Math.round(dr.reduce((s, rr) => s + rr.mediaDias!, 0) / dr.length) : null;
-        return { nome, rows, totLib, totPub, totConc, taxa: totLib > 0 ? Math.round((totPub / totLib) * 100) : 0, medG };
+        return { nome, rows, totLib, totPub, totConc, totNaoConcl, totDilig, taxa: totLib > 0 ? Math.round((totPub / totLib) * 100) : 0, medG };
       }).filter(p => p.totLib > 0);
     };
     return {
@@ -1387,17 +1424,18 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
     setFiltroDataDe(''); setFiltroDataAte('');
   };
 
-  // Export matrix CSV
+  // Export matrix XLSX
   const exportMatrix = () => {
     const colHeaders = ['Técnico/Conferencista', ...FIXED_COLS.map(c => `${c.line1}${c.line2 ? ' ' + c.line2 : ''}`)];
-    const header = colHeaders.join(';');
-    const body = matrixData.rows.map(r =>
-      [r.person, ...FIXED_COLS.map(c => r.cols[c.key] || 0)].join(';')
-    ).join('\n');
-    const totalRow = ['TOTAL', ...FIXED_COLS.map(c => matrixData.totalCols[c.key] || 0)].join(';');
-    const blob = new Blob(['\uFEFF' + header + '\n' + body + '\n' + totalRow], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url;
-    a.download = `dashboard_${viewMode}_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
+    const dataRows = matrixData.rows.map(r =>
+      [r.person, ...FIXED_COLS.map(c => r.cols[c.key] || 0)]
+    );
+    const totalRow = ['TOTAL', ...FIXED_COLS.map(c => matrixData.totalCols[c.key] || 0)];
+    const ws = XLSX.utils.aoa_to_sheet([colHeaders, ...dataRows, totalRow]);
+    ws['!cols'] = [{ wch: 28 }, ...FIXED_COLS.map(() => ({ wch: 12 }))];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, viewMode === 'tecnico' ? 'Técnicos' : 'Conferencistas');
+    XLSX.writeFile(wb, `demonstrativo_${viewMode}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const openDrilldown = (title: string, rows: FormalizacaoRow[]) => {
@@ -1439,7 +1477,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
           </div>
           <button onClick={exportMatrix}
             className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-all">
-            <Download className="w-3 h-3" /> CSV
+            <Download className="w-3 h-3" /> XLSX
           </button>
           <button onClick={loadData} disabled={loading}
             className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-[#1351B4] bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-50">

@@ -44,7 +44,8 @@ import {
   SlidersHorizontal,
   Eye,
   EyeOff,
-  Lock
+  Lock,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Papa from 'papaparse';
@@ -673,6 +674,7 @@ export default function App() {
   // 🚀 Cache de batches carregados (para evitar re-fetches)
   const loadedBatchesRef = useRef<Set<number>>(new Set()); // Track quais offsets já foram carregados
   const allDataCacheRef = useRef<Formalizacao[]>([]); // Cache global de todos dados
+  const filteredForExportRef = useRef<Formalizacao[]>([]); // Cache dos dados filtrados (sem paginação) para exportação
   const cacheTimestampRef = useRef<number>(0); // Timestamp do cache para invalidação
   const CACHE_VALIDITY_MS = 5 * 60 * 1000; // Cache válido por 5 minutos
 
@@ -2112,6 +2114,7 @@ export default function App() {
 
       // Ordenação dos resultados filtrados ANTES de paginar
       const sortedData = sortData(filteredData, sortColumn, sortOrder);
+      filteredForExportRef.current = sortedData; // salva dados filtrados completos para exportação
 
       // Paginação dos resultados ordenados
       const totalFiltered = sortedData.length;
@@ -2139,6 +2142,49 @@ export default function App() {
       console.error('❌ Erro ao filtrar formalizações:', error);
       setFormalizacaoSearchResult(prev => ({ ...prev, loading: false }));
     }
+  };
+
+  const exportFormalizacaoXLSX = () => {
+    const data = filteredForExportRef.current;
+    if (!data || data.length === 0) { alert('Sem dados para exportar. Aguarde o carregamento.'); return; }
+
+    const COLUMN_MAP: Record<string, string> = {
+      ano: 'Ano', parlamentar: 'Parlamentar', partido: 'Partido', emenda: 'Emenda',
+      emendas_agregadoras: 'Emendas Agregadoras', demanda: 'Demanda',
+      demandas_formalizacao: 'Demandas Formalização', numero_convenio: 'Nº Convênio',
+      classificacao_emenda_demanda: 'Classificação', tipo_formalizacao: 'Tipo Formalização',
+      regional: 'Regional', municipio: 'Município', conveniado: 'Conveniado',
+      objeto: 'Objeto', portfolio: 'Portfólio', valor: 'Valor',
+      posicao_anterior: 'Posição Anterior', situacao_demandas_sempapel: 'Situação SemPapel',
+      area_estagio: 'Área - Estágio', recurso: 'Recurso', tecnico: 'Técnico',
+      data_liberacao: 'Data Liberação', area_estagio_situacao_demanda: 'Área - Situação',
+      situacao_analise_demanda: 'Situação Análise', data_analise_demanda: 'Data Análise',
+      motivo_retorno_diligencia: 'Motivo Retorno', data_retorno_diligencia: 'Data Retorno Dilig.',
+      conferencista: 'Conferencista', data_recebimento_demanda: 'Data Recebimento',
+      data_retorno: 'Data Retorno', observacao_motivo_retorno: 'Observações',
+      data_liberacao_assinatura_conferencista: 'Data Lib. Assin. Conf.',
+      data_liberacao_assinatura: 'Data Lib. Assinatura', falta_assinatura: 'Falta Assinatura',
+      assinatura: 'Assinatura', publicacao: 'Publicação', vigencia: 'Vigência',
+      encaminhado_em: 'Encaminhado em', concluida_em: 'Concluída em',
+    };
+
+    const cols = (Object.entries(visibleColumns) as [string, boolean][])
+      .filter(([k, v]) => v && k !== 'seq' && COLUMN_MAP[k])
+      .map(([k]) => ({ key: k, label: COLUMN_MAP[k] }));
+
+    const header = cols.map(c => c.label);
+    const rows = data.map(row =>
+      cols.map(({ key }) => {
+        const v = (row as any)[key];
+        return v === null || v === undefined ? '' : v;
+      })
+    );
+
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    ws['!cols'] = cols.map(({ label }) => ({ wch: Math.max(label.length + 2, 14) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Formalização');
+    XLSX.writeFile(wb, `formalizacao_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const handleDeleteFormalizacao = async (id: number) => {
@@ -2934,6 +2980,15 @@ export default function App() {
                     >
                       <X className="w-4 h-4" />
                       Limpar Filtros
+                    </button>
+                    {/* Botão Exportar XLSX */}
+                    <button
+                      onClick={exportFormalizacaoXLSX}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 hover:border-emerald-500"
+                      title={`Exportar ${(filteredForExportRef.current?.length || formalizacaoSearchResult.total || 0).toLocaleString('pt-BR')} registros como XLSX`}
+                    >
+                      <Download className="w-4 h-4" />
+                      XLSX ({(filteredForExportRef.current?.length || formalizacaoSearchResult.total || 0).toLocaleString('pt-BR')})
                     </button>
                     <button
                       onClick={() => setIsColumnMenuOpen(!isColumnMenuOpen)}
