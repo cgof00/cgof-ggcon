@@ -798,7 +798,14 @@ function perfScore(taxa: number, medG: number | null) {
 }
 
 // ─── Professional Productivity Analysis Component ────────────────────────────
-function ProdutividadeAnalise({ pessoas, label, allMeses }: { pessoas: PessoaProd[]; label: string; allMeses: string[] }) {
+function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, openDrilldown }: {
+  pessoas: PessoaProd[];
+  label: string;
+  allMeses: string[];
+  filtered: FormalizacaoRow[];
+  dateField: keyof FormalizacaoRow;
+  openDrilldown: (title: string, rows: FormalizacaoRow[]) => void;
+}) {
   const [anoSel, setAnoSel]   = useState<string>('all');
   const [mesSel, setMesSel]   = useState<string>('all'); // 'all' | '01'..'12'
   const [sortBy, setSortBy]   = useState<'lib' | 'taxa' | 'dias'>('lib');
@@ -860,6 +867,17 @@ function ProdutividadeAnalise({ pessoas, label, allMeses }: { pessoas: PessoaPro
 
   const toggleExpand = (nome: string) =>
     setExpanded(s => { const ns = new Set(s); if (ns.has(nome)) ns.delete(nome); else ns.add(nome); return ns; });
+
+  // Returns raw rows for a given person, optionally filtered to a specific month
+  const getRows = (nome: string, mes?: string): FormalizacaoRow[] => {
+    const personKey = dateField === 'data_liberacao' ? 'tecnico' : 'conferencista';
+    return filtered.filter(r => {
+      if (String(r[personKey] ?? '').trim() !== nome) return false;
+      if (!mes) return true;
+      const d = parseDateProd((r[dateField] as string) ?? ''); if (!d) return false;
+      return toMes(d) === mes;
+    });
+  };
 
   if (pessoas.length === 0)
     return <p className="text-slate-400 text-center py-10 text-sm">Sem dados de liberação para o período. Verifique se <code className="bg-slate-100 px-1 rounded">data_liberacao</code> está preenchido.</p>;
@@ -951,8 +969,8 @@ function ProdutividadeAnalise({ pessoas, label, allMeses }: { pessoas: PessoaPro
           return (
             <div key={p.nome} className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
 
-              {/* Card header (clickable) */}
-              <button onClick={() => toggleExpand(p.nome)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50/70 transition-colors text-left">
+              {/* Card header — left side toggles expand, right side opens drilldown */}
+              <div className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50/70 transition-colors">
 
                 {/* Rank */}
                 <span className="text-[11px] font-bold text-slate-400 w-5 text-center flex-shrink-0">#{pi + 1}</span>
@@ -968,9 +986,12 @@ function ProdutividadeAnalise({ pessoas, label, allMeses }: { pessoas: PessoaPro
                 </div>
 
                 {/* Name + bars */}
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleExpand(p.nome)}>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="text-sm font-bold text-slate-800 truncate">{p.nome}</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); const rows = getRows(p.nome); openDrilldown(`${p.nome} — todas as demandas (${rows.length})`, rows); }}
+                      className="text-sm font-bold text-slate-800 truncate hover:text-teal-700 hover:underline text-left transition-colors"
+                    >{p.nome}</button>
                     <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
                       <span className="text-xs font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">{p.totLib} lib.</span>
                       <span className="text-xs font-bold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-md">{p.totPub} pub.</span>
@@ -998,10 +1019,10 @@ function ProdutividadeAnalise({ pessoas, label, allMeses }: { pessoas: PessoaPro
                 </div>
 
                 {/* Expand chevron */}
-                <div className="flex-shrink-0 ml-1">
+                <button onClick={() => toggleExpand(p.nome)} className="flex-shrink-0 ml-1 p-1 rounded hover:bg-slate-200 transition-colors">
                   {isOpen ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-                </div>
-              </button>
+                </button>
+              </div>
 
               {/* Month-by-month detail table */}
               <AnimatePresence initial={false}>
@@ -1023,9 +1044,15 @@ function ProdutividadeAnalise({ pessoas, label, allMeses }: { pessoas: PessoaPro
                         <tbody>
                           {p.rows.map((r, ri) => {
                             const t = r.lib > 0 ? Math.round((r.pub / r.lib) * 100) : 0;
+                            const mesRows = getRows(p.nome, r.mes);
                             return (
                               <tr key={ri} className={`border-b border-slate-100 ${ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
-                                <td className="px-3 py-1.5 font-semibold text-slate-700 whitespace-nowrap">{fmtMesProd(r.mes)}</td>
+                                <td className="px-3 py-1.5 font-semibold text-slate-700 whitespace-nowrap">
+                                  <button
+                                    onClick={() => openDrilldown(`${p.nome} — ${fmtMesProd(r.mes)} (${mesRows.length})`, mesRows)}
+                                    className="hover:text-teal-700 hover:underline transition-colors text-left"
+                                  >{fmtMesProd(r.mes)}</button>
+                                </td>
                                 <td className="px-3 py-1.5 text-center">
                                   <span className="inline-flex items-center justify-center w-7 bg-blue-100 text-blue-700 rounded font-bold">{r.lib}</span>
                                 </td>
@@ -1905,6 +1932,9 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               pessoas={viewMode === 'tecnico' ? produtividadeData.tecnicos : produtividadeData.conferencistas}
               label={viewMode === 'tecnico' ? 'Técnicos' : 'Conferencistas'}
               allMeses={produtividadeData.allMeses}
+              filtered={filtered}
+              dateField={viewMode === 'tecnico' ? 'data_liberacao' : 'data_recebimento_demanda'}
+              openDrilldown={openDrilldown}
             />
           </CollapsibleSection>
 
