@@ -898,6 +898,37 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
   if (pessoas.length === 0)
     return <p className="text-slate-400 text-center py-10 text-sm">Sem dados de liberação para o período. Verifique se <code className="bg-slate-100 px-1 rounded">data_liberacao</code> está preenchido.</p>;
 
+  const exportXLSX = () => {
+    // Sheet 1: Resumo por pessoa
+    const resumoHeader = ['Posição', label, 'Lib.', 'Pub.', 'Conc.', 'Pend.', 'Dilig.', 'Taxa %'];
+    const resumoRows = sorted.map((p, i) => [
+      i + 1, p.nome, p.totLib, p.totPub, p.totConc, p.totNaoConcl, p.totDilig, p.taxa,
+    ]);
+    const wsResumo = XLSX.utils.aoa_to_sheet([resumoHeader, ...resumoRows]);
+    wsResumo['!cols'] = [{ wch: 6 }, { wch: 32 }, ...Array(6).fill({ wch: 10 })];
+
+    // Sheet 2: Mês a mês
+    const mesHeader = [label, 'Mês', 'Lib.', 'Pub.', 'Conc.', 'Pend.', 'Dilig.', 'Taxa %'];
+    const mesRows: (string | number)[][] = [];
+    sorted.forEach(p => {
+      p.rows.forEach(r => {
+        mesRows.push([p.nome, fmtMesProd(r.mes), r.lib, r.pub, r.conc, r.naoConcl, r.dilig,
+          r.lib > 0 ? Math.round((r.pub / r.lib) * 100) : 0]);
+      });
+    });
+    const wsMes = XLSX.utils.aoa_to_sheet([mesHeader, ...mesRows]);
+    wsMes['!cols'] = [{ wch: 32 }, { wch: 12 }, ...Array(6).fill({ wch: 10 })];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo');
+    XLSX.utils.book_append_sheet(wb, wsMes, 'Mês a Mês');
+    const periodoLabel = [
+      mesSel !== 'all' ? MESES_PT_PROD[parseInt(mesSel) - 1] : '',
+      anoSel !== 'all' ? anoSel : '',
+    ].filter(Boolean).join('-') || 'todos';
+    XLSX.writeFile(wb, `produtividade_${label.toLowerCase()}_${periodoLabel}.xlsx`);
+  };
+
   return (
     <div className="space-y-4">
 
@@ -941,6 +972,12 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
             {mesSel !== 'all' ? `${MESES_PT_PROD[parseInt(mesSel) - 1]}` : ''}{mesSel !== 'all' && anoSel !== 'all' ? '/' : ''}{anoSel !== 'all' ? anoSel.substring(2) : ''}
           </span>
         )}
+        <button
+          onClick={exportXLSX}
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-all flex-shrink-0"
+          title="Exportar produtividade como XLSX">
+          <Download className="w-3.5 h-3.5" /> XLSX
+        </button>
       </div>
 
       {/* ── KPI Summary Strip ────────────────────────────────── */}
@@ -962,20 +999,6 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
         ))}
       </div>
 
-      {/* ── Score distribution chips ──────────────────────────── */}
-      <div className="flex flex-wrap gap-2">
-        {(['A', 'B', 'C', 'D'] as const).map(s => {
-          const inf = perfScore(s === 'A' ? 100 : s === 'B' ? 70 : s === 'C' ? 50 : 0, null);
-          const cnt = kpis.scoreCount[s];
-          return (
-            <div key={s} className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border-2 ${s === 'A' ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : s === 'B' ? 'border-blue-400 bg-blue-50 text-blue-700' : s === 'C' ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-red-400 bg-red-50 text-red-700'}`}>
-              <span className={`w-5 h-5 rounded-full ${inf.bg} text-white flex items-center justify-center text-[10px] font-extrabold`}>{s}</span>
-              <span>{cnt} {cnt === 1 ? label.replace(/s$/, '') : label.toLowerCase()} — {inf.text}</span>
-            </div>
-          );
-        })}
-      </div>
-
       {/* ── Person Cards ─────────────────────────────────────── */}
       <div className="space-y-2">
         {sorted.map((p, pi) => {
@@ -992,11 +1015,6 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
 
                 {/* Rank */}
                 <span className="text-[11px] font-bold text-slate-400 w-5 text-center flex-shrink-0">#{pi + 1}</span>
-
-                {/* Score badge */}
-                <div className={`w-8 h-8 rounded-full ${score.bg} ${score.ring} flex items-center justify-center text-white font-extrabold text-sm flex-shrink-0`} title={score.text}>
-                  {score.label}
-                </div>
 
                 {/* Avatar */}
                 <div className="w-8 h-8 rounded-full bg-teal-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 uppercase">
@@ -1056,7 +1074,8 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
                             <th className="text-center px-3 py-2 font-bold">Lib.</th>
                             <th className="text-center px-3 py-2 font-bold">Pub.</th>
                             <th className="text-center px-3 py-2 font-bold">Conc.</th>
-                            <th className="text-center px-3 py-2 font-bold whitespace-nowrap">Lib→Pub</th>
+                            <th className="text-center px-3 py-2 font-bold whitespace-nowrap">Pend.</th>
+                            <th className="text-center px-3 py-2 font-bold whitespace-nowrap">Dilig.</th>
                             <th className="text-center px-3 py-2 font-bold">Taxa</th>
                             <th className="px-3 py-2 font-bold whitespace-nowrap w-28">Progresso</th>
                           </tr>
@@ -1097,11 +1116,6 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
                                     : <span className="text-slate-300">—</span>}
                                 </td>
                                 <td className="px-3 py-1.5 text-center">
-                                  {r.mediaDias !== null
-                                    ? <span className={`inline-block px-2 py-0.5 rounded font-bold ${r.mediaDias <= 30 ? 'bg-emerald-100 text-emerald-700' : r.mediaDias <= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{r.mediaDias}d</span>
-                                    : <span className="text-slate-300">—</span>}
-                                </td>
-                                <td className="px-3 py-1.5 text-center">
                                   <span className={`inline-block px-2 py-0.5 rounded font-bold ${t >= 70 ? 'bg-emerald-100 text-emerald-700' : t >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{t}%</span>
                                 </td>
                                 <td className="px-3 py-1.5">
@@ -1123,7 +1137,6 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
                             <td className="px-3 py-2 text-center">{p.totConc}</td>
                             <td className="px-3 py-2 text-center">{p.totNaoConcl > 0 ? p.totNaoConcl : '—'}</td>
                             <td className="px-3 py-2 text-center">{p.totDilig > 0 ? p.totDilig : '—'}</td>
-                            <td className="px-3 py-2 text-center">{p.medG !== null ? `${p.medG}d` : '—'}</td>
                             <td className="px-3 py-2 text-center">{p.taxa}%</td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-1">
@@ -1152,20 +1165,9 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
       </div>
 
       {/* ── Legend ───────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-3 border-t border-slate-100">
-        <span className="font-semibold text-slate-600">Desempenho:</span>
-        {[
-          { s: 'A', lbl: 'Excelente — taxa ≥80% e ≤30d', cls: 'bg-emerald-500' },
-          { s: 'B', lbl: 'Bom — taxa ≥60% e ≤60d',       cls: 'bg-blue-500' },
-          { s: 'C', lbl: 'Regular — taxa ≥40% e ≤90d',    cls: 'bg-amber-500' },
-          { s: 'D', lbl: 'Crítico',                        cls: 'bg-red-500' },
-        ].map(x => (
-          <span key={x.s} className="flex items-center gap-1.5">
-            <span className={`w-4 h-4 rounded-full ${x.cls} flex items-center justify-center text-white text-[9px] font-extrabold`}>{x.s}</span>
-            {x.lbl}
-          </span>
-        ))}
-        <span className="ml-2 text-slate-400">| Barra azul = volume · Barra colorida = % publicação</span>
+      <div className="flex items-center gap-3 text-xs text-slate-400 pt-3 border-t border-slate-100">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-400 inline-block" /> barra azul = volume de liberações</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-emerald-400 inline-block" /> barra colorida = % publicadas</span>
       </div>
     </div>
   );
