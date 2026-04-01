@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertCircle, BarChart3, FileText, CheckCheck, ChevronDown, ChevronRight, Filter, Calendar, RefreshCw, Clock, TrendingUp, AlertTriangle, MapPin, Users, UserCheck, BookOpen, Send, Zap, PieChart, Tag, Layers, Wallet, Briefcase } from 'lucide-react';
+import { AlertCircle, BarChart3, FileText, CheckCheck, ChevronDown, ChevronRight, Filter, Calendar, RefreshCw, Clock, TrendingUp, AlertTriangle, MapPin, Users, UserCheck, BookOpen, Send, Zap, PieChart, Tag, Layers, Wallet, Briefcase, Activity } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
 // Categorias de situação para o quadro detalhado
@@ -39,6 +39,13 @@ function parseDate(str: string): Date | null {
 
 function daysBetween(from: Date, to: Date): number {
   return Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function formatMes(mes: string): string {
+  const nomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const parts = mes.split('-');
+  if (parts.length < 2) return mes;
+  return `${nomes[parseInt(parts[1]) - 1]}/${parts[0].substring(2)}`;
 }
 
 function CollapsibleCard({ id, title, icon: Icon, count, color, collapsed, toggle, children }: {
@@ -283,6 +290,75 @@ function TechnicianCard({ row, idx }: { row: any; idx: number }) {
   );
 }
 
+function ProdutividadeTable({ rows, colorClass = 'bg-blue-700' }: {
+  rows: { mes: string; lib: number; pub: number; conc: number; mediaDias: number | null }[];
+  colorClass?: string;
+}) {
+  const totLib = rows.reduce((s, r) => s + r.lib, 0);
+  const totPub = rows.reduce((s, r) => s + r.pub, 0);
+  const totConc = rows.reduce((s, r) => s + r.conc, 0);
+  const diasRows = rows.filter(r => r.mediaDias !== null);
+  const medGeral = diasRows.length > 0 ? Math.round(diasRows.reduce((s, r) => s + r.mediaDias!, 0) / diasRows.length) : null;
+  const taxaGeral = totLib > 0 ? Math.round((totPub / totLib) * 100) : 0;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className={`${colorClass} text-white`}>
+            <th className="text-left px-3 py-2.5 font-bold whitespace-nowrap">Mês</th>
+            <th className="text-center px-3 py-2.5 font-bold whitespace-nowrap">Liberadas</th>
+            <th className="text-center px-3 py-2.5 font-bold whitespace-nowrap">Publicadas</th>
+            <th className="text-center px-3 py-2.5 font-bold whitespace-nowrap">Concluídas</th>
+            <th className="text-center px-3 py-2.5 font-bold whitespace-nowrap">Lib → Pub (dias)</th>
+            <th className="text-center px-3 py-2.5 font-bold whitespace-nowrap">Taxa Publicação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, ri) => {
+            const taxa = row.lib > 0 ? Math.round((row.pub / row.lib) * 100) : 0;
+            return (
+              <tr key={ri} className={`border-b border-slate-100 ${ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
+                <td className="px-3 py-2 font-semibold text-slate-700 whitespace-nowrap">{formatMes(row.mes)}</td>
+                <td className="px-3 py-2 text-center">
+                  <span className="inline-block px-2 py-0.5 rounded bg-blue-100 text-blue-700 font-bold min-w-[2rem] text-center">{row.lib}</span>
+                </td>
+                <td className="px-3 py-2 text-center">
+                  {row.pub > 0
+                    ? <span className="inline-block px-2 py-0.5 rounded bg-fuchsia-100 text-fuchsia-700 font-bold min-w-[2rem] text-center">{row.pub}</span>
+                    : <span className="text-slate-300">—</span>}
+                </td>
+                <td className="px-3 py-2 text-center">
+                  {row.conc > 0
+                    ? <span className="inline-block px-2 py-0.5 rounded bg-green-100 text-green-700 font-bold min-w-[2rem] text-center">{row.conc}</span>
+                    : <span className="text-slate-300">—</span>}
+                </td>
+                <td className="px-3 py-2 text-center">
+                  {row.mediaDias !== null
+                    ? <span className={`inline-block px-2 py-0.5 rounded font-bold ${row.mediaDias <= 30 ? 'bg-green-100 text-green-700' : row.mediaDias <= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{row.mediaDias}d</span>
+                    : <span className="text-slate-300">—</span>}
+                </td>
+                <td className="px-3 py-2 text-center">
+                  <span className={`inline-block px-2 py-0.5 rounded font-bold ${taxa >= 70 ? 'bg-green-100 text-green-700' : taxa >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{taxa}%</span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr className={`${colorClass} text-white font-bold`}>
+            <td className="px-3 py-2.5 font-bold">Total / Média</td>
+            <td className="px-3 py-2.5 text-center">{totLib}</td>
+            <td className="px-3 py-2.5 text-center">{totPub}</td>
+            <td className="px-3 py-2.5 text-center">{totConc}</td>
+            <td className="px-3 py-2.5 text-center">{medGeral !== null ? `${medGeral}d` : '—'}</td>
+            <td className="px-3 py-2.5 text-center">{taxaGeral}%</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
 export function AdminPanel() {
   const { user } = useAuth();
 
@@ -318,7 +394,7 @@ export function AdminPanel() {
 
   const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({
     filtros: false,
-    resumo: false,
+    resumo: true,
     quadroTecnico: true,
     panoramaSituacao: true,
     detalheSituacao: true,
@@ -330,6 +406,8 @@ export function AdminPanel() {
     publicacoesMes: true,
     taxaConclusao: true,
     tempoMedioAnalise: true,
+    produtividadeTecnico: true,
+    produtividadeConferencista: true,
     classClassif: true,
     classTipo: true,
     classObjeto: true,
@@ -341,6 +419,8 @@ export function AdminPanel() {
   const [expandedSituacoes, setExpandedSituacoes] = useState<Set<string>>(new Set());
   const [expandedConfs, setExpandedConfs] = useState<Set<string>>(new Set());
   const [expandedConfDemandas, setExpandedConfDemandas] = useState<Set<string>>(new Set());
+  const [expandedProdTecnicos, setExpandedProdTecnicos] = useState<Set<string>>(new Set());
+  const [expandedProdConfs, setExpandedProdConfs] = useState<Set<string>>(new Set());
 
   const [filtroTecnico, setFiltroTecnico] = useState('');
   const [filtroRegional, setFiltroRegional] = useState('');
@@ -711,6 +791,100 @@ export function AdminPanel() {
     return Array.from(tecMap.entries())
       .map(([tecnico, dias]) => ({ tecnico, mediaDias: Math.round(dias.reduce((a, b) => a + b, 0) / dias.length), qtd: dias.length }))
       .sort((a, b) => a.mediaDias - b.mediaDias);
+  }, [filtered]);
+
+  // Produtividade mês a mês por técnico (data_liberacao → publicacao)
+  const produtividadeTecnico = useMemo(() => {
+    type MesRow = { lib: number; pub: number; conc: number; totalDias: number; countDias: number };
+    const tecMap = new Map<string, Map<string, MesRow>>();
+    const allMeses = new Set<string>();
+    filtered.forEach((f: any) => {
+      const tecnico = (f.tecnico || '').trim();
+      if (!tecnico) return;
+      const dtLib = parseDate(f.data_liberacao || '');
+      if (!dtLib) return;
+      const mes = `${dtLib.getFullYear()}-${String(dtLib.getMonth() + 1).padStart(2, '0')}`;
+      allMeses.add(mes);
+      if (!tecMap.has(tecnico)) tecMap.set(tecnico, new Map());
+      const mesMap = tecMap.get(tecnico)!;
+      if (!mesMap.has(mes)) mesMap.set(mes, { lib: 0, pub: 0, conc: 0, totalDias: 0, countDias: 0 });
+      const row = mesMap.get(mes)!;
+      row.lib++;
+      const pubStr = (f.publicacao || '').trim();
+      if (pubStr) {
+        const dtPub = parseDate(pubStr);
+        if (dtPub) {
+          row.pub++;
+          const dias = daysBetween(dtLib, dtPub);
+          if (dias >= 0 && dias <= 730) { row.totalDias += dias; row.countDias++; }
+        }
+      }
+      if ((f.concluida_em || '').trim()) row.conc++;
+    });
+    const meses = Array.from(allMeses).sort();
+    return {
+      meses,
+      tecnicos: Array.from(tecMap.keys()).sort().map(nome => {
+        const mesMap = tecMap.get(nome)!;
+        const rows = meses.map(mes => {
+          const d = mesMap.get(mes) || { lib: 0, pub: 0, conc: 0, totalDias: 0, countDias: 0 };
+          return { mes, lib: d.lib, pub: d.pub, conc: d.conc, mediaDias: d.countDias > 0 ? Math.round(d.totalDias / d.countDias) : null };
+        }).filter(r => r.lib > 0);
+        const totLib = rows.reduce((s, r) => s + r.lib, 0);
+        const totPub = rows.reduce((s, r) => s + r.pub, 0);
+        const totConc = rows.reduce((s, r) => s + r.conc, 0);
+        const diasRows = rows.filter(r => r.mediaDias !== null);
+        const medGeral = diasRows.length > 0 ? Math.round(diasRows.reduce((s, r) => s + r.mediaDias!, 0) / diasRows.length) : null;
+        return { nome, meses: rows, totLib, totPub, totConc, taxa: totLib > 0 ? Math.round((totPub / totLib) * 100) : 0, medGeral };
+      }).filter(t => t.totLib > 0),
+    };
+  }, [filtered]);
+
+  // Produtividade mês a mês por conferencista (data_liberacao → publicacao)
+  const produtividadeConferencista = useMemo(() => {
+    type MesRow = { lib: number; pub: number; conc: number; totalDias: number; countDias: number };
+    const confMap = new Map<string, Map<string, MesRow>>();
+    const allMeses = new Set<string>();
+    filtered.forEach((f: any) => {
+      const conf = (f.conferencista || '').trim();
+      if (!conf) return;
+      const dtLib = parseDate(f.data_liberacao || '');
+      if (!dtLib) return;
+      const mes = `${dtLib.getFullYear()}-${String(dtLib.getMonth() + 1).padStart(2, '0')}`;
+      allMeses.add(mes);
+      if (!confMap.has(conf)) confMap.set(conf, new Map());
+      const mesMap = confMap.get(conf)!;
+      if (!mesMap.has(mes)) mesMap.set(mes, { lib: 0, pub: 0, conc: 0, totalDias: 0, countDias: 0 });
+      const row = mesMap.get(mes)!;
+      row.lib++;
+      const pubStr = (f.publicacao || '').trim();
+      if (pubStr) {
+        const dtPub = parseDate(pubStr);
+        if (dtPub) {
+          row.pub++;
+          const dias = daysBetween(dtLib, dtPub);
+          if (dias >= 0 && dias <= 730) { row.totalDias += dias; row.countDias++; }
+        }
+      }
+      if ((f.concluida_em || '').trim()) row.conc++;
+    });
+    const meses = Array.from(allMeses).sort();
+    return {
+      meses,
+      conferencistas: Array.from(confMap.keys()).sort().map(nome => {
+        const mesMap = confMap.get(nome)!;
+        const rows = meses.map(mes => {
+          const d = mesMap.get(mes) || { lib: 0, pub: 0, conc: 0, totalDias: 0, countDias: 0 };
+          return { mes, lib: d.lib, pub: d.pub, conc: d.conc, mediaDias: d.countDias > 0 ? Math.round(d.totalDias / d.countDias) : null };
+        }).filter(r => r.lib > 0);
+        const totLib = rows.reduce((s, r) => s + r.lib, 0);
+        const totPub = rows.reduce((s, r) => s + r.pub, 0);
+        const totConc = rows.reduce((s, r) => s + r.conc, 0);
+        const diasRows = rows.filter(r => r.mediaDias !== null);
+        const medGeral = diasRows.length > 0 ? Math.round(diasRows.reduce((s, r) => s + r.mediaDias!, 0) / diasRows.length) : null;
+        return { nome, meses: rows, totLib, totPub, totConc, taxa: totLib > 0 ? Math.round((totPub / totLib) * 100) : 0, medGeral };
+      }).filter(c => c.totLib > 0),
+    };
   }, [filtered]);
 
   // === DATA FETCHING - ALL RECORDS ===
@@ -1437,6 +1611,123 @@ export function AdminPanel() {
 
         </div>
       ) : null}
+
+      {/* ===== PRODUTIVIDADE MÊS A MÊS ===== */}
+      {(produtividadeTecnico.tecnicos.length > 0 || produtividadeConferencista.conferencistas.length > 0) && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 px-1">
+            <Activity className="w-5 h-5 text-[#1351B4]" />
+            <h2 className="text-base font-bold text-slate-800">Produtividade Mês a Mês</h2>
+            <span className="text-xs text-slate-400">(Dt. Liberação → Publicação)</span>
+          </div>
+
+          {/* Legenda de cores */}
+          <div className="flex flex-wrap gap-3 px-1 text-xs text-slate-600">
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-blue-400 inline-block"></span>Liberadas</div>
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-fuchsia-400 inline-block"></span>Publicadas</div>
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-green-400 inline-block"></span>Concluídas</div>
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-green-200 border border-green-400 inline-block"></span>≤30d (ótimo)</div>
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-200 border border-amber-400 inline-block"></span>31-60d (atenção)</div>
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-200 border border-red-400 inline-block"></span>&gt;60d (crítico)</div>
+          </div>
+
+          {/* ── PRODUTIVIDADE POR TÉCNICO ── */}
+          {produtividadeTecnico.tecnicos.length > 0 && (
+            <CollapsibleCard
+              id="produtividadeTecnico"
+              title="Produtividade por Técnico — Mês a Mês"
+              icon={Activity}
+              count={produtividadeTecnico.tecnicos.length}
+              color="bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900"
+              collapsed={collapsedCards.produtividadeTecnico}
+              toggle={() => toggle('produtividadeTecnico')}
+            >
+              <div className="space-y-3">
+                {produtividadeTecnico.tecnicos.map((tec, idx) => {
+                  const isExp = expandedProdTecnicos.has(tec.nome);
+                  return (
+                    <div key={idx} className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                      <button
+                        onClick={() => setExpandedProdTecnicos(prev => { const n = new Set(prev); if (n.has(tec.nome)) n.delete(tec.nome); else n.add(tec.nome); return n; })}
+                        className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 hover:bg-blue-100/70 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {isExp ? <ChevronDown className="w-4 h-4 text-blue-500 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-blue-500 flex-shrink-0" />}
+                          <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs uppercase flex-shrink-0">{tec.nome.charAt(0)}</div>
+                          <span className="text-sm font-bold text-slate-800 truncate">{tec.nome}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                          <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold text-xs whitespace-nowrap">{tec.totLib} lib.</span>
+                          <span className="bg-fuchsia-100 text-fuchsia-700 px-2 py-0.5 rounded-full font-semibold text-xs whitespace-nowrap">{tec.totPub} pub.</span>
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-xs whitespace-nowrap ${tec.taxa >= 70 ? 'bg-green-100 text-green-700' : tec.taxa >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{tec.taxa}%</span>
+                          {tec.medGeral !== null && (
+                            <span className={`px-2 py-0.5 rounded-full font-bold text-xs whitespace-nowrap ${tec.medGeral <= 30 ? 'bg-green-100 text-green-700' : tec.medGeral <= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>⌀{tec.medGeral}d</span>
+                          )}
+                        </div>
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {isExp && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }} className="overflow-hidden">
+                            <ProdutividadeTable rows={tec.meses} colorClass="bg-blue-700" />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </div>
+            </CollapsibleCard>
+          )}
+
+          {/* ── PRODUTIVIDADE POR CONFERENCISTA ── */}
+          {produtividadeConferencista.conferencistas.length > 0 && (
+            <CollapsibleCard
+              id="produtividadeConferencista"
+              title="Produtividade por Conferencista — Mês a Mês"
+              icon={Activity}
+              count={produtividadeConferencista.conferencistas.length}
+              color="bg-gradient-to-r from-violet-600 to-violet-800 hover:from-violet-700 hover:to-violet-900"
+              collapsed={collapsedCards.produtividadeConferencista}
+              toggle={() => toggle('produtividadeConferencista')}
+            >
+              <div className="space-y-3">
+                {produtividadeConferencista.conferencistas.map((conf, idx) => {
+                  const isExp = expandedProdConfs.has(conf.nome);
+                  return (
+                    <div key={idx} className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                      <button
+                        onClick={() => setExpandedProdConfs(prev => { const n = new Set(prev); if (n.has(conf.nome)) n.delete(conf.nome); else n.add(conf.nome); return n; })}
+                        className="w-full flex items-center justify-between px-4 py-3 bg-violet-50 hover:bg-violet-100/70 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {isExp ? <ChevronDown className="w-4 h-4 text-violet-500 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-violet-500 flex-shrink-0" />}
+                          <div className="w-7 h-7 bg-violet-600 rounded-full flex items-center justify-center text-white font-bold text-xs uppercase flex-shrink-0">{conf.nome.charAt(0)}</div>
+                          <span className="text-sm font-bold text-slate-800 truncate">{conf.nome}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                          <span className="bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-semibold text-xs whitespace-nowrap">{conf.totLib} lib.</span>
+                          <span className="bg-fuchsia-100 text-fuchsia-700 px-2 py-0.5 rounded-full font-semibold text-xs whitespace-nowrap">{conf.totPub} pub.</span>
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-xs whitespace-nowrap ${conf.taxa >= 70 ? 'bg-green-100 text-green-700' : conf.taxa >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{conf.taxa}%</span>
+                          {conf.medGeral !== null && (
+                            <span className={`px-2 py-0.5 rounded-full font-bold text-xs whitespace-nowrap ${conf.medGeral <= 30 ? 'bg-green-100 text-green-700' : conf.medGeral <= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>⌀{conf.medGeral}d</span>
+                          )}
+                        </div>
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {isExp && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }} className="overflow-hidden">
+                            <ProdutividadeTable rows={conf.meses} colorClass="bg-violet-700" />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </div>
+            </CollapsibleCard>
+          )}
+        </div>
+      )}
 
       {/* ===== CLASSIFICAÇÕES ===== */}
       <div className="mt-2 space-y-4">

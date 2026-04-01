@@ -730,6 +730,338 @@ function TimelineSection({
   );
 }
 
+// ─── Collapsible Section ─────────────────────────────────────────────────────
+function CollapsibleSection({ title, icon: Icon, count, headerBg = 'bg-slate-800', collapsed, onToggle, children }: {
+  title: string; icon?: React.ElementType; count?: number;
+  headerBg?: string; collapsed: boolean; onToggle: () => void; children?: React.ReactNode;
+}) {
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className={`w-full flex items-center justify-between px-4 py-3 ${headerBg} text-white ${collapsed ? 'rounded-xl' : 'rounded-t-xl'} transition-all`}
+      >
+        <span className="flex items-center gap-2 text-sm font-bold">
+          {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
+          {title}
+          {count !== undefined && <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">{count}</span>}
+        </span>
+        {collapsed ? <ChevronRight className="w-4 h-4 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 flex-shrink-0" />}
+      </button>
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden rounded-b-xl border border-t-0 border-slate-200 shadow-sm bg-white">
+            <div className="p-4">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const MESES_PT_PROD = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const fmtMesProd = (m: string) => { const p = m.split('-'); return p.length >= 2 ? `${MESES_PT_PROD[parseInt(p[1]) - 1]}/${p[0].substring(2)}` : m; };
+
+type PessoaProd = {
+  nome: string;
+  rows: { mes: string; lib: number; pub: number; conc: number; mediaDias: number | null }[];
+  totLib: number; totPub: number; totConc: number; taxa: number; medG: number | null;
+};
+
+function perfScore(taxa: number, medG: number | null) {
+  if (taxa >= 80 && (medG === null || medG <= 30)) return { label: 'A', ring: 'ring-2 ring-emerald-400', bg: 'bg-emerald-500', text: 'Excelente' };
+  if (taxa >= 60 && (medG === null || medG <= 60)) return { label: 'B', ring: 'ring-2 ring-blue-400',    bg: 'bg-blue-500',    text: 'Bom' };
+  if (taxa >= 40 && (medG === null || medG <= 90)) return { label: 'C', ring: 'ring-2 ring-amber-400',   bg: 'bg-amber-500',   text: 'Regular' };
+  return                                                 { label: 'D', ring: 'ring-2 ring-red-400',     bg: 'bg-red-500',     text: 'Crítico' };
+}
+
+// ─── Professional Productivity Analysis Component ────────────────────────────
+function ProdutividadeAnalise({ pessoas, label, allMeses }: { pessoas: PessoaProd[]; label: string; allMeses: string[] }) {
+  const [mesSel, setMesSel]   = useState<string>('all');
+  const [sortBy, setSortBy]   = useState<'lib' | 'taxa' | 'dias'>('lib');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // When switching month, recompute per-person aggregates for that month only
+  const pessoasFiltradas: PessoaProd[] = useMemo(() => {
+    if (mesSel === 'all') return pessoas;
+    return pessoas.flatMap(p => {
+      const row = p.rows.find(r => r.mes === mesSel);
+      if (!row || row.lib === 0) return [];
+      return [{
+        ...p,
+        rows: [row],
+        totLib: row.lib,
+        totPub: row.pub,
+        totConc: row.conc,
+        taxa: row.lib > 0 ? Math.round((row.pub / row.lib) * 100) : 0,
+        medG: row.mediaDias,
+      }];
+    });
+  }, [pessoas, mesSel]);
+
+  const sorted = useMemo(() => {
+    const arr = [...pessoasFiltradas];
+    if (sortBy === 'lib')  arr.sort((a, b) => b.totLib - a.totLib);
+    if (sortBy === 'taxa') arr.sort((a, b) => b.taxa - a.taxa);
+    if (sortBy === 'dias') arr.sort((a, b) => (a.medG ?? 9999) - (b.medG ?? 9999));
+    return arr;
+  }, [pessoasFiltradas, sortBy]);
+
+  const kpis = useMemo(() => {
+    const totLib  = sorted.reduce((s, p) => s + p.totLib, 0);
+    const totPub  = sorted.reduce((s, p) => s + p.totPub, 0);
+    const totConc = sorted.reduce((s, p) => s + p.totConc, 0);
+    const comDias = sorted.filter(p => p.medG !== null);
+    const medG    = comDias.length > 0 ? Math.round(comDias.reduce((s, p) => s + p.medG!, 0) / comDias.length) : null;
+    const taxa    = totLib > 0 ? Math.round((totPub / totLib) * 100) : 0;
+    const scores  = sorted.map(p => perfScore(p.taxa, p.medG).label);
+    const scoreCount = { A: scores.filter(s => s === 'A').length, B: scores.filter(s => s === 'B').length, C: scores.filter(s => s === 'C').length, D: scores.filter(s => s === 'D').length };
+    return { totLib, totPub, totConc, medG, taxa, scoreCount };
+  }, [sorted]);
+
+  const maxLib = Math.max(1, ...sorted.map(p => p.totLib));
+
+  const toggleExpand = (nome: string) =>
+    setExpanded(s => { const ns = new Set(s); if (ns.has(nome)) ns.delete(nome); else ns.add(nome); return ns; });
+
+  if (pessoas.length === 0)
+    return <p className="text-slate-400 text-center py-10 text-sm">Sem dados de liberação para o período. Verifique se <code className="bg-slate-100 px-1 rounded">data_liberacao</code> está preenchido.</p>;
+
+  return (
+    <div className="space-y-4">
+
+      {/* ── Toolbar ───────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-teal-600 flex-shrink-0" />
+          <select
+            value={mesSel}
+            onChange={e => setMesSel(e.target.value)}
+            className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium focus:ring-2 focus:ring-teal-400 focus:border-teal-400 outline-none cursor-pointer min-w-[160px]"
+          >
+            <option value="all">Todos os meses</option>
+            {allMeses.map(m => <option key={m} value={m}>{fmtMesProd(m)}</option>)}
+          </select>
+        </div>
+        <div className="h-5 w-px bg-slate-200 hidden sm:block" />
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-slate-500 font-semibold mr-1">Ordenar:</span>
+          {([['lib', 'Volume'], ['taxa', 'Taxa %'], ['dias', 'Velocidade']] as const).map(([k, lbl]) => (
+            <button key={k} onClick={() => setSortBy(k)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${sortBy === k ? 'bg-teal-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-teal-50 hover:border-teal-300'}`}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+        {mesSel !== 'all' && (
+          <span className="ml-auto text-xs bg-teal-100 text-teal-800 px-3 py-1 rounded-full font-bold border border-teal-200">
+            {fmtMesProd(mesSel)}
+          </span>
+        )}
+      </div>
+
+      {/* ── KPI Summary Strip ────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        {[
+          { lbl: 'Liberadas',  val: kpis.totLib,  cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+          { lbl: 'Publicadas', val: kpis.totPub,  cls: 'bg-violet-50 text-violet-700 border-violet-200' },
+          { lbl: 'Concluídas', val: kpis.totConc, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+          { lbl: 'Taxa Geral', val: `${kpis.taxa}%`, cls: kpis.taxa >= 70 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : kpis.taxa >= 40 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200' },
+          { lbl: 'Média Dias', val: kpis.medG !== null ? `${kpis.medG}d` : '—', cls: kpis.medG === null ? 'bg-slate-50 text-slate-400 border-slate-200' : kpis.medG <= 30 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : kpis.medG <= 60 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200' },
+          { lbl: label,        val: `${sorted.length}`,  cls: 'bg-slate-50 text-slate-700 border-slate-200' },
+        ].map(k => (
+          <div key={k.lbl} className={`border rounded-xl px-3 py-2.5 flex flex-col items-center ${k.cls}`}>
+            <span className="text-xl font-extrabold leading-tight">{k.val}</span>
+            <span className="text-[11px] font-medium text-current opacity-70 mt-0.5 text-center">{k.lbl}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Score distribution chips ──────────────────────────── */}
+      <div className="flex flex-wrap gap-2">
+        {(['A', 'B', 'C', 'D'] as const).map(s => {
+          const inf = perfScore(s === 'A' ? 100 : s === 'B' ? 70 : s === 'C' ? 50 : 0, null);
+          const cnt = kpis.scoreCount[s];
+          return (
+            <div key={s} className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border-2 ${s === 'A' ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : s === 'B' ? 'border-blue-400 bg-blue-50 text-blue-700' : s === 'C' ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-red-400 bg-red-50 text-red-700'}`}>
+              <span className={`w-5 h-5 rounded-full ${inf.bg} text-white flex items-center justify-center text-[10px] font-extrabold`}>{s}</span>
+              <span>{cnt} {cnt === 1 ? label.replace(/s$/, '') : label.toLowerCase()} — {inf.text}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Person Cards ─────────────────────────────────────── */}
+      <div className="space-y-2">
+        {sorted.map((p, pi) => {
+          const score    = perfScore(p.taxa, p.medG);
+          const isOpen   = expanded.has(p.nome);
+          const barW     = Math.round((p.totLib / maxLib) * 100);
+          const pubBarW  = p.totLib > 0 ? Math.round((p.totPub / p.totLib) * 100) : 0;
+
+          return (
+            <div key={p.nome} className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+
+              {/* Card header (clickable) */}
+              <button onClick={() => toggleExpand(p.nome)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50/70 transition-colors text-left">
+
+                {/* Rank */}
+                <span className="text-[11px] font-bold text-slate-400 w-5 text-center flex-shrink-0">#{pi + 1}</span>
+
+                {/* Score badge */}
+                <div className={`w-8 h-8 rounded-full ${score.bg} ${score.ring} flex items-center justify-center text-white font-extrabold text-sm flex-shrink-0`} title={score.text}>
+                  {score.label}
+                </div>
+
+                {/* Avatar */}
+                <div className="w-8 h-8 rounded-full bg-teal-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 uppercase">
+                  {p.nome.charAt(0)}
+                </div>
+
+                {/* Name + bars */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="text-sm font-bold text-slate-800 truncate">{p.nome}</span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
+                      <span className="text-xs font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">{p.totLib} lib.</span>
+                      <span className="text-xs font-bold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-md">{p.totPub} pub.</span>
+                      {p.totConc > 0 && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">{p.totConc} conc.</span>}
+                      {p.medG !== null && (
+                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${p.medG <= 30 ? 'bg-emerald-100 text-emerald-700' : p.medG <= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                          ⌀ {p.medG}d
+                        </span>
+                      )}
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${p.taxa >= 70 ? 'bg-emerald-100 text-emerald-700' : p.taxa >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                        {p.taxa}%
+                      </span>
+                    </div>
+                  </div>
+                  {/* Volume bar (relative to max) */}
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden" title={`${p.totLib} liberadas`}>
+                    <motion.div style={{ width: `${barW}%` }} initial={{ width: 0 }} animate={{ width: `${barW}%` }} transition={{ duration: 0.5, ease: 'easeOut' }}
+                      className="h-full rounded-full bg-gradient-to-r from-blue-400 to-blue-600" />
+                  </div>
+                  {/* Publication rate bar */}
+                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mt-0.5" title={`${p.taxa}% publicadas`}>
+                    <motion.div style={{ width: `${pubBarW}%` }} initial={{ width: 0 }} animate={{ width: `${pubBarW}%` }} transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
+                      className={`h-full rounded-full ${p.taxa >= 70 ? 'bg-emerald-400' : p.taxa >= 40 ? 'bg-amber-400' : 'bg-red-400'}`} />
+                  </div>
+                </div>
+
+                {/* Expand chevron */}
+                <div className="flex-shrink-0 ml-1">
+                  {isOpen ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                </div>
+              </button>
+
+              {/* Month-by-month detail table */}
+              <AnimatePresence initial={false}>
+                {isOpen && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }} className="overflow-hidden">
+                    <div className="overflow-x-auto border-t border-slate-100">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-teal-800 text-white">
+                            <th className="text-left px-3 py-2 font-bold whitespace-nowrap">Mês</th>
+                            <th className="text-center px-3 py-2 font-bold">Lib.</th>
+                            <th className="text-center px-3 py-2 font-bold">Pub.</th>
+                            <th className="text-center px-3 py-2 font-bold">Conc.</th>
+                            <th className="text-center px-3 py-2 font-bold whitespace-nowrap">Lib→Pub</th>
+                            <th className="text-center px-3 py-2 font-bold">Taxa</th>
+                            <th className="px-3 py-2 font-bold whitespace-nowrap w-28">Progresso</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {p.rows.map((r, ri) => {
+                            const t = r.lib > 0 ? Math.round((r.pub / r.lib) * 100) : 0;
+                            return (
+                              <tr key={ri} className={`border-b border-slate-100 ${ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                                <td className="px-3 py-1.5 font-semibold text-slate-700 whitespace-nowrap">{fmtMesProd(r.mes)}</td>
+                                <td className="px-3 py-1.5 text-center">
+                                  <span className="inline-flex items-center justify-center w-7 bg-blue-100 text-blue-700 rounded font-bold">{r.lib}</span>
+                                </td>
+                                <td className="px-3 py-1.5 text-center">
+                                  {r.pub > 0
+                                    ? <span className="inline-flex items-center justify-center w-7 bg-violet-100 text-violet-700 rounded font-bold">{r.pub}</span>
+                                    : <span className="text-slate-300">—</span>}
+                                </td>
+                                <td className="px-3 py-1.5 text-center">
+                                  {r.conc > 0
+                                    ? <span className="inline-flex items-center justify-center w-7 bg-emerald-100 text-emerald-700 rounded font-bold">{r.conc}</span>
+                                    : <span className="text-slate-300">—</span>}
+                                </td>
+                                <td className="px-3 py-1.5 text-center">
+                                  {r.mediaDias !== null
+                                    ? <span className={`inline-block px-2 py-0.5 rounded font-bold ${r.mediaDias <= 30 ? 'bg-emerald-100 text-emerald-700' : r.mediaDias <= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{r.mediaDias}d</span>
+                                    : <span className="text-slate-300">—</span>}
+                                </td>
+                                <td className="px-3 py-1.5 text-center">
+                                  <span className={`inline-block px-2 py-0.5 rounded font-bold ${t >= 70 ? 'bg-emerald-100 text-emerald-700' : t >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{t}%</span>
+                                </td>
+                                <td className="px-3 py-1.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                      <div style={{ width: `${t}%` }} className={`h-full rounded-full transition-all ${t >= 70 ? 'bg-emerald-500' : t >= 40 ? 'bg-amber-400' : 'bg-red-400'}`} />
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-teal-800 text-white font-bold text-xs">
+                            <td className="px-3 py-2 whitespace-nowrap">Total / Média</td>
+                            <td className="px-3 py-2 text-center">{p.totLib}</td>
+                            <td className="px-3 py-2 text-center">{p.totPub}</td>
+                            <td className="px-3 py-2 text-center">{p.totConc}</td>
+                            <td className="px-3 py-2 text-center">{p.medG !== null ? `${p.medG}d` : '—'}</td>
+                            <td className="px-3 py-2 text-center">{p.taxa}%</td>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-1">
+                                <div className="flex-1 h-2 bg-teal-600/50 rounded-full overflow-hidden">
+                                  <div style={{ width: `${p.taxa}%` }} className="h-full bg-white/80 rounded-full" />
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
+        {sorted.length === 0 && (
+          <p className="text-center text-sm text-slate-400 py-8">
+            Nenhum dado para {mesSel !== 'all' ? fmtMesProd(mesSel) : 'o período selecionado'}.
+          </p>
+        )}
+      </div>
+
+      {/* ── Legend ───────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-3 border-t border-slate-100">
+        <span className="font-semibold text-slate-600">Desempenho:</span>
+        {[
+          { s: 'A', lbl: 'Excelente — taxa ≥80% e ≤30d', cls: 'bg-emerald-500' },
+          { s: 'B', lbl: 'Bom — taxa ≥60% e ≤60d',       cls: 'bg-blue-500' },
+          { s: 'C', lbl: 'Regular — taxa ≥40% e ≤90d',    cls: 'bg-amber-500' },
+          { s: 'D', lbl: 'Crítico',                        cls: 'bg-red-500' },
+        ].map(x => (
+          <span key={x.s} className="flex items-center gap-1.5">
+            <span className={`w-4 h-4 rounded-full ${x.cls} flex items-center justify-center text-white text-[9px] font-extrabold`}>{x.s}</span>
+            {x.lbl}
+          </span>
+        ))}
+        <span className="ml-2 text-slate-400">| Barra azul = volume · Barra colorida = % publicação</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Dashboard ──────────────────────────────────────────────────────────
 export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRow[] } = {}) {
   const { token } = useAuth();
@@ -743,6 +1075,9 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
 
   // Compact mode
   const [compact, setCompact] = useState(false);
+  // Section collapse states (true = collapsed)
+  const [sec, setSec] = useState({ matrix: true, criticas: true, topEstagio: true, atrasadas: true, timeline: true, produtividade: true });
+  const toggleSec = (k: keyof typeof sec) => setSec(p => ({ ...p, [k]: !p[k] }));
   // Filter panel collapsed
   const [filtersOpen, setFiltersOpen] = useState(true);
 
@@ -897,6 +1232,82 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
   const hasActiveFilters = filtroAno.length || filtroRegional.length || filtroTecnico.length ||
     filtroConferencista.length || filtroParlamentar.length || filtroTipo.length ||
     filtroSituacao.length || filtroDataDe || filtroDataAte;
+
+  // Produtividade mês a mês (data_liberacao → publicacao) por técnico e conferencista
+  const produtividadeData = useMemo(() => {
+    type MR = { lib: number; pub: number; conc: number; td: number; cd: number };
+
+    // Compute ALL months from ALL filtered records (any date field), so the
+    // month selector shows every month that exists in the system.
+    const allMesesGlobal = new Set<string>();
+    const DATE_FIELDS: (keyof FormalizacaoRow)[] = [
+      'data_liberacao', 'data_recebimento_demanda', 'data_analise_demanda',
+      'publicacao', 'concluida_em', 'data_retorno', 'encaminhado_em',
+    ];
+    filtered.forEach(r => {
+      // Try each date field in priority order; use first valid one
+      for (const f of DATE_FIELDS) {
+        const dtStr = (r[f] as string ?? '').trim();
+        if (!dtStr) continue;
+        const d = new Date(dtStr.includes('T') ? dtStr : `${dtStr}T00:00:00`);
+        if (!isNaN(d.getTime())) {
+          allMesesGlobal.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+          break;
+        }
+      }
+      // If no date at all but we have `ano`, synthesise Jan of that year so the
+      // year at least appears even for fully undated records
+      if (r.ano) {
+        const yr = String(r.ano).trim();
+        if (/^\d{4}$/.test(yr)) allMesesGlobal.add(`${yr}-01`);
+      }
+    });
+    const allMeses = [...allMesesGlobal].sort();
+
+    const buildMap = (field: keyof FormalizacaoRow) => {
+      const personMap = new Map<string, Map<string, MR>>();
+      filtered.forEach(r => {
+        const person = String(r[field] ?? '').trim(); if (!person) return;
+        const dtStr = (r.data_liberacao ?? '').trim(); if (!dtStr) return;
+        const d = new Date(dtStr.includes('T') ? dtStr : `${dtStr}T00:00:00`);
+        if (isNaN(d.getTime())) return;
+        const mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!personMap.has(person)) personMap.set(person, new Map());
+        const mm = personMap.get(person)!;
+        if (!mm.has(mes)) mm.set(mes, { lib: 0, pub: 0, conc: 0, td: 0, cd: 0 });
+        const row = mm.get(mes)!;
+        row.lib++;
+        const pubStr = (r.publicacao ?? '').trim();
+        if (pubStr) {
+          const dp = new Date(pubStr.includes('T') ? pubStr : `${pubStr}T00:00:00`);
+          if (!isNaN(dp.getTime())) {
+            row.pub++;
+            const dias = Math.round((dp.getTime() - d.getTime()) / 86400000);
+            if (dias >= 0 && dias <= 730) { row.td += dias; row.cd++; }
+          }
+        }
+        if ((r.concluida_em ?? '').trim()) row.conc++;
+      });
+      const meses = [...new Set([
+        ...allMeses,
+        ...Array.from(personMap.values()).flatMap(mm => [...mm.keys()])
+      ])].sort();
+      return Array.from(personMap.keys()).sort().map(nome => {
+        const mm = personMap.get(nome)!;
+        const rows = meses.map(mes => {
+          const d2 = mm.get(mes) ?? { lib: 0, pub: 0, conc: 0, td: 0, cd: 0 };
+          return { mes, lib: d2.lib, pub: d2.pub, conc: d2.conc, mediaDias: d2.cd > 0 ? Math.round(d2.td / d2.cd) : null };
+        }).filter(rr => rr.lib > 0);
+        const totLib = rows.reduce((s, rr) => s + rr.lib, 0);
+        const totPub = rows.reduce((s, rr) => s + rr.pub, 0);
+        const totConc = rows.reduce((s, rr) => s + rr.conc, 0);
+        const dr = rows.filter(rr => rr.mediaDias !== null);
+        const medG = dr.length > 0 ? Math.round(dr.reduce((s, rr) => s + rr.mediaDias!, 0) / dr.length) : null;
+        return { nome, rows, totLib, totPub, totConc, taxa: totLib > 0 ? Math.round((totPub / totLib) * 100) : 0, medG };
+      }).filter(p => p.totLib > 0);
+    };
+    return { tecnicos: buildMap('tecnico'), conferencistas: buildMap('conferencista'), allMeses };
+  }, [filtered]);
 
   const clearFilters = () => {
     setFiltroAno([]); setFiltroRegional([]); setFiltroTecnico([]); setFiltroConferencista([]);
@@ -1065,19 +1476,25 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
 
           {/* ── Matrix Table ─────────────────────────────────────────── */}
           <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
-            {/* Table header bar */}
-            <div className="px-4 py-2.5 bg-slate-900 flex items-center justify-between">
+            {/* Table header bar - click to collapse/expand */}
+            <button onClick={() => toggleSec('matrix')} className="w-full px-4 py-2.5 bg-slate-900 flex items-center justify-between hover:bg-slate-800 transition-colors">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Users className="w-4 h-4 flex-shrink-0" />
                 {viewMode === 'tecnico' ? 'Demonstrativo por Técnico' : 'Demonstrativo por Conferencista'}
                 <span className="text-[11px] text-slate-400 font-normal hidden sm:inline">— clique num número para ver detalhes</span>
               </h3>
-              <span className="text-[11px] text-slate-400 flex-shrink-0">
-                {matrixData.rows.length} {viewMode === 'tecnico' ? 'técnico(s)' : 'conferencista(s)'}
-              </span>
-            </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-[11px] text-slate-400">
+                  {matrixData.rows.length} {viewMode === 'tecnico' ? 'técnico(s)' : 'conferencista(s)'}
+                </span>
+                {sec.matrix ? <ChevronRight className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+              </div>
+            </button>
 
             {/* Scrollable table wrapper — max height so it fits on screen */}
+            <AnimatePresence initial={false}>
+            {!sec.matrix && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
             <div ref={matrixScrollRef}
               onMouseDown={handleMatrixMouseDown}
               onMouseMove={handleMatrixMouseMove}
@@ -1187,10 +1604,14 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                 </tbody>
               </table>
             </div>
+            </motion.div>
+            )}
+            </AnimatePresence>
           </div>
 
           {/* ── Demonstrativo de Situações Críticas ──────────────────── */}
-          {!compact && (() => {
+          <CollapsibleSection title="Situações Críticas" icon={AlertCircle} headerBg="bg-red-700 hover:bg-red-800" collapsed={sec.criticas} onToggle={() => toggleSec('criticas')}>
+          {(() => {
             const isMatch = (r: FormalizacaoRow, keyword: string) => {
               const u = keyword.toUpperCase();
               return [r.situacao_analise_demanda, r.situacao_demandas_sempapel, r.area_estagio_situacao_demanda]
@@ -1246,14 +1667,11 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               </div>
             );
           })()}
+          </CollapsibleSection>
 
           {/* ── Top 5 per column ─────────────────────────────────────── */}
-          {!compact && (
+          <CollapsibleSection title={`Top ${viewMode === 'tecnico' ? 'Técnicos' : 'Conferencistas'} por Estágio`} icon={TrendingUp} headerBg="bg-slate-700 hover:bg-slate-800" collapsed={sec.topEstagio} onToggle={() => toggleSec('topEstagio')}>
             <div>
-              <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-[#1351B4]" />
-                Top {viewMode === 'tecnico' ? 'Técnicos' : 'Conferencistas'} por Estágio
-              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {FIXED_COLS.filter(col => matrixData.totalCols[col.key] > 0 && col.key !== 'demandas_recebidas').map(col => {
                   const colLabel = `${col.line1}${col.line2 ? ' ' + col.line2 : ''}`;
@@ -1297,10 +1715,11 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                 })}
               </div>
             </div>
-          )}
+          </CollapsibleSection>
 
           {/* ── Demandas Mais Atrasadas por Técnico ─────────────────── */}
-          {!compact && (() => {
+          <CollapsibleSection title={`Demandas Mais Atrasadas — por ${viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}`} icon={Flame} headerBg="bg-red-800 hover:bg-red-900" collapsed={sec.atrasadas} onToggle={() => toggleSec('atrasadas')}>
+          {(() => {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             // Only non-completed demands with a liberação date
@@ -1417,16 +1836,32 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             </div>
             );
           })()}
+          </CollapsibleSection>
 
           {/* ── Linha do Tempo das Demandas ──────────────────────────── */}
-          {!compact && (
+          <CollapsibleSection title="Linha do Tempo — Demandas em Andamento" icon={Calendar} headerBg="bg-blue-700 hover:bg-blue-800" collapsed={sec.timeline} onToggle={() => toggleSec('timeline')}>
             <TimelineSection
               filtered={filtered}
               personField={personField}
               openDrilldown={openDrilldown}
               viewMode={viewMode}
             />
-          )}
+          </CollapsibleSection>
+
+          {/* ── Produtividade Mês a Mês ──────────────────────────────── */}
+          <CollapsibleSection
+            title={`Produtividade — por ${viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}`}
+            icon={Activity}
+            headerBg="bg-teal-700 hover:bg-teal-800"
+            collapsed={sec.produtividade}
+            onToggle={() => toggleSec('produtividade')}
+          >
+            <ProdutividadeAnalise
+              pessoas={viewMode === 'tecnico' ? produtividadeData.tecnicos : produtividadeData.conferencistas}
+              label={viewMode === 'tecnico' ? 'Técnicos' : 'Conferencistas'}
+              allMeses={produtividadeData.allMeses}
+            />
+          </CollapsibleSection>
 
         </>
       )}
