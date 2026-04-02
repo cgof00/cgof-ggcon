@@ -221,7 +221,7 @@ function MultiCheckFilter({
         }`}
       >
         <span className="truncate text-gray-700 flex-1">
-          {selected.length ? `${selected.length} sel.` : 'Todos'}
+          {selected.length === 0 ? 'Todos' : selected.length <= 2 ? selected.join(', ') : `${selected.length} sel.`}
         </span>
         <div className="flex items-center gap-1 ml-1 flex-shrink-0">
           {selected.length > 0 && (
@@ -355,9 +355,11 @@ function DrilldownModal({
 
   const cols: { key: keyof FormalizacaoRow | '_demanda'; label: string; width?: number }[] = [
     { key: '_demanda',                        label: 'Demanda',          width: 130 },
+    { key: 'ano',                             label: 'Ano',              width: 70  },
     { key: 'tecnico',                         label: 'Técnico',          width: 110 },
     { key: 'conferencista',                   label: 'Conferencista',    width: 110 },
     { key: 'classificacao_emenda_demanda',    label: 'Classificação',    width: 120 },
+    { key: 'municipio',                       label: 'Município',        width: 150 },
     { key: 'regional',                        label: 'Regional',         width: 130 },
     { key: 'conveniado',                      label: 'Conveniado',       width: 180 },
     { key: 'area_estagio_situacao_demanda',   label: 'Área / Situação',  width: 180 },
@@ -374,14 +376,15 @@ function DrilldownModal({
     return String((r as any)[key] ?? '—') || '—';
   };
 
-  // Export CSV
-  const exportCSV = () => {
-    const header = cols.map(c => c.label).join(';');
-    const body = sorted.map(r => cols.map(c => `"${getCellValue(r, c.key).replace(/"/g, '""')}"`).join(';')).join('\n');
-    const blob = new Blob(['\uFEFF' + header + '\n' + body], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'drilldown.csv'; a.click();
-    URL.revokeObjectURL(url);
+  // Export XLSX
+  const exportXLSX = () => {
+    const header = cols.map(c => c.label);
+    const body = sorted.map(r => cols.map(c => getCellValue(r, c.key)));
+    const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
+    ws['!cols'] = cols.map(c => ({ wch: Math.round((c.width ?? 120) / 7) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Detalhes');
+    XLSX.writeFile(wb, 'drilldown.xlsx');
   };
 
   const toggleSort = (key: string) => {
@@ -403,9 +406,9 @@ function DrilldownModal({
             <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">{sorted.length} registro{sorted.length !== 1 ? 's' : ''}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={exportCSV}
+            <button onClick={exportXLSX}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white/20 hover:bg-white/30 rounded-lg transition-all">
-              <Download className="w-3.5 h-3.5" /> CSV
+              <Download className="w-3.5 h-3.5" /> XLSX
             </button>
             <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-lg transition-all">
               <X className="w-5 h-5" />
