@@ -4714,7 +4714,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                           </div>
                         </div>
                       )}
-                      <input type="hidden" id="demanda_assinada_flag" name="demanda_assinada_flag" defaultValue="" />
+                      <input type="hidden" id="demanda_assinada_flag" name="demanda_assinada_flag" defaultValue={editingFormalizacao?.assinatura ? 'DEMANDA ASSINADA' : ''} />
                     </div>
                   </div>
                   );
