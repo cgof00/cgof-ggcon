@@ -178,17 +178,6 @@ BEGIN
         WHERE NULLIF(TRIM(REGEXP_REPLACE(COALESCE(e.codigo_num,''), '[^0-9]', '', 'g')), '') IS NOT NULL
           AND TRIM(REGEXP_REPLACE(COALESCE(f.emenda,''), '[^0-9]', '', 'g'))
             = TRIM(REGEXP_REPLACE(COALESCE(e.codigo_num,''), '[^0-9]', '', 'g'))
-      )
-      -- Nao existe correspondencia por numero_convenio
-      AND (
-        f.numero_convenio IS NULL
-        OR TRIM(f.numero_convenio) = ''
-        OR NOT EXISTS (
-          SELECT 1 FROM emendas e
-          WHERE e.num_convenio IS NOT NULL
-            AND TRIM(e.num_convenio) != ''
-            AND TRIM(f.numero_convenio) = TRIM(e.num_convenio)
-        )
       );
     GET DIAGNOSTICS v_cleared = ROW_COUNT;
   END IF;
