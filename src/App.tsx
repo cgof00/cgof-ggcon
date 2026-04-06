@@ -545,6 +545,7 @@ interface Formalizacao {
   situacao_demandas_sempapel?: string;
   area_estagio?: string;
   recurso?: string;
+  parecer_ld?: string;
   tecnico?: string;
   data_liberacao?: string;
   area_estagio_situacao_demanda?: string;
@@ -598,6 +599,7 @@ export default function App() {
   const [isSupabaseGuideOpen, setIsSupabaseGuideOpen] = useState(false);
   const [editingFormalizacao, setEditingFormalizacao] = useState<Formalizacao | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(() => localStorage.getItem('formalizacao_last_update'));
   const [selectedFormalizacao, setSelectedFormalizacao] = useState<Formalizacao | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<any>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -626,6 +628,7 @@ export default function App() {
     situacao_demandas_sempapel: true,
     area_estagio: true,
     recurso: true,
+    parecer_ld: true,
     tecnico: true,
     data_liberacao: true,
     area_estagio_situacao_demanda: true,
@@ -852,7 +855,8 @@ export default function App() {
     regional: 'regional', municipio: 'municipio', conveniado: 'conveniado', objeto: 'objeto',
     portfolio: 'portfolio', valor: 'valor', posicao_anterior: 'posicao_anterior',
     situacao_demandas_sempapel: 'situacao_demandas_sempapel', area_estagio: 'area_estagio',
-    recurso: 'recurso', tecnico: 'tecnico', data_liberacao: 'data_liberacao',
+    recurso: 'recurso', tecnico: 'tecnico',
+    parecer_ld: 'parecer_ld', data_liberacao: 'data_liberacao',
     area_estagio_situacao_demanda: 'area_estagio_situacao_demanda',
     situacao_analise_demanda: 'situacao_analise_demanda', data_analise_demanda: 'data_analise_demanda',
     motivo_retorno_diligencia: 'motivo_retorno_diligencia',
@@ -1597,6 +1601,10 @@ export default function App() {
         setImportProgress(100); 
         setImportStatus('done');
         
+        const now = new Date().toISOString();
+        localStorage.setItem('formalizacao_last_update', now);
+        setLastUpdateTime(now);
+        
         const totalDuplicated = batchResults.reduce((sum: number, r: any) => sum + (r.deduped || 0), 0);
         const totalImported = batchResults.reduce((sum: number, r: any) => sum + (r.imported || 0), 0);
         
@@ -1677,6 +1685,13 @@ export default function App() {
     [normalizeHeaderKey('Com ou Sem Recurso')]: 'recurso',
     [normalizeHeaderKey('Com/sem recurso')]: 'recurso',
     [normalizeHeaderKey('Com sem recurso')]: 'recurso',
+
+    // parecer LDO
+    [normalizeHeaderKey('Parecer LDO')]: 'parecer_ld',
+    [normalizeHeaderKey('Parecer Ldo')]: 'parecer_ld',
+    [normalizeHeaderKey('parecer_ld')]: 'parecer_ld',
+    [normalizeHeaderKey('parecer ld')]: 'parecer_ld',
+    [normalizeHeaderKey('Parecer LD')]: 'parecer_ld',
   };
 
   const handleUpdateCamposCSV = async (file: File) => {
@@ -1783,6 +1798,9 @@ export default function App() {
 
       setUpdateCamposProgress(100); setUpdateCamposStatus('done');
       setUpdateCamposMessage(`Concluído! ${totalUpdated} registros atualizados | ${totalNotFound} emendas não encontradas.`);
+      const nowCampos = new Date().toISOString();
+      localStorage.setItem('formalizacao_last_update', nowCampos);
+      setLastUpdateTime(nowCampos);
       silentRefreshData();
     };
 
@@ -2156,7 +2174,7 @@ export default function App() {
       regional: 'Regional', municipio: 'Município', conveniado: 'Conveniado',
       objeto: 'Objeto', portfolio: 'Portfólio', valor: 'Valor',
       posicao_anterior: 'Posição Anterior', situacao_demandas_sempapel: 'Situação SemPapel',
-      area_estagio: 'Área - Estágio', recurso: 'Recurso', tecnico: 'Técnico',
+      area_estagio: 'Área - Estágio', recurso: 'Recurso', parecer_ld: 'Parecer LDO', tecnico: 'Técnico',
       data_liberacao: 'Data Liberação', area_estagio_situacao_demanda: 'Área - Situação',
       situacao_analise_demanda: 'Situação Análise', data_analise_demanda: 'Data Análise',
       motivo_retorno_diligencia: 'Motivo Retorno', data_retorno_diligencia: 'Data Retorno Dilig.',
@@ -2661,6 +2679,12 @@ export default function App() {
               <div className="hidden md:flex flex-col">
                 <h1 className="text-base font-bold text-white leading-tight">Controle de Formalização</h1>
                 <span className="text-[11px] text-white/50">Gestão de Emendas e Convênios</span>
+                {lastUpdateTime && (
+                  <span className="text-[10px] text-white/40 flex items-center gap-1 mt-0.5">
+                    <Clock className="w-2.5 h-2.5" />
+                    Atualizado: {new Date(lastUpdateTime).toLocaleString('pt-BR')}
+                  </span>
+                )}
               </div>
               <div className="h-8 w-px bg-white/20 hidden md:block" />
               <nav className="hidden md:flex items-center gap-1 bg-white/10 p-0.5 rounded-lg">
@@ -3031,6 +3055,7 @@ export default function App() {
                               { key: 'situacao_demandas_sempapel', label: 'Situação SemPapel' },
                               { key: 'area_estagio', label: 'Área - Estágio' },
                               { key: 'recurso', label: 'Recurso' },
+                              { key: 'parecer_ld', label: 'Parecer LDO' },
                               { key: 'tecnico', label: 'Técnico' },
                               { key: 'data_liberacao', label: 'Data Liberação' },
                               { key: 'area_estagio_situacao_demanda', label: 'Área - Situação' },
@@ -3467,6 +3492,7 @@ export default function App() {
                           { key: 'situacao_demandas_sempapel', label: 'Situação SemPapel', render: (f: any) => f.situacao_demandas_sempapel },
                           { key: 'area_estagio', label: 'Área - Estágio', render: (f: any) => f.area_estagio },
                           { key: 'recurso', label: 'Recurso', render: (f: any) => f.recurso },
+                          { key: 'parecer_ld', label: 'Parecer LDO', render: (f: any) => f.parecer_ld },
                           { key: 'tecnico', label: 'Técnico', render: (f: any) => f.tecnico || '—' },
                           { key: 'data_liberacao', label: 'Data Liberação', render: (f: any) => formatDateForDisplay(f.data_liberacao || '—') },
                           { key: 'area_estagio_situacao_demanda', label: 'Área - Situação', render: (f: any) => f.area_estagio_situacao_demanda },
@@ -4383,6 +4409,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     { label: 'Situação SemPapel', value: f.situacao_demandas_sempapel || '—' },
                     { label: 'Área - Estágio', value: f.area_estagio || '—' },
                     { label: 'Recurso', value: f.recurso || '—' },
+                    { label: 'Parecer LDO', value: f.parecer_ld || '—' },
                   ];
                   // First 3 always visible, rest collapsible
                   const mainFields = detailFields.slice(0, 6);

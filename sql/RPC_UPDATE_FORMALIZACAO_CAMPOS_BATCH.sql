@@ -1,10 +1,10 @@
--- RPC: Atualiza formalizacao.tipo_formalizacao e formalizacao.recurso em lote
+-- RPC: Atualiza formalizacao.tipo_formalizacao, formalizacao.recurso e formalizacao.parecer_ld em lote
 -- - Chave: emenda (match por dígitos apenas para tolerar formatação com pontos)
 -- - Escopo: apenas anos 2023–2026 (por padrão)
 --
 -- Como usar (via PostgREST):
 -- POST /rest/v1/rpc/update_formalizacao_campos_batch
--- { "records": [ {"emenda":"2026.005.80418","tipo_formalizacao":"...","recurso":"..."}, ... ] }
+-- { "records": [ {"emenda":"2026.005.80418","tipo_formalizacao":"...","recurso":"...","parecer_ld":"..."}, ... ] }
 
 create or replace function public.update_formalizacao_campos_batch(
   records jsonb,
@@ -36,6 +36,7 @@ begin
       right(regexp_replace(coalesce(elem->>'emenda', ''), '\\D', '', 'g'), 5) as emenda_last5,
       nullif(btrim(elem->>'tipo_formalizacao'), '') as tipo_formalizacao,
       nullif(btrim(elem->>'recurso'), '') as recurso,
+      nullif(btrim(elem->>'parecer_ld'), '') as parecer_ld,
       case
         when length(regexp_replace(coalesce(elem->>'emenda', ''), '\\D', '', 'g')) >= 4
           then substring(regexp_replace(coalesce(elem->>'emenda', ''), '\\D', '', 'g') from 1 for 4)::int
@@ -48,7 +49,7 @@ begin
     from input
     where emenda_raw is not null
       and emenda_norm <> ''
-      and (tipo_formalizacao is not null or recurso is not null)
+      and (tipo_formalizacao is not null or recurso is not null or parecer_ld is not null)
   ),
   input_by_norm as (
     select
@@ -56,7 +57,8 @@ begin
       emenda_last5,
       ano,
       max(tipo_formalizacao) as tipo_formalizacao,
-      max(recurso) as recurso
+      max(recurso) as recurso,
+      max(parecer_ld) as parecer_ld
     from input_clean
     group by emenda_norm, emenda_last5, ano
   ),
@@ -66,7 +68,8 @@ begin
     update formalizacao f
     set
       tipo_formalizacao = coalesce(i.tipo_formalizacao, f.tipo_formalizacao),
-      recurso = coalesce(i.recurso, f.recurso)
+      recurso = coalesce(i.recurso, f.recurso),
+      parecer_ld = coalesce(i.parecer_ld, f.parecer_ld)
     from input_by_norm i
     where
       (
@@ -110,7 +113,8 @@ begin
       ano,
       emenda_last5,
       max(tipo_formalizacao) as tipo_formalizacao,
-      max(recurso) as recurso
+      max(recurso) as recurso,
+      max(parecer_ld) as parecer_ld
     from input_unmatched_norm
     where emenda_last5 is not null and emenda_last5 <> ''
       and ano = any(years)
@@ -157,7 +161,8 @@ begin
     update formalizacao f
     set
       tipo_formalizacao = coalesce(i.tipo_formalizacao, f.tipo_formalizacao),
-      recurso = coalesce(i.recurso, f.recurso)
+      recurso = coalesce(i.recurso, f.recurso),
+      parecer_ld = coalesce(i.parecer_ld, f.parecer_ld)
     from input_year_last5_unique i
     join formalizacao_year_last5_unique u
       on u.ano = i.ano
@@ -170,13 +175,18 @@ begin
   -- 3) Fallback por last5 SEM ano no input
   --    Útil quando a emenda na planilha não permite extrair ano, mas ainda queremos
   --    atualizar somente o destino 2023–2026. Só aplica com unicidade em ambos.
+  --    PROTEÇÃO: exclui emendas cujo ano é extraível mas NÃO está nos anos alvo
+  --    (ex.: emendas de 2019 têm formato AAAA.NNN.NNNN, diferente de 2023+ AAAA.NNN.NNNNN,
+  --     e os últimos 5 dígitos podem colidir com emendas de outros anos — ignorar esses casos)
   input_last5_unique_anyyear as (
     select
       emenda_last5,
       max(tipo_formalizacao) as tipo_formalizacao,
-      max(recurso) as recurso
+      max(recurso) as recurso,
+      max(parecer_ld) as parecer_ld
     from input_unmatched_norm
     where emenda_last5 is not null and emenda_last5 <> ''
+      and (ano is null or ano = any(years))  -- não usar linhas de anos fora do escopo (ex.: 2019)
     group by emenda_last5
     having count(*) = 1
   ),
@@ -202,7 +212,8 @@ begin
     update formalizacao f
     set
       tipo_formalizacao = coalesce(i.tipo_formalizacao, f.tipo_formalizacao),
-      recurso = coalesce(i.recurso, f.recurso)
+      recurso = coalesce(i.recurso, f.recurso),
+      parecer_ld = coalesce(i.parecer_ld, f.parecer_ld)
     from input_last5_unique_anyyear i
     join formalizacao_last5_unique_in_years u
       on u.emenda_last5 = i.emenda_last5
