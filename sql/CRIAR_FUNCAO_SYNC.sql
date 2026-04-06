@@ -71,6 +71,7 @@ BEGIN
       e.detalhes, e.natureza, e.num_convenio, e.regional,
       e.municipio, e.beneficiario, e.objeto, e.portfolio,
       e.valor, e.num_emenda, e.situacao_d,
+      COALESCE(e.parecer_ld, '')                                           AS parecer_ld,
       TRIM(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g')) AS digits,
       TRIM(COALESCE(e.num_convenio, ''))                                   AS conv_trim
     FROM emendas e
@@ -80,6 +81,24 @@ BEGIN
   CREATE INDEX ON _batch (digits);
   CREATE INDEX ON _batch (conv_trim);
   ANALYZE _batch;
+
+  -- ── PASSO 0: Remover registros de anos fora do escopo sem dados operacionais ──
+  -- Remove entradas antigas (ex: 2019) que nao tem tecnico, conferencista,
+  -- tipo_formalizacao, recurso ou parecer_ld preenchidos.
+  -- So executa no primeiro lote (p_offset = 0) para nao repetir.
+  IF p_offset = 0 THEN
+    DELETE FROM formalizacao
+    WHERE
+      COALESCE(
+        NULLIF(SUBSTRING(REGEXP_REPLACE(COALESCE(ano, ''), '[^0-9]', '', 'g') FROM 1 FOR 4), '')::INT,
+        0
+      ) NOT IN (2023, 2024, 2025, 2026)
+      AND (tecnico       IS NULL OR TRIM(tecnico) = '')
+      AND (conferencista IS NULL OR TRIM(conferencista) = '')
+      AND (tipo_formalizacao IS NULL OR TRIM(tipo_formalizacao) = '')
+      AND (recurso       IS NULL OR TRIM(recurso) = '')
+      AND (parecer_ld    IS NULL OR TRIM(parecer_ld) = '');
+  END IF;
 
   -- ── PASSO 1: Atualizar por numero_convenio ──────────────────────────────
   -- Join _batch(5k) × formalizacao(37k) via idx_formalizacao_trim_numero_convenio
@@ -98,7 +117,8 @@ BEGIN
       objeto                       = COALESCE(NULLIF(f.objeto, ''), b.objeto),
       regional                     = COALESCE(NULLIF(f.regional, ''), b.regional),
       portfolio                    = COALESCE(NULLIF(f.portfolio, ''), b.portfolio),
-      valor                        = COALESCE(f.valor, b.valor)
+      valor                        = COALESCE(f.valor, b.valor),
+      parecer_ld                   = COALESCE(NULLIF(b.parecer_ld, ''), f.parecer_ld)
     FROM _batch b
     WHERE b.conv_trim != ''
       AND TRIM(f.numero_convenio) = b.conv_trim
@@ -123,7 +143,8 @@ BEGIN
       regional                     = COALESCE(NULLIF(f.regional, ''), b.regional),
       portfolio                    = COALESCE(NULLIF(f.portfolio, ''), b.portfolio),
       numero_convenio              = COALESCE(NULLIF(f.numero_convenio, ''), b.num_convenio),
-      valor                        = COALESCE(f.valor, b.valor)
+      valor                        = COALESCE(f.valor, b.valor),
+      parecer_ld                   = COALESCE(NULLIF(b.parecer_ld, ''), f.parecer_ld)
     FROM _batch b
     WHERE LENGTH(b.digits) >= 6
       AND TRIM(REGEXP_REPLACE(f.emenda, '[^0-9]', '', 'g')) = b.digits
@@ -137,12 +158,14 @@ BEGIN
   INSERT INTO formalizacao (
     ano, parlamentar, partido, emenda, demanda,
     classificacao_emenda_demanda, numero_convenio,
-    regional, municipio, conveniado, objeto, portfolio, valor
+    regional, municipio, conveniado, objeto, portfolio, valor,
+    parecer_ld
   )
   SELECT
     b.ano_refer, b.parlamentar, b.partido, b.codigo_num, b.detalhes,
     b.natureza,  b.num_convenio, b.regional, b.municipio,
-    b.beneficiario, b.objeto, b.portfolio, b.valor
+    b.beneficiario, b.objeto, b.portfolio, b.valor,
+    NULLIF(b.parecer_ld, '')
   FROM _batch b
   LEFT JOIN formalizacao f_e
     ON LENGTH(b.digits) >= 6
