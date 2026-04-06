@@ -58,6 +58,7 @@ DECLARE
   v_updated  INTEGER := 0;
   v_updated2 INTEGER := 0;
   v_inserted INTEGER := 0;
+  v_cleared  INTEGER := 0;
   v_total    INTEGER;
 BEGIN
   -- Total no staging (para calcular has_more)
@@ -82,30 +83,12 @@ BEGIN
   CREATE INDEX ON _batch (conv_trim);
   ANALYZE _batch;
 
-  -- ── PASSO 0: Remover registros de anos fora do escopo sem dados operacionais ──
-  -- Remove entradas antigas (ex: 2019) que nao tem tecnico, conferencista,
-  -- tipo_formalizacao, recurso ou parecer_ld preenchidos.
-  -- So executa no primeiro lote (p_offset = 0) para nao repetir.
-  IF p_offset = 0 THEN
-    DELETE FROM formalizacao
-    WHERE
-      COALESCE(
-        NULLIF(SUBSTRING(REGEXP_REPLACE(COALESCE(ano, ''), '[^0-9]', '', 'g') FROM 1 FOR 4), '')::INT,
-        0
-      ) NOT IN (2023, 2024, 2025, 2026)
-      AND (tecnico       IS NULL OR TRIM(tecnico) = '')
-      AND (conferencista IS NULL OR TRIM(conferencista) = '')
-      AND (tipo_formalizacao IS NULL OR TRIM(tipo_formalizacao) = '')
-      AND (recurso       IS NULL OR TRIM(recurso) = '')
-      AND (parecer_ld    IS NULL OR TRIM(parecer_ld) = '');
-  END IF;
-
   -- ── PASSO 1: Atualizar por numero_convenio ──────────────────────────────
   -- Join _batch(5k) × formalizacao(37k) via idx_formalizacao_trim_numero_convenio
   WITH m AS (
     UPDATE formalizacao f SET
-      demanda                      = COALESCE(NULLIF(b.detalhes, ''), f.demanda),
-      situacao_demandas_sempapel   = COALESCE(NULLIF(b.situacao_d, ''), f.situacao_demandas_sempapel),
+      demanda                      = COALESCE(NULLIF(TRIM(b.detalhes), ''), f.demanda),
+      situacao_demandas_sempapel   = COALESCE(NULLIF(TRIM(b.situacao_d), ''), f.situacao_demandas_sempapel),
       classificacao_emenda_demanda = COALESCE(NULLIF(f.classificacao_emenda_demanda, ''), b.natureza),
       ano                          = COALESCE(NULLIF(f.ano, ''), b.ano_refer),
       emenda                       = COALESCE(NULLIF(f.emenda, ''), b.codigo_num),
@@ -130,8 +113,8 @@ BEGIN
   -- Join usa idx_formalizacao_emenda_digits (expression index): sem NOT EXISTS, idempotente via COALESCE
   WITH m2 AS (
     UPDATE formalizacao f SET
-      demanda                      = COALESCE(NULLIF(b.detalhes, ''), f.demanda),
-      situacao_demandas_sempapel   = COALESCE(NULLIF(b.situacao_d, ''), f.situacao_demandas_sempapel),
+      demanda                      = COALESCE(NULLIF(TRIM(b.detalhes), ''), f.demanda),
+      situacao_demandas_sempapel   = COALESCE(NULLIF(TRIM(b.situacao_d), ''), f.situacao_demandas_sempapel),
       classificacao_emenda_demanda = COALESCE(NULLIF(f.classificacao_emenda_demanda, ''), b.natureza),
       ano                          = COALESCE(NULLIF(f.ano, ''), b.ano_refer),
       emendas_agregadoras          = COALESCE(NULLIF(f.emendas_agregadoras, ''), b.num_emenda),
@@ -179,12 +162,44 @@ BEGIN
   GET DIAGNOSTICS v_inserted = ROW_COUNT;
   DROP TABLE IF EXISTS _batch;
 
+  -- PASSO 3 (somente no ultimo lote): Limpar demanda de registros nao encontrados na planilha importada
+  -- Se um registro em formalizacao nao tem emenda correspondente no staging (emendas),
+  -- o numero da demanda e removido pois a planilha nao o reconhece mais.
+  -- Guarda: requer ao menos 100 registros no staging para evitar limpeza acidental.
+  IF NOT (p_offset + p_limit < v_total) AND v_total > 100 THEN
+    UPDATE formalizacao f
+    SET demanda = NULL
+    WHERE
+      f.demanda IS NOT NULL
+      AND TRIM(f.demanda) != ''
+      -- Nao existe correspondencia por emenda (codigo normalizado)
+      AND NOT EXISTS (
+        SELECT 1 FROM emendas e
+        WHERE NULLIF(TRIM(REGEXP_REPLACE(COALESCE(e.codigo_num,''), '[^0-9]', '', 'g')), '') IS NOT NULL
+          AND TRIM(REGEXP_REPLACE(COALESCE(f.emenda,''), '[^0-9]', '', 'g'))
+            = TRIM(REGEXP_REPLACE(COALESCE(e.codigo_num,''), '[^0-9]', '', 'g'))
+      )
+      -- Nao existe correspondencia por numero_convenio
+      AND (
+        f.numero_convenio IS NULL
+        OR TRIM(f.numero_convenio) = ''
+        OR NOT EXISTS (
+          SELECT 1 FROM emendas e
+          WHERE e.num_convenio IS NOT NULL
+            AND TRIM(e.num_convenio) != ''
+            AND TRIM(f.numero_convenio) = TRIM(e.num_convenio)
+        )
+      );
+    GET DIAGNOSTICS v_cleared = ROW_COUNT;
+  END IF;
+
   RETURN json_build_object(
     'updated',  v_updated + v_updated2,
     'inserted', v_inserted,
     'offset',   p_offset,
     'limit',    p_limit,
     'total',    v_total,
+    'cleared',  v_cleared,
     'has_more', (p_offset + p_limit < v_total),
     -- No último lote, retorna o total real de formalizações p/ calcular novas inseridas
     'formalizacao_count', CASE WHEN NOT (p_offset + p_limit < v_total)
