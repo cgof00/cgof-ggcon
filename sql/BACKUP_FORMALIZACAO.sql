@@ -20,6 +20,10 @@
 CREATE TABLE IF NOT EXISTS public.formalizacao_backup
   (LIKE public.formalizacao INCLUDING DEFAULTS);
 
+-- Garantir que colunas adicionadas depois da criação do backup existam
+ALTER TABLE public.formalizacao_backup
+  ADD COLUMN IF NOT EXISTS parecer_ld text;
+
 -- ─────────────────────────────────────────────────────────────
 -- 2) RPC: backup_formalizacao()
 --    Trunca a tabela de backup e copia toda a formalizacao.
@@ -44,6 +48,11 @@ BEGIN
   IF NOT tbl_exists THEN
     EXECUTE 'CREATE TABLE public.formalizacao_backup (LIKE public.formalizacao INCLUDING DEFAULTS)';
   END IF;
+
+  -- Garantir colunas adicionadas após a criação inicial do backup
+  BEGIN
+    EXECUTE 'ALTER TABLE public.formalizacao_backup ADD COLUMN IF NOT EXISTS parecer_ld text';
+  EXCEPTION WHEN OTHERS THEN NULL; END;
 
   -- Limpa backup anterior
   TRUNCATE public.formalizacao_backup;
