@@ -2252,6 +2252,9 @@ export default function App() {
         if (allDataCacheRef.current.length > 0) {
           allDataCacheRef.current = removeFromList(allDataCacheRef.current);
         }
+        if (filteredForExportRef.current.length > 0) {
+          filteredForExportRef.current = removeFromList(filteredForExportRef.current);
+        }
         setFormalizacoes(prev => removeFromList(prev));
         setFormalizacaoSearchResult(prev => ({
           ...prev,
@@ -2287,6 +2290,9 @@ export default function App() {
       const removeById = (list: any[]) => list.filter((f: any) => f.id !== delId);
       if (allDataCacheRef.current.length > 0) {
         allDataCacheRef.current = removeById(allDataCacheRef.current);
+      }
+      if (filteredForExportRef.current.length > 0) {
+        filteredForExportRef.current = removeById(filteredForExportRef.current);
       }
       setFormalizacoes(prev => removeById(prev));
       setFormalizacaoSearchResult(prev => ({
@@ -2395,6 +2401,9 @@ export default function App() {
 
         if (allDataCacheRef.current.length > 0) {
           allDataCacheRef.current = updateInList(allDataCacheRef.current);
+        }
+        if (filteredForExportRef.current.length > 0) {
+          filteredForExportRef.current = updateInList(filteredForExportRef.current);
         }
         setFormalizacoes(prev => updateInList(prev));
         setFormalizacaoSearchResult(prev => ({
@@ -4984,6 +4993,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         if (allDataCacheRef.current.length > 0) {
                           allDataCacheRef.current = updater(allDataCacheRef.current);
                         }
+                        if (filteredForExportRef.current.length > 0) {
+                          filteredForExportRef.current = updater(filteredForExportRef.current);
+                        }
                         setFormalizacoes(prev => updater(prev));
                         setFormalizacaoSearchResult((prev: any) => ({
                           ...prev,
@@ -5213,6 +5225,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       if (allDataCacheRef.current.length > 0) {
                         allDataCacheRef.current = updater(allDataCacheRef.current);
                       }
+                      if (filteredForExportRef.current.length > 0) {
+                        filteredForExportRef.current = updater(filteredForExportRef.current);
+                      }
                       setFormalizacoes(prev => updater(prev));
                       setFormalizacaoSearchResult((prev: any) => ({
                         ...prev,
@@ -5437,6 +5452,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                           });
                           if (allDataCacheRef.current.length > 0) {
                             allDataCacheRef.current = updater(allDataCacheRef.current);
+                          }
+                          if (filteredForExportRef.current.length > 0) {
+                            filteredForExportRef.current = updater(filteredForExportRef.current);
                           }
                           setFormalizacoes(prev => updater(prev));
                           setFormalizacaoSearchResult((prev: any) => ({
@@ -5797,6 +5815,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     );
                     if (allDataCacheRef.current.length > 0) {
                       allDataCacheRef.current = updater(allDataCacheRef.current);
+                    }
+                    if (filteredForExportRef.current.length > 0) {
+                      filteredForExportRef.current = updater(filteredForExportRef.current);
                     }
                     setFormalizacoes(prev => updater(prev));
                     setFormalizacaoSearchResult((prev: any) => ({
