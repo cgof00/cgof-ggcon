@@ -2190,11 +2190,37 @@ export default function App() {
       .filter(([k, v]) => v && k !== 'seq' && COLUMN_MAP[k])
       .map(([k]) => ({ key: k, label: COLUMN_MAP[k] }));
 
+    const DATE_COLUMNS = new Set([
+      'data_liberacao', 'data_analise_demanda', 'data_retorno_diligencia',
+      'data_recebimento_demanda', 'data_retorno', 'data_liberacao_assinatura_conferencista',
+      'data_liberacao_assinatura', 'assinatura', 'publicacao', 'vigencia',
+      'encaminhado_em', 'concluida_em'
+    ]);
+
+    const FALTA_ASSINATURA_ORDER = [
+      'GESTOR ADMINISTRATIVO DRS', 'GESTOR TÉCNICO DRS', 'DIRETOR DRS',
+      'COORDENADOR CRS', 'DIRETOR GGCON', 'ORDENADOR DE DESPESAS',
+      'SECRETÁRIO', 'GESTOR – CONVÊNIO / DEMANDANTE'
+    ];
+
     const header = cols.map(c => c.label);
     const rows = data.map(row =>
       cols.map(({ key }) => {
         const v = (row as any)[key];
-        return v === null || v === undefined ? '' : v;
+        if (v === null || v === undefined || v === '') return '';
+        if (DATE_COLUMNS.has(key)) {
+          return formatDateForDisplay(String(v));
+        }
+        if (key === 'falta_assinatura') {
+          const parts = String(v).split(',').map((s: string) => s.trim()).filter(Boolean);
+          const sorted = parts.sort((a, b) => {
+            const ia = FALTA_ASSINATURA_ORDER.indexOf(a);
+            const ib = FALTA_ASSINATURA_ORDER.indexOf(b);
+            return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+          });
+          return sorted.join(', ');
+        }
+        return v;
       })
     );
 
@@ -5771,10 +5797,20 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       type="checkbox"
                       checked={isChecked}
                       onChange={() => {
+                        const FALTA_ORDER = [
+                          'GESTOR ADMINISTRATIVO DRS', 'GESTOR TÉCNICO DRS', 'DIRETOR DRS',
+                          'COORDENADOR CRS', 'DIRETOR GGCON', 'ORDENADOR DE DESPESAS',
+                          'SECRETÁRIO', 'GESTOR – CONVÊNIO / DEMANDANTE'
+                        ];
                         const newValues = isChecked
                           ? currentValues.filter(v => v !== opcao)
                           : [...currentValues, opcao];
-                        setInlineEditFalta({ ...inlineEditFalta, value: newValues.join(', ') });
+                        const sorted = newValues.sort((a, b) => {
+                          const ia = FALTA_ORDER.indexOf(a);
+                          const ib = FALTA_ORDER.indexOf(b);
+                          return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+                        });
+                        setInlineEditFalta({ ...inlineEditFalta, value: sorted.join(', ') });
                       }}
                       className="w-4 h-4 rounded border-gray-300 accent-orange-500"
                     />
