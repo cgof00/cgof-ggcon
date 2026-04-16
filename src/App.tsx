@@ -4833,8 +4833,11 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                 const nextWed = new Date(pub);
                                 nextWed.setDate(pub.getDate() + daysToAdd);
                                 const enc = document.getElementById('encaminhado_em_input') as HTMLInputElement;
-                                if (enc && !enc.disabled && !enc.value) {
-                                  enc.value = nextWed.toISOString().split('T')[0];
+                                if (enc && !enc.disabled) {
+                                  const y = nextWed.getFullYear();
+                                  const m = String(nextWed.getMonth() + 1).padStart(2, '0');
+                                  const d = String(nextWed.getDate()).padStart(2, '0');
+                                  enc.value = `${y}-${m}-${d}`;
                                 }
                               }
                             }}
