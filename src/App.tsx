@@ -4544,6 +4544,11 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         <option value="PUBLICAÇÃO NO DOE - FUNDO A FUNDO">PUBLICAÇÃO NO DOE - FUNDO A FUNDO</option>
                         <option value="PROCESSO SIAFEM">PROCESSO SIAFEM</option>
                         <option value="PROCESSO SIAFEM - FUNDO A FUNDO">PROCESSO SIAFEM - FUNDO A FUNDO</option>
+                        <option value="EM ANÁLISE ORÇAMENTÁRIA CGOF – FUNDO A FUNDO">EM ANÁLISE ORÇAMENTÁRIA CGOF – FUNDO A FUNDO</option>
+                        <option value="PARECER COORDENADOR CGOF – FUNDO A FUNDO">PARECER COORDENADOR CGOF – FUNDO A FUNDO</option>
+                        <option value="APROVAÇÃO - CHEFIA DE GABINETE – FUNDO A FUNDO">APROVAÇÃO - CHEFIA DE GABINETE – FUNDO A FUNDO</option>
+                        <option value="AGUARDANDO APROVAÇÃO DO SECRETARIO DE ESTADO DA SAÚDE – FUNDO A FUNDO">AGUARDANDO APROVAÇÃO DO SECRETARIO DE ESTADO DA SAÚDE – FUNDO A FUNDO</option>
+                        <option value="AGUARDANDO RESOLUÇÃO PARA EMISSÃO RESOLUÇÃO PARA REPASSE FUNDO A FUNDO - DOE">AGUARDANDO RESOLUÇÃO PARA EMISSÃO RESOLUÇÃO PARA REPASSE FUNDO A FUNDO - DOE</option>
                       </select>
                     </div>
                   </div>
