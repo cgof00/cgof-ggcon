@@ -4511,22 +4511,39 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       >
                         <option value="">-- Selecione --</option>
                         <option value="DEMANDA COM O TÉCNICO">DEMANDA COM O TÉCNICO</option>
+                        <option value="DEMANDA COM O TÉCNICO - FUNDO A FUNDO">DEMANDA COM O TÉCNICO - FUNDO A FUNDO</option>
                         <option value="EM ANÁLISE DA DOCUMENTAÇÃO">EM ANÁLISE DA DOCUMENTAÇÃO</option>
+                        <option value="EM ANÁLISE DA DOCUMENTAÇÃO - FUNDO A FUNDO">EM ANÁLISE DA DOCUMENTAÇÃO - FUNDO A FUNDO</option>
                         <option value="EM ANÁLISE DO PLANO DE TRABALHO">EM ANÁLISE DO PLANO DE TRABALHO</option>
+                        <option value="EM ANÁLISE DO PLANO DE TRABALHO - FUNDO A FUNDO">EM ANÁLISE DO PLANO DE TRABALHO - FUNDO A FUNDO</option>
                         <option value="AGUARDANDO DOCUMENTAÇÃO">AGUARDANDO DOCUMENTAÇÃO</option>
+                        <option value="AGUARDANDO DOCUMENTAÇÃO - FUNDO A FUNDO">AGUARDANDO DOCUMENTAÇÃO - FUNDO A FUNDO</option>
                         <option value="DEMANDA EM DILIGÊNCIA">DEMANDA EM DILIGÊNCIA</option>
+                        <option value="DEMANDA EM DILIGÊNCIA - FUNDO A FUNDO">DEMANDA EM DILIGÊNCIA - FUNDO A FUNDO</option>
                         <option value="DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS">DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS</option>
+                        <option value="DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS - FUNDO A FUNDO">DEMANDA EM DILIGÊNCIA DOCUMENTO - DRS - FUNDO A FUNDO</option>
                         <option value="DEMANDA EM DILIGÊNCIA PLANO DE TRABALHO - CRS">DEMANDA EM DILIGÊNCIA PLANO DE TRABALHO - CRS</option>
+                        <option value="DEMANDA EM DILIGÊNCIA PLANO DE TRABALHO - CRS - FUNDO A FUNDO">DEMANDA EM DILIGÊNCIA PLANO DE TRABALHO - CRS - FUNDO A FUNDO</option>
                         <option value="COMITÊ GESTOR">COMITÊ GESTOR</option>
+                        <option value="COMITÊ GESTOR - FUNDO A FUNDO">COMITÊ GESTOR - FUNDO A FUNDO</option>
                         <option value="OUTRAS PENDÊNCIAS">OUTRAS PENDÊNCIAS</option>
+                        <option value="OUTRAS PENDÊNCIAS - FUNDO A FUNDO">OUTRAS PENDÊNCIAS - FUNDO A FUNDO</option>
                         <option value="EM FORMALIZAÇÃO">EM FORMALIZAÇÃO</option>
+                        <option value="EM FORMALIZAÇÃO - FUNDO A FUNDO">EM FORMALIZAÇÃO - FUNDO A FUNDO</option>
                         <option value="EM CONFERÊNCIA">EM CONFERÊNCIA</option>
+                        <option value="EM CONFERÊNCIA - FUNDO A FUNDO">EM CONFERÊNCIA - FUNDO A FUNDO</option>
                         <option value="CONFERÊNCIA COM PENDÊNCIA">CONFERÊNCIA COM PENDÊNCIA</option>
+                        <option value="CONFERÊNCIA COM PENDÊNCIA - FUNDO A FUNDO">CONFERÊNCIA COM PENDÊNCIA - FUNDO A FUNDO</option>
                         <option value="EM ASSINATURA">EM ASSINATURA</option>
+                        <option value="EM ASSINATURA - FUNDO A FUNDO">EM ASSINATURA - FUNDO A FUNDO</option>
                         <option value="EMPENHO CANCELADO">EMPENHO CANCELADO</option>
+                        <option value="EMPENHO CANCELADO - FUNDO A FUNDO">EMPENHO CANCELADO - FUNDO A FUNDO</option>
                         <option value="LAUDAS">LAUDAS</option>
+                        <option value="LAUDAS - FUNDO A FUNDO">LAUDAS - FUNDO A FUNDO</option>
                         <option value="PUBLICAÇÃO NO DOE">PUBLICAÇÃO NO DOE</option>
+                        <option value="PUBLICAÇÃO NO DOE - FUNDO A FUNDO">PUBLICAÇÃO NO DOE - FUNDO A FUNDO</option>
                         <option value="PROCESSO SIAFEM">PROCESSO SIAFEM</option>
+                        <option value="PROCESSO SIAFEM - FUNDO A FUNDO">PROCESSO SIAFEM - FUNDO A FUNDO</option>
                       </select>
                     </div>
                   </div>
