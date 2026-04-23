@@ -103,6 +103,7 @@ export const onRequest: PagesFunction = async (context) => {
           tecnico: tecnico.nome,
           usuario_atribuido_id: usuario_id,
           data_liberacao: data_liberacao,
+          area_estagio_situacao_demanda: 'DEMANDA COM O TÉCNICO',
           updated_at: new Date().toISOString()
         })
       }
