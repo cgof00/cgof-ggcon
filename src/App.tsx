@@ -120,6 +120,10 @@ function mapCsvRowToEmendas(row: Record<string, string>): Record<string, any> | 
     else mapped[dbColumn] = val;
   }
   if (!mapped.codigo_num || String(mapped.codigo_num).trim() === '') return null;
+  // Se "Valor da Demanda" for 0 ou ausente, herda o valor de "Valor"
+  if ((!mapped.valor_desembolsado || mapped.valor_desembolsado === 0) && mapped.valor) {
+    mapped.valor_desembolsado = mapped.valor;
+  }
   return mapped;
 }
 
