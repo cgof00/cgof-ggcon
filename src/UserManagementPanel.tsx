@@ -7,7 +7,7 @@ interface Usuario {
   id: number;
   email: string;
   nome: string;
-  role: 'admin' | 'usuario';
+  role: 'admin' | 'usuario' | 'visualizador';
   ativo: boolean;
   created_at: string;
 }
@@ -23,7 +23,7 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({ email: '', nome: '', role: 'usuario' as 'admin' | 'usuario', senha: '' });
+  const [formData, setFormData] = useState({ email: '', nome: '', role: 'usuario' as 'admin' | 'usuario' | 'visualizador', senha: '' });
   const [successMessage, setSuccessMessage] = useState('');
   const [senhaTemporaria, setSenhaTemporaria] = useState('');
   const [copiado, setCopiado] = useState(false);
@@ -40,7 +40,7 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
 
   // Edit user modal states
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editFormData, setEditFormData] = useState({ nome: '', email: '', role: 'usuario' as 'admin' | 'usuario' });
+  const [editFormData, setEditFormData] = useState({ nome: '', email: '', role: 'usuario' as 'admin' | 'usuario' | 'visualizador' });
   const [editUsuarioId, setEditUsuarioId] = useState<number | null>(null);
 
   // Hamburger menu state
@@ -503,6 +503,11 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
                             <Shield className="w-4 h-4 text-orange-600" />
                             <span className="text-xs font-medium text-orange-600">Administrador</span>
                           </>
+                        ) : u.role === 'visualizador' ? (
+                          <>
+                            <Shield className="w-4 h-4 text-purple-600" />
+                            <span className="text-xs font-medium text-purple-600">Visualizador</span>
+                          </>
                         ) : (
                           <>
                             <UserCheck className="w-4 h-4 text-blue-600" />
@@ -601,10 +606,11 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
                           <label className="text-sm font-bold text-slate-700 ml-1">Perfil</label>
                           <select
                             value={editFormData.role}
-                            onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value as 'admin' | 'usuario' })}
+                            onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value as 'admin' | 'usuario' | 'visualizador' })}
                             className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
                           >
                             <option value="usuario">Usuário Padrão</option>
+                            <option value="visualizador">Visualizador</option>
                             <option value="admin">Administrador</option>
                           </select>
                         </div>
@@ -735,10 +741,11 @@ export function UserManagementPanel({ isOpen, onClose }: UserManagementPanelProp
                           <label className="text-sm font-bold text-slate-700 ml-1">Papel</label>
                           <select
                             value={formData.role}
-                            onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'usuario' })}
+                            onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'usuario' | 'visualizador' })}
                             className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
                           >
                             <option value="usuario">Usuário Padrão</option>
+                            <option value="visualizador">Visualizador</option>
                             <option value="admin">Administrador</option>
                           </select>
                         </div>

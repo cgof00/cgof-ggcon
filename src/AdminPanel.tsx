@@ -942,7 +942,7 @@ export function AdminPanel() {
   const classRecurso   = useMemo(() => groupByField(filtered, 'recurso'), [filtered]);
   const classArea      = useMemo(() => groupByField(filtered, 'area_estagio'), [filtered]);
 
-  if (user?.role !== 'admin') return null;
+  if (user?.role !== 'admin' && user?.role !== 'visualizador') return null;
 
   const cellValue = (val: number, variant: 'red' | 'dark' | 'green' = 'red') => {
     if (val === 0) return <span className="text-slate-300">—</span>;

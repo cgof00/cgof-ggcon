@@ -4,7 +4,7 @@ interface User {
   id: number;
   email: string;
   nome: string;
-  role: 'admin' | 'intermediario' | 'usuario';
+  role: 'admin' | 'intermediario' | 'usuario' | 'visualizador';
 }
 
 interface AuthContextType {
@@ -16,6 +16,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isIntermediario: boolean;
   isUsuario: boolean;
+  isVisualizador: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -133,6 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAdmin: user?.role === 'admin',
     isIntermediario: user?.role === 'intermediario',
     isUsuario: user?.role === 'usuario',
+    isVisualizador: user?.role === 'visualizador',
   };
 
   return (

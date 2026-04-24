@@ -573,7 +573,7 @@ interface Formalizacao {
 }
 
 export default function App() {
-  const { user, token, logout, isAdmin, isIntermediario, isUsuario } = useAuth();
+  const { user, token, logout, isAdmin, isIntermediario, isUsuario, isVisualizador } = useAuth();
   const [activeTab, setActiveTab] = useState<'formalizacao' | 'admin' | 'dashboard'>('formalizacao'); // 'admin' = Demonstrativo, 'dashboard' kept for compat
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const [adminAlertas, setAdminAlertas] = useState<{id: number, tipo: string, descricao: string, data: string}[]>([]);
@@ -1196,8 +1196,8 @@ export default function App() {
         concluida_em: true
       });
       console.log('👤 Colunas ajustadas para usuário comum');
-    } else if (user.role === 'admin') {
-      // Administradores veem apenas colunas específicas
+    } else if (user.role === 'admin' || user.role === 'visualizador') {
+      // Administradores e visualizadores veem as mesmas colunas
       setVisibleColumns({
         seq: false,
         ano: true,
@@ -1240,7 +1240,7 @@ export default function App() {
         encaminhado_em: true,
         concluida_em: true
       });
-      console.log('🔑 Colunas ajustadas para administrador');
+      console.log('🔑 Colunas ajustadas para administrador/visualizador');
     }
   }, [user]);
 
@@ -2733,7 +2733,7 @@ export default function App() {
                 >
                   Formalização
                 </button>
-                {user?.role === 'admin' && (
+                {(user?.role === 'admin' || user?.role === 'visualizador') && (
                   <>
                     <button 
                       onClick={() => setActiveTab('admin')}
@@ -2903,6 +2903,7 @@ export default function App() {
                       {user?.role === 'admin' && 'Administrador'}
                       {user?.role === 'intermediario' && 'Intermediário'}
                       {user?.role === 'usuario' && 'Usuário'}
+                      {user?.role === 'visualizador' && 'Visualizador'}
                     </p>
                   </div>
                   <button
@@ -4362,6 +4363,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   ];
                   const isFieldDisabled = (fieldName: string): boolean => {
                     if (isAdmin) return false;
+                    if (isVisualizador) return true;
                     // When user is BOTH técnico AND conferencista, allow fields from either list
                     if (isTecnicoAtribuido && isConferencistaAtribuido) {
                       return !tecnicoEditableFields.includes(fieldName) && !conferencistaEditableFields.includes(fieldName);
@@ -4925,6 +4927,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   >
                     Cancelar
                   </button>
+                  {!isVisualizador && (
                   <button 
                     type="submit"
                     className="px-6 py-2.5 rounded-lg text-xs font-semibold text-white bg-[#1351B4] hover:bg-[#0C326F] shadow-md transition-all active:scale-95 flex items-center gap-2"
@@ -4932,6 +4935,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     {editingFormalizacao ? 'Atualizar Registro' : 'Salvar Demanda'}
                   </button>
+                  )}
                 </div>
 
                     </>
