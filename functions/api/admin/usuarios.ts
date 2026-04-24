@@ -62,8 +62,8 @@ export const onRequest: PagesFunction = async (context) => {
         });
       }
 
-      if (role && !['admin', 'usuario'].includes(role)) {
-        return new Response(JSON.stringify({ error: "Role inválido - deve ser 'admin' ou 'usuario'" }), {
+      if (role && !['admin', 'usuario', 'visualizador'].includes(role)) {
+        return new Response(JSON.stringify({ error: "Role inválido - deve ser 'admin', 'usuario' ou 'visualizador'" }), {
           status: 400, headers: { 'Content-Type': 'application/json' }
         });
       }
