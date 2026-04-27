@@ -45,7 +45,8 @@ import {
   Eye,
   EyeOff,
   Lock,
-  Download
+  Download,
+  Menu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Papa from 'papaparse';
@@ -593,6 +594,8 @@ export default function App() {
   const [importTotal, setImportTotal] = useState(0);
   const [importMessage, setImportMessage] = useState('');
   const [importError, setImportError] = useState('');
+  const [importSkipRows, setImportSkipRows] = useState(0);
+  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
   // Atualizar campos formalização states
   const [isUpdateCamposOpen, setIsUpdateCamposOpen] = useState(false);
   const [updateCamposStatus, setUpdateCamposStatus] = useState<'idle' | 'parsing' | 'uploading' | 'backing-up' | 'done' | 'error'>('idle');
@@ -662,6 +665,7 @@ export default function App() {
   });
   const [cacheStatus, setCacheStatus] = useState<{ status: 'loading' | 'ready' | 'error', message?: string, records?: number, duration?: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const adminMenuRef = useRef<HTMLDivElement>(null);
   
   // Drag scroll states
   const [isDraggingScroll, setIsDraggingScroll] = useState(false);
@@ -742,6 +746,18 @@ export default function App() {
   // Filtros multi-select para colunas sem filterOptions do servidor
   const [headerFilters, setHeaderFilters] = useState<Record<string, string[]>>({});
   const headerFilterRef = useRef<HTMLDivElement>(null);
+
+  // Fechar menu hamburger admin ao clicar fora
+  useEffect(() => {
+    if (!isAdminMenuOpen) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (adminMenuRef.current && !adminMenuRef.current.contains(event.target as Node)) {
+        setIsAdminMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isAdminMenuOpen]);
 
   // Fechar filtro de cabeçalho ao clicar fora
   useEffect(() => {
@@ -1429,7 +1445,7 @@ export default function App() {
   const BATCH_SIZE = 200;
 
   // Extrai rows (Record<string, string>[]) de um arquivo Excel/XML
-  const parseExcelFile = (file: File): Promise<Record<string, string>[]> => {
+  const parseExcelFile = (file: File, skipRows = 0): Promise<Record<string, string>[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -1438,7 +1454,7 @@ export default function App() {
           const wb = XLSX.read(data, { type: 'array' });
           const sheetName = wb.SheetNames[0];
           const ws = wb.Sheets[sheetName];
-          const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { raw: false, defval: '' });
+          const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { raw: false, defval: '', range: skipRows });
           resolve(rows);
         } catch (e: any) {
           reject(new Error(`Erro ao ler arquivo Excel: ${e.message}`));
@@ -1639,7 +1655,7 @@ export default function App() {
     if (isExcel) {
       try {
         setImportMessage(`Lendo arquivo ${ext.toUpperCase()}...`);
-        const rows = await parseExcelFile(file);
+        const rows = await parseExcelFile(file, importSkipRows);
         await processRows(rows);
       } catch (e: any) {
         setImportStatus('error'); setImportError(e.message);
@@ -1648,6 +1664,9 @@ export default function App() {
       // CSV com PapaParse
       Papa.parse(file, {
         header: true, delimiter: ';', skipEmptyLines: true, encoding: 'UTF-8',
+        beforeFirstChunk: importSkipRows > 0
+          ? (chunk: string) => chunk.split('\n').slice(importSkipRows).join('\n')
+          : undefined,
         complete: async (results) => {
           await processRows(results.data as Record<string, string>[]);
         },
@@ -2893,83 +2912,105 @@ export default function App() {
                 );
               })()}
 
-              {/* User dropdown */}
-              <div className="relative group">
-                <div className="flex items-center gap-2 pl-2 border-l border-white/30 cursor-pointer hover:opacity-75 transition-opacity">
-                  <div className="text-right">
-                    <p className="text-xs font-semibold text-white">{user?.nome}</p>
-                    <p className="text-[10px] text-white/60 flex items-center gap-1">
-                      <Shield className="w-2.5 h-2.5" />
-                      {user?.role === 'admin' && 'Administrador'}
-                      {user?.role === 'intermediario' && 'Intermediário'}
-                      {user?.role === 'usuario' && 'Usuário'}
-                      {user?.role === 'visualizador' && 'Visualizador'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => logout()}
-                    className="p-2 rounded-lg transition-colors text-white/80 hover:text-white hover:bg-white/20"
-                    title="Sair"
-                  >
-                    <LogOut className="w-5 h-5" />
-                  </button>
+              {/* User info + hamburger menu */}
+              <div className="flex items-center gap-2 pl-2 border-l border-white/30">
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs font-semibold text-white">{user?.nome}</p>
+                  <p className="text-[10px] text-white/60 flex items-center gap-1 justify-end">
+                    <Shield className="w-2.5 h-2.5" />
+                    {user?.role === 'admin' && 'Administrador'}
+                    {user?.role === 'intermediario' && 'Intermediário'}
+                    {user?.role === 'usuario' && 'Usuário'}
+                    {user?.role === 'visualizador' && 'Visualizador'}
+                  </p>
                 </div>
-                
-                {/* Admin menu dropdown */}
-                {isAdmin && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                    <button
-                      onClick={() => {
-                        setIsUserManagementOpen(true);
-                      }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 first:rounded-t-xl border-b border-gray-100 font-bold"
-                    >
-                      <Users className="w-4 h-4" />
-                      Gerenciar Usuários
-                    </button>
-                    <button
-                      onClick={() => silentRefreshData()}
-                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 font-bold transition-colors"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                      Forçar Atualização BD
-                    </button>
-                    <button
-                      onClick={() => setIsImportOpen(true)}
-                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 font-bold transition-colors"
-                    >
-                      <Upload className="w-4 h-4" />
-                      Importar CSV Emendas
-                    </button>
-                    <button
-                      onClick={() => setIsUpdateCamposOpen(true)}
-                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 font-bold transition-colors"
-                    >
-                      <PenLine className="w-4 h-4" />
-                      Atualizar Tipo/Recurso
-                    </button>
-                    <button
-                      onClick={() => { setTrocarSenhaErro(''); setShowSenhaAtual(false); setShowNovaSenha(false); setShowConfirmarSenha(false); setShowTrocarSenhaModal(true); }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 last:rounded-b-xl font-bold transition-colors"
-                    >
-                      <Settings className="w-4 h-4" />
-                      Trocar Senha
-                    </button>
-                  </div>
-                )}
 
-                {/* Dropdown para usuários não-admin */}
-                {!isAdmin && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                    <button
-                      onClick={() => { setTrocarSenhaErro(''); setShowSenhaAtual(false); setShowNovaSenha(false); setShowConfirmarSenha(false); setShowTrocarSenhaModal(true); }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-gray-50 flex items-center gap-2 rounded-xl font-bold transition-colors"
-                    >
-                      <Settings className="w-4 h-4" />
-                      Trocar Senha
-                    </button>
-                  </div>
-                )}
+                {/* Hamburger menu button */}
+                <div className="relative" ref={adminMenuRef}>
+                  <button
+                    onClick={() => setIsAdminMenuOpen(prev => !prev)}
+                    className="p-2 rounded-lg transition-colors text-white/80 hover:text-white hover:bg-white/20"
+                    title="Menu"
+                  >
+                    <Menu className="w-5 h-5" />
+                  </button>
+
+                  <AnimatePresence>
+                    {isAdminMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 overflow-hidden"
+                      >
+                        {/* User info (mobile) */}
+                        <div className="px-4 py-3 border-b border-gray-100 bg-slate-50 sm:hidden">
+                          <p className="text-sm font-bold text-slate-800">{user?.nome}</p>
+                          <p className="text-xs text-slate-500 flex items-center gap-1">
+                            <Shield className="w-3 h-3" />
+                            {user?.role === 'admin' && 'Administrador'}
+                            {user?.role === 'intermediario' && 'Intermediário'}
+                            {user?.role === 'usuario' && 'Usuário'}
+                            {user?.role === 'visualizador' && 'Visualizador'}
+                          </p>
+                        </div>
+
+                        {/* Admin options */}
+                        {isAdmin && (
+                          <>
+                            <button
+                              onClick={() => { setIsAdminMenuOpen(false); setIsUserManagementOpen(true); }}
+                              className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-blue-50 flex items-center gap-3 font-semibold transition-colors"
+                            >
+                              <Users className="w-4 h-4 flex-shrink-0" />
+                              Gerenciar Usuários
+                            </button>
+                            <button
+                              onClick={() => { setIsAdminMenuOpen(false); silentRefreshData(); }}
+                              className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-blue-50 flex items-center gap-3 font-semibold transition-colors"
+                            >
+                              <RefreshCw className="w-4 h-4 flex-shrink-0" />
+                              Forçar Atualização BD
+                            </button>
+                            <button
+                              onClick={() => { setIsAdminMenuOpen(false); setIsImportOpen(true); }}
+                              className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-blue-50 flex items-center gap-3 font-semibold transition-colors"
+                            >
+                              <Upload className="w-4 h-4 flex-shrink-0" />
+                              Importar Emendas
+                            </button>
+                            <button
+                              onClick={() => { setIsAdminMenuOpen(false); setIsUpdateCamposOpen(true); }}
+                              className="w-full text-left px-4 py-2.5 text-sm text-[#1351B4] hover:bg-blue-50 flex items-center gap-3 font-semibold transition-colors"
+                            >
+                              <PenLine className="w-4 h-4 flex-shrink-0" />
+                              Atualizar Tipo/Recurso
+                            </button>
+                            <div className="border-t border-gray-100 my-1" />
+                          </>
+                        )}
+
+                        {/* Common options */}
+                        <button
+                          onClick={() => { setIsAdminMenuOpen(false); setTrocarSenhaErro(''); setShowSenhaAtual(false); setShowNovaSenha(false); setShowConfirmarSenha(false); setShowTrocarSenhaModal(true); }}
+                          className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-3 font-semibold transition-colors"
+                        >
+                          <Settings className="w-4 h-4 flex-shrink-0" />
+                          Trocar Senha
+                        </button>
+                        <div className="border-t border-gray-100 my-1" />
+                        <button
+                          onClick={() => { setIsAdminMenuOpen(false); logout(); }}
+                          className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 font-semibold transition-colors"
+                        >
+                          <LogOut className="w-4 h-4 flex-shrink-0" />
+                          Sair
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
             </div>
@@ -4158,6 +4199,21 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                 <button onClick={() => { if (importStatus === 'idle' || importStatus === 'done' || importStatus === 'error') { setIsImportOpen(false); setImportStatus('idle'); setImportProgress(0); setImportMessage(''); setImportError(''); } }} className="p-1.5 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
               </div>
               <p className="text-sm text-slate-500 mb-4">Selecione o arquivo de emendas (<strong>CSV</strong>, <strong>XLS</strong>, <strong>XLSX</strong> ou <strong>XML</strong>). O sistema importará e sincronizará automaticamente.</p>
+
+              {/* Opção: pular linhas de cabeçalho extras */}
+              <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <label className="text-xs font-semibold text-slate-700 flex-shrink-0">Linhas a pular antes do cabeçalho:</label>
+                <div className="flex gap-1">
+                  {[0, 1, 2, 3].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setImportSkipRows(n)}
+                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${importSkipRows === n ? 'bg-violet-600 text-white' : 'bg-white text-slate-600 border border-slate-300 hover:border-violet-400'}`}
+                    >{n}</button>
+                  ))}
+                </div>
+                <span className="text-[10px] text-slate-400">Use 0 se o arquivo começa direto com o cabeçalho</span>
+              </div>
 
               <input ref={fileInputRef} type="file" accept=".csv,.xls,.xlsx,.xml" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportCSV(f); e.target.value = ''; }} />
 
