@@ -1213,6 +1213,8 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
   const [filtroSituacao, setFiltroSituacao] = useState<string[]>([]);
   const [filtroDataDe, setFiltroDataDe] = useState('');
   const [filtroDataAte, setFiltroDataAte] = useState('');
+  // Quick-filter: '' = todos | 'fundo_a_fundo' = somente Fundo a Fundo
+  const [filtroTipoRapido, setFiltroTipoRapido] = useState<'' | 'fundo_a_fundo'>('');
   const [filtroDataCampo, setFiltroDataCampo] = useState<'data_liberacao' | 'data_analise_demanda' | 'data_recebimento_demanda'>('data_liberacao');
 
   // Load all data
@@ -1317,8 +1319,11 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
     if (filtroSituacao.length) data = data.filter(r => filtroSituacao.includes(String(r.area_estagio_situacao_demanda ?? '').trim()));
     if (filtroDataDe) data = data.filter(r => (String(r[filtroDataCampo] ?? '')) >= filtroDataDe);
     if (filtroDataAte) data = data.filter(r => (String(r[filtroDataCampo] ?? '')) <= filtroDataAte);
+    // Quick filter: Fundo a Fundo
+    if (filtroTipoRapido === 'fundo_a_fundo')
+      data = data.filter(r => (r.tipo_formalizacao ?? '').toUpperCase().includes('FUNDO'));
     return data;
-  }, [rawData, filtroAno, filtroRegional, filtroTecnico, filtroConferencista, filtroParlamentar, filtroTipo, filtroSituacao, filtroDataDe, filtroDataAte, filtroDataCampo]);
+  }, [rawData, filtroAno, filtroRegional, filtroTecnico, filtroConferencista, filtroParlamentar, filtroTipo, filtroSituacao, filtroDataDe, filtroDataAte, filtroDataCampo, filtroTipoRapido]);
 
   // Person field based on view mode
   const personField = viewMode === 'tecnico' ? 'tecnico' : 'conferencista';
@@ -1345,7 +1350,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
 
   const hasActiveFilters = filtroAno.length || filtroRegional.length || filtroTecnico.length ||
     filtroConferencista.length || filtroParlamentar.length || filtroTipo.length ||
-    filtroSituacao.length || filtroDataDe || filtroDataAte;
+    filtroSituacao.length || filtroDataDe || filtroDataAte || filtroTipoRapido;
 
   // Produtividade mês a mês (data_liberacao → publicacao) por técnico e conferencista
   const produtividadeData = useMemo(() => {
@@ -1427,6 +1432,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
     setFiltroAno([]); setFiltroRegional([]); setFiltroTecnico([]); setFiltroConferencista([]);
     setFiltroParlamentar([]); setFiltroTipo([]); setFiltroSituacao([]);
     setFiltroDataDe(''); setFiltroDataAte('');
+    setFiltroTipoRapido('');
   };
 
   // Export matrix XLSX
@@ -1480,6 +1486,23 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               <Users className="w-3 h-3" /> Conferencista
             </button>
           </div>
+          {/* Quick filter: Fundo a Fundo */}
+          <button
+            onClick={() => setFiltroTipoRapido(v => v === 'fundo_a_fundo' ? '' : 'fundo_a_fundo')}
+            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${
+              filtroTipoRapido === 'fundo_a_fundo'
+                ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                : 'bg-white text-teal-700 border-teal-400 hover:bg-teal-50'
+            }`}
+            title="Filtrar somente registros Fundo a Fundo">
+            <DollarSign className="w-3 h-3" />
+            Fundo a Fundo
+            {filtroTipoRapido === 'fundo_a_fundo' && (
+              <span className="ml-1 bg-white/25 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                {filtered.length.toLocaleString('pt-BR')}
+              </span>
+            )}
+          </button>
           <button onClick={exportMatrix}
             className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-all">
             <Download className="w-3 h-3" /> XLSX
