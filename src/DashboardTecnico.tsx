@@ -1629,7 +1629,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               </div>
             </button>
 
-            {/* Scrollable table wrapper — max height so it fits on screen */}
+            {/* Scrollable table wrapper — horizontal scroll only, sem limite de altura */}
             <AnimatePresence initial={false}>
             {!sec.matrix && (
             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
@@ -1638,8 +1638,8 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               onMouseMove={handleMatrixMouseMove}
               onMouseUp={handleMatrixMouseUp}
               onMouseLeave={handleMatrixMouseLeave}
-              className={`overflow-auto select-none ${isMatrixDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-              style={{ maxHeight: 'calc(100vh - 340px)', WebkitUserSelect: 'none', userSelect: 'none' }}>
+              className={`overflow-x-auto select-none ${isMatrixDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+              style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
               <table className="border-collapse text-[13px] w-max min-w-full">
                 <thead className="sticky top-0 z-20">
                   <tr>
