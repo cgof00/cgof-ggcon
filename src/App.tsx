@@ -594,7 +594,6 @@ export default function App() {
   const [importTotal, setImportTotal] = useState(0);
   const [importMessage, setImportMessage] = useState('');
   const [importError, setImportError] = useState('');
-  const [importSkipRows, setImportSkipRows] = useState(0);
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
   // Atualizar campos formalização states
   const [isUpdateCamposOpen, setIsUpdateCamposOpen] = useState(false);
@@ -1445,7 +1444,7 @@ export default function App() {
   const BATCH_SIZE = 200;
 
   // Extrai rows (Record<string, string>[]) de um arquivo Excel/XML
-  const parseExcelFile = (file: File, skipRows = 0): Promise<Record<string, string>[]> => {
+  const parseExcelFile = (file: File): Promise<Record<string, string>[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -1454,7 +1453,24 @@ export default function App() {
           const wb = XLSX.read(data, { type: 'array' });
           const sheetName = wb.SheetNames[0];
           const ws = wb.Sheets[sheetName];
-          const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { raw: false, defval: '', range: skipRows });
+          // Auto-detectar linha do cabeçalho: varre as primeiras 15 linhas e escolhe
+          // a que tiver mais colunas reconhecidas no mapeamento CSV_NORMALIZED_MAP.
+          const rawRows = XLSX.utils.sheet_to_json<(string | null | undefined)[]>(ws, { header: 1, defval: '', raw: false });
+          let headerRowIndex = 0;
+          let maxMatches = 0;
+          for (let i = 0; i < Math.min(15, rawRows.length); i++) {
+            const row = rawRows[i];
+            const matches = row.filter(cell => {
+              const norm = normalizeHeader(String(cell ?? ''));
+              return norm.length > 0 && CSV_NORMALIZED_MAP[norm] !== undefined;
+            }).length;
+            if (matches > maxMatches) {
+              maxMatches = matches;
+              headerRowIndex = i;
+              if (matches >= 10) break; // linha com 10+ colunas reconhecidas é certamente o cabeçalho
+            }
+          }
+          const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { raw: false, defval: '', range: headerRowIndex });
           resolve(rows);
         } catch (e: any) {
           reject(new Error(`Erro ao ler arquivo Excel: ${e.message}`));
@@ -1471,9 +1487,6 @@ export default function App() {
     setImportMessage('Lendo arquivo...'); setImportError('');
     const tk = localStorage.getItem('auth_token');
     if (!tk) { setImportStatus('error'); setImportError('Token de autenticação não encontrado'); return; }
-
-    const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    const isExcel = ['xls', 'xlsx', 'xml'].includes(ext);
 
     // Função que processa as rows já parseadas
     const processRows = async (rows: Record<string, string>[]) => {
@@ -1652,26 +1665,12 @@ export default function App() {
       }
     };
 
-    if (isExcel) {
-      try {
-        setImportMessage(`Lendo arquivo ${ext.toUpperCase()}...`);
-        const rows = await parseExcelFile(file, importSkipRows);
-        await processRows(rows);
-      } catch (e: any) {
-        setImportStatus('error'); setImportError(e.message);
-      }
-    } else {
-      // CSV com PapaParse
-      Papa.parse(file, {
-        header: true, delimiter: ';', skipEmptyLines: true, encoding: 'UTF-8',
-        beforeFirstChunk: importSkipRows > 0
-          ? (chunk: string) => chunk.split('\n').slice(importSkipRows).join('\n')
-          : undefined,
-        complete: async (results) => {
-          await processRows(results.data as Record<string, string>[]);
-        },
-        error: (err) => { setImportStatus('error'); setImportError(`Erro ao ler CSV: ${err.message}`); }
-      });
+    try {
+      setImportMessage(`Lendo arquivo XLSX...`);
+      const rows = await parseExcelFile(file);
+      await processRows(rows);
+    } catch (e: any) {
+      setImportStatus('error'); setImportError(e.message);
     }
   };
 
@@ -4198,24 +4197,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                 <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Upload className="w-5 h-5 text-violet-600" /> Importar Emendas</h2>
                 <button onClick={() => { if (importStatus === 'idle' || importStatus === 'done' || importStatus === 'error') { setIsImportOpen(false); setImportStatus('idle'); setImportProgress(0); setImportMessage(''); setImportError(''); } }} className="p-1.5 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
               </div>
-              <p className="text-sm text-slate-500 mb-4">Selecione o arquivo de emendas (<strong>CSV</strong>, <strong>XLS</strong>, <strong>XLSX</strong> ou <strong>XML</strong>). O sistema importará e sincronizará automaticamente.</p>
+              <p className="text-sm text-slate-500 mb-4">Selecione o arquivo de emendas no formato <strong>XLSX</strong>. O sistema detecta automaticamente o cabeçalho e sincroniza os dados.</p>
 
-              {/* Opção: pular linhas de cabeçalho extras */}
-              <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <label className="text-xs font-semibold text-slate-700 flex-shrink-0">Linhas a pular antes do cabeçalho:</label>
-                <div className="flex gap-1">
-                  {[0, 1, 2, 3].map(n => (
-                    <button
-                      key={n}
-                      onClick={() => setImportSkipRows(n)}
-                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${importSkipRows === n ? 'bg-violet-600 text-white' : 'bg-white text-slate-600 border border-slate-300 hover:border-violet-400'}`}
-                    >{n}</button>
-                  ))}
-                </div>
-                <span className="text-[10px] text-slate-400">Use 0 se o arquivo começa direto com o cabeçalho</span>
-              </div>
-
-              <input ref={fileInputRef} type="file" accept=".csv,.xls,.xlsx,.xml" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportCSV(f); e.target.value = ''; }} />
+              <input ref={fileInputRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportCSV(f); e.target.value = ''; }} />
 
               <div className="flex items-center gap-3 mb-4">
                 <button onClick={() => fileInputRef.current?.click()} disabled={importStatus === 'uploading' || importStatus === 'backing-up' || importStatus === 'syncing' || importStatus === 'parsing'} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:bg-slate-400 text-white text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
