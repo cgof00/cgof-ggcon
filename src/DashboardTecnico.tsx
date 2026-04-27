@@ -1200,6 +1200,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
 
   // Matrix horizontal scroll ref
   const matrixScrollRef = useRef<HTMLDivElement>(null);
+  const matrixHeaderRef = useRef<HTMLDivElement>(null);
   const [isMatrixDragging, setIsMatrixDragging] = useState(false);
   const matrixDragRef = useRef({ isDown: false, startX: 0, scrollLeft: 0, hasMoved: false });
 
@@ -1503,15 +1504,6 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               </span>
             )}
           </button>
-          <button onClick={exportMatrix}
-            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-all">
-            <Download className="w-3 h-3" /> XLSX
-          </button>
-          <button onClick={loadData} disabled={loading}
-            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-[#1351B4] bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-50">
-            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-            Atualizar
-          </button>
         </div>
       </div>
 
@@ -1615,50 +1607,74 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
           {/* ── Matrix Table ─────────────────────────────────────────── */}
           <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
             {/* Table header bar - click to collapse/expand */}
-            <button onClick={() => toggleSec('matrix')} className="w-full px-4 py-2.5 bg-slate-900 flex items-center justify-between hover:bg-slate-800 transition-colors">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Users className="w-4 h-4 flex-shrink-0" />
-                {viewMode === 'tecnico' ? 'Demonstrativo por Técnico' : 'Demonstrativo por Conferencista'}
-                <span className="text-[11px] text-slate-400 font-normal hidden sm:inline">— clique num número para ver detalhes</span>
-              </h3>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-[11px] text-slate-400">
-                  {matrixData.rows.length} {viewMode === 'tecnico' ? 'técnico(s)' : 'conferencista(s)'}
-                </span>
-                {sec.matrix ? <ChevronRight className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+            <div className="flex items-center bg-slate-900">
+              {/* Toggle area */}
+              <button onClick={() => toggleSec('matrix')} className="flex-1 px-4 py-2.5 flex items-center justify-between hover:bg-slate-800 transition-colors text-left">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Users className="w-4 h-4 flex-shrink-0" />
+                  {viewMode === 'tecnico' ? 'Demonstrativo por Técnico' : 'Demonstrativo por Conferencista'}
+                  <span className="text-[11px] text-slate-400 font-normal hidden sm:inline">— clique num número para ver detalhes</span>
+                </h3>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-[11px] text-slate-400">
+                    {matrixData.rows.length} {viewMode === 'tecnico' ? 'técnico(s)' : 'conferencista(s)'}
+                  </span>
+                  {sec.matrix ? <ChevronRight className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </div>
+              </button>
+              {/* Ações separadas — XLSX e Atualizar isolados para evitar clique acidental */}
+              <div className="flex items-center gap-1.5 px-3 py-2 border-l border-slate-700 flex-shrink-0">
+                <button
+                  onClick={exportMatrix}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-emerald-300 bg-emerald-900/50 border border-emerald-700 rounded-lg hover:bg-emerald-700 transition-all"
+                  title="Exportar tabela como XLSX">
+                  <Download className="w-3 h-3" /> XLSX
+                </button>
+                <button
+                  onClick={loadData}
+                  disabled={loading}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-blue-300 bg-blue-900/50 border border-blue-700 rounded-lg hover:bg-blue-700 transition-all disabled:opacity-50"
+                  title="Recarregar dados do servidor">
+                  <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} /> Atualizar
+                </button>
               </div>
-            </button>
+            </div>
 
             {/* Scrollable table wrapper — horizontal scroll only, sem limite de altura */}
             <AnimatePresence initial={false}>
             {!sec.matrix && (
             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
-            <div ref={matrixScrollRef}
-              onMouseDown={handleMatrixMouseDown}
-              onMouseMove={handleMatrixMouseMove}
-              onMouseUp={handleMatrixMouseUp}
-              onMouseLeave={handleMatrixMouseLeave}
-              className={`overflow-x-auto select-none ${isMatrixDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-              style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
-              <table className="border-collapse text-[13px] w-max min-w-full">
-                <thead className="sticky top-0 z-20">
-                  <tr>
-                    {/* Sticky name column */}
-                    <th className="sticky left-0 z-30 bg-slate-800 border-r border-slate-600 px-3 py-2 text-left text-white font-bold align-middle"
-                      style={{ minWidth: 180, maxWidth: 220 }}>
-                      <span className="text-sm">{viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}</span>
-                    </th>
-                    {/* Fixed columns — horizontal 2-line headers */}
-                    {FIXED_COLS.map(col => (
-                      <th key={col.key}
-                        className={`${col.bgHead} border-l border-slate-700 px-1.5 py-2 text-center align-middle`}
-                        style={{ minWidth: 68 }}>
-                        <span className="block text-[11px] font-bold text-white leading-snug whitespace-nowrap">{col.line1}</span>
-                        {col.line2 && <span className="block text-[11px] font-bold text-white leading-snug whitespace-nowrap">{col.line2}</span>}
+              {/* Cabeçalho congelado — sticky na página, scroll horizontal sincronizado */}
+              <div ref={matrixHeaderRef} className="sticky top-0 z-30 overflow-hidden shadow-md">
+                <table className="border-collapse text-[13px] w-max min-w-full">
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 z-30 bg-slate-800 border-r border-slate-600 px-3 py-2 text-left text-white font-bold align-middle"
+                        style={{ minWidth: 180, maxWidth: 220 }}>
+                        <span className="text-sm">{viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}</span>
                       </th>
-                    ))}
-                  </tr>
-                </thead>
+                      {FIXED_COLS.map(col => (
+                        <th key={col.key}
+                          className={`${col.bgHead} border-l border-slate-700 px-1.5 py-2 text-center align-middle`}
+                          style={{ minWidth: 68 }}>
+                          <span className="block text-[11px] font-bold text-white leading-snug whitespace-nowrap">{col.line1}</span>
+                          {col.line2 && <span className="block text-[11px] font-bold text-white leading-snug whitespace-nowrap">{col.line2}</span>}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                </table>
+              </div>
+              {/* Dados da tabela — scroll horizontal sincroniza com o cabeçalho */}
+              <div ref={matrixScrollRef}
+                onMouseDown={handleMatrixMouseDown}
+                onMouseMove={handleMatrixMouseMove}
+                onMouseUp={handleMatrixMouseUp}
+                onMouseLeave={handleMatrixMouseLeave}
+                onScroll={e => { if (matrixHeaderRef.current) matrixHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft; }}
+                className={`overflow-x-auto select-none ${isMatrixDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
+              <table className="border-collapse text-[13px] w-max min-w-full">
                 <tbody>
                   {matrixData.rows.map((row, idx) => {
                     const isEven = idx % 2 === 0;
@@ -1711,8 +1727,8 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                     );
                   })}
 
-                  {/* Totals row — sticky bottom */}
-                  <tr className="bg-slate-900 border-t-2 border-slate-600 sticky bottom-0 z-10">
+                  {/* Totals row */}
+                  <tr className="bg-slate-900 border-t-2 border-slate-600">
                     <td className="sticky left-0 z-20 bg-slate-900 px-3 py-1.5 text-white font-black text-[13px] border-r border-slate-600"
                       style={{ minWidth: 180 }}>
                       TOTAL
@@ -1741,7 +1757,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                   </tr>
                 </tbody>
               </table>
-            </div>
+              </div>
             </motion.div>
             )}
             </AnimatePresence>
