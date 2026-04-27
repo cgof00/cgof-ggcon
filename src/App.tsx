@@ -2222,7 +2222,7 @@ export default function App() {
     const FALTA_ASSINATURA_ORDER = [
       'GESTOR ADMINISTRATIVO DRS', 'GESTOR TÉCNICO DRS', 'DIRETOR DRS',
       'COORDENADOR CRS', 'DIRETOR GGCON', 'ORDENADOR DE DESPESAS',
-      'SECRETÁRIO', 'GESTOR – CONVÊNIO / DEMANDANTE'
+      'SECRETÁRIO', 'GESTOR – CONVÊNIO / DEMANDANTE', 'ORÇAMENTO CGOF'
     ];
 
     const header = cols.map(c => c.label);
@@ -4823,6 +4823,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                 'ORDENADOR DE DESPESAS',
                                 'SECRETÁRIO',
                                 'GESTOR – CONVÊNIO / DEMANDANTE',
+                                'ORÇAMENTO CGOF',
                               ].map((opcao) => {
                                 const checked = editingFormalizacao?.falta_assinatura
                                   ? editingFormalizacao.falta_assinatura.split(',').map((s: string) => s.trim()).includes(opcao)
@@ -5859,6 +5860,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                 'ORDENADOR DE DESPESAS',
                 'SECRETÁRIO',
                 'GESTOR – CONVÊNIO / DEMANDANTE',
+                'ORÇAMENTO CGOF',
               ].map(opcao => {
                 const currentValues = inlineEditFalta.value
                   ? inlineEditFalta.value.split(',').map((s: string) => s.trim()).filter(Boolean)
@@ -5873,7 +5875,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         const FALTA_ORDER = [
                           'GESTOR ADMINISTRATIVO DRS', 'GESTOR TÉCNICO DRS', 'DIRETOR DRS',
                           'COORDENADOR CRS', 'DIRETOR GGCON', 'ORDENADOR DE DESPESAS',
-                          'SECRETÁRIO', 'GESTOR – CONVÊNIO / DEMANDANTE'
+                          'SECRETÁRIO', 'GESTOR – CONVÊNIO / DEMANDANTE', 'ORÇAMENTO CGOF'
                         ];
                         const newValues = isChecked
                           ? currentValues.filter(v => v !== opcao)
