@@ -731,6 +731,7 @@ export default function App() {
   // Estado para ocultar demandas concluídas (padrão false para mostrar TODOS os registros)
   const [hideConcluidas, setHideConcluidas] = useState(false);
   const [showSomenteMinhas, setShowSomenteMinhas] = useState(false);
+  const [fundoAFundoFilter, setFundoAFundoFilter] = useState(false);
   // Estado para larguras de colunas (redimensionamento estilo Excel)
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
   const resizingColRef = useRef<string | null>(null);
@@ -992,7 +993,7 @@ export default function App() {
     
     // Aplicar filtros IMEDIATAMENTE do cache em memória
     fetchFormalizacoesComFiltros(0);
-  }, [filters, searchTerm, activeTab, hideEmptyFields, headerFilters]);
+  }, [filters, searchTerm, activeTab, hideEmptyFields, headerFilters, fundoAFundoFilter]);
 
   // ⚡ NOVO: Carregar TUDO o cache quando aba de formalizações abre
   // Isto roda UMA ÚNICA VEZ quando activeTab muda para 'formalizacao'
@@ -2041,6 +2042,9 @@ export default function App() {
           if (!matchesAnyFilter(f.objeto, filtersToUse.objeto)) return false;
         }
 
+        // Quick filter: Fundo a Fundo
+        if (fundoAFundoFilter && !(f.area_estagio_situacao_demanda ?? '').toUpperCase().includes('FUNDO A FUNDO')) return false;
+
         if (searchTerm) {
           const searchLower = searchTerm.toLowerCase();
           const matchSearch = 
@@ -2377,6 +2381,7 @@ export default function App() {
     setHideEmptyFields({});
     setShowOnlyEmptyFields({});
     setShowSomenteMinhas(false);
+    setFundoAFundoFilter(false);
     fetchFormalizacoesComFiltros(0, { ano: [], demandas_formalizacao: [], area_estagio: [], recurso: [], tecnico: [], data_liberacao: [], area_estagio_situacao_demanda: [], situacao_analise_demanda: [], data_analise_demanda: [], conferencista: [], data_recebimento_demanda: [], data_retorno: [], falta_assinatura: [], publicacao: [], vigencia: [], encaminhado_em: [], concluida_em: [], parlamentar: [], partido: [], regional: [], municipio: [], conveniado: [], objeto: [] }, undefined, false);
   };
 
@@ -3076,6 +3081,24 @@ export default function App() {
                         Liberar para Assinatura ({selectedRows.size})
                       </motion.button>
                     )}
+                    {/* Quick filter: Fundo a Fundo */}
+                    <button
+                      onClick={() => setFundoAFundoFilter(v => !v)}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 border ${
+                        fundoAFundoFilter
+                          ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                          : 'bg-white text-teal-700 border-teal-400 hover:bg-teal-50'
+                      }`}
+                      title="Filtrar somente registros Fundo a Fundo"
+                    >
+                      <DollarSign className="w-4 h-4" />
+                      Fundo a Fundo
+                      {fundoAFundoFilter && (
+                        <span className="ml-1 bg-white/25 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                          {formalizacaoSearchResult.total.toLocaleString('pt-BR')}
+                        </span>
+                      )}
+                    </button>
                     {/* Botão Limpar Todos os Filtros */}
                     <button
                       onClick={() => clearAllFilters()}
