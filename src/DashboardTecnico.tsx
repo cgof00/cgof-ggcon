@@ -1319,9 +1319,9 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
     if (filtroSituacao.length) data = data.filter(r => filtroSituacao.includes(String(r.area_estagio_situacao_demanda ?? '').trim()));
     if (filtroDataDe) data = data.filter(r => (String(r[filtroDataCampo] ?? '')) >= filtroDataDe);
     if (filtroDataAte) data = data.filter(r => (String(r[filtroDataCampo] ?? '')) <= filtroDataAte);
-    // Quick filter: Fundo a Fundo
+    // Quick filter: Fundo a Fundo — filtra pelo campo Área/Estágio da Situação da Demanda
     if (filtroTipoRapido === 'fundo_a_fundo')
-      data = data.filter(r => (r.tipo_formalizacao ?? '').toUpperCase().includes('FUNDO'));
+      data = data.filter(r => (r.area_estagio_situacao_demanda ?? '').toUpperCase().includes('FUNDO A FUNDO'));
     return data;
   }, [rawData, filtroAno, filtroRegional, filtroTecnico, filtroConferencista, filtroParlamentar, filtroTipo, filtroSituacao, filtroDataDe, filtroDataAte, filtroDataCampo, filtroTipoRapido]);
 
