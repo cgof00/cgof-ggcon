@@ -1654,8 +1654,8 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                 onMouseMove={handleMatrixMouseMove}
                 onMouseUp={handleMatrixMouseUp}
                 onMouseLeave={handleMatrixMouseLeave}
-                className={`overflow-x-auto select-none ${isMatrixDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-                style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
+                className={`overflow-x-auto overflow-y-auto select-none ${isMatrixDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                style={{ WebkitUserSelect: 'none', userSelect: 'none', maxHeight: '65vh' }}>
               <table className="border-collapse text-[13px] w-max min-w-full">
                 <thead className="sticky top-0 z-20">
                   <tr>
