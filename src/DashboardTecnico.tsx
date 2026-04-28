@@ -1200,7 +1200,6 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
 
   // Matrix horizontal scroll ref
   const matrixScrollRef = useRef<HTMLDivElement>(null);
-  const matrixHeaderRef = useRef<HTMLDivElement>(null);
   const [isMatrixDragging, setIsMatrixDragging] = useState(false);
   const matrixDragRef = useRef({ isDown: false, startX: 0, scrollLeft: 0, hasMoved: false });
 
@@ -1640,41 +1639,40 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               </div>
             </div>
 
-            {/* Scrollable table wrapper — horizontal scroll only, sem limite de altura */}
+            {/* Table wrapper */}
             <AnimatePresence initial={false}>
             {!sec.matrix && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
-              {/* Cabeçalho congelado — sticky na página, scroll horizontal sincronizado */}
-              <div ref={matrixHeaderRef} className="sticky top-0 z-30 overflow-hidden shadow-md">
-                <table className="border-collapse text-[13px] w-max min-w-full">
-                  <thead>
-                    <tr>
-                      <th className="sticky left-0 z-30 bg-slate-800 border-r border-slate-600 px-3 py-2 text-left text-white font-bold align-middle"
-                        style={{ minWidth: 180, maxWidth: 220 }}>
-                        <span className="text-sm">{viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}</span>
-                      </th>
-                      {FIXED_COLS.map(col => (
-                        <th key={col.key}
-                          className={`${col.bgHead} border-l border-slate-700 px-1.5 py-2 text-center align-middle`}
-                          style={{ minWidth: 68 }}>
-                          <span className="block text-[11px] font-bold text-white leading-snug whitespace-nowrap">{col.line1}</span>
-                          {col.line2 && <span className="block text-[11px] font-bold text-white leading-snug whitespace-nowrap">{col.line2}</span>}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                </table>
-              </div>
-              {/* Dados da tabela — scroll horizontal sincroniza com o cabeçalho */}
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              style={{ overflow: 'clip' }}>
+              {/* overflow:clip clips animation sem quebrar position:sticky do thead */}
               <div ref={matrixScrollRef}
                 onMouseDown={handleMatrixMouseDown}
                 onMouseMove={handleMatrixMouseMove}
                 onMouseUp={handleMatrixMouseUp}
                 onMouseLeave={handleMatrixMouseLeave}
-                onScroll={e => { if (matrixHeaderRef.current) matrixHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft; }}
                 className={`overflow-x-auto select-none ${isMatrixDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
                 style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
               <table className="border-collapse text-[13px] w-max min-w-full">
+                <thead className="sticky top-0 z-20">
+                  <tr>
+                    <th className="sticky left-0 z-30 bg-slate-800 border-r border-slate-600 px-3 py-2 text-left text-white font-bold align-middle"
+                      style={{ minWidth: 180, maxWidth: 220 }}>
+                      <span className="text-sm">{viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}</span>
+                    </th>
+                    {FIXED_COLS.map(col => (
+                      <th key={col.key}
+                        className={`${col.bgHead} border-l border-slate-700 px-1.5 py-2 text-center align-middle`}
+                        style={{ minWidth: 68 }}>
+                        <span className="block text-[11px] font-bold text-white leading-snug whitespace-nowrap">{col.line1}</span>
+                        {col.line2 && <span className="block text-[11px] font-bold text-white leading-snug whitespace-nowrap">{col.line2}</span>}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
                 <tbody>
                   {matrixData.rows.map((row, idx) => {
                     const isEven = idx % 2 === 0;
