@@ -74,6 +74,31 @@ type ColKey = typeof FIXED_COLS[number]['key'];
 const stg = (r: FormalizacaoRow) => (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
 const cls = (r: FormalizacaoRow) => (r.classificacao_emenda_demanda ?? '').trim().toUpperCase();
 
+// Normaliza estágios Fundo a Fundo para o nome canônico de cada coluna
+// Regex captura sufixos "– FUNDO A FUNDO", "- FUNDO A FUNDO", etc. (en/em dash ou hífen)
+const FF_SUFFIX = /\s*[–—-]\s*FUNDO A FUNDO\s*$/;
+const FUNDO_REMAP: Record<string, string> = {
+  // Mapeamento de nomes completos especiais (sem sufixo removível)
+  'AGUARDANDO RESOLUÇÃO PARA EMISSÃO RESOLUÇÃO PARA REPASSE FUNDO A FUNDO - DOE': 'LAUDAS + PUBLI DOE',
+  // Mapeamento de bases após remoção do sufixo
+  'EM ANÁLISE ORÇAMENTÁRIA CGOF':                          'EM ANÁLISE DA DOCUMENTAÇÃO',
+  'PARECER COORDENADOR CGOF':                              'EM ANÁLISE DA DOCUMENTAÇÃO',
+  'APROVAÇÃO - CHEFIA DE GABINETE':                        'EM ANÁLISE DA DOCUMENTAÇÃO',
+  'AGUARDANDO APROVAÇÃO DO SECRETARIO DE ESTADO DA SAÚDE': 'AGUARDANDO DOCUMENTAÇÃO',
+  'CONFERÊNCIA COM PENDÊNCIA':                             'CONF / PENDÊNCIA',
+  'LAUDAS':                                                'LAUDAS + PUBLI DOE',
+  'PUBLICAÇÃO NO DOE':                                     'LAUDAS + PUBLI DOE',
+  'COMITÊ GESTOR':                                         'COMITE GESTOR',
+  'EMPENHO CANCELADO':                                     'OUTRAS PENDÊNCIAS',
+  'PROCESSO SIAFEM':                                       'OUTRAS PENDÊNCIAS',
+};
+const stgNorm = (r: FormalizacaoRow): string => {
+  const raw = stg(r);
+  if (FUNDO_REMAP[raw]) return FUNDO_REMAP[raw];          // nome completo especial
+  const base = raw.replace(FF_SUFFIX, '').trim();          // remove sufixo FF
+  return FUNDO_REMAP[base] ?? base;                        // remapeia ou usa base
+};
+
 // ─── Situação color mapping ───────────────────────────────────────────────
 function getSituacaoStyle(label: string): { bar: string; badge: string; border: string } {
   const u = label.toUpperCase();
@@ -105,7 +130,7 @@ function getSituacaoStyle(label: string): { bar: string; badge: string; border: 
   return                              { bar: 'from-slate-500 to-slate-700',        badge: 'bg-slate-600',   border: 'border-slate-300' };
 }
 
-// Stages that count toward Total GGCON (Diligência excluded)
+// Stages that count toward Total GGCON (Diligência excluded) — usa nomes canônicos (stgNorm)
 const GGCON_STAGES = new Set([
   'DEMANDA COM O TÉCNICO',
   'EM ANÁLISE DA DOCUMENTAÇÃO',
@@ -121,19 +146,19 @@ const GGCON_STAGES = new Set([
 ]);
 
 function computeColValues(rows: FormalizacaoRow[]): Record<ColKey, number> {
-  const cTecnico        = rows.filter(r => stg(r) === 'DEMANDA COM O TÉCNICO').length;
-  const emAnalise       = rows.filter(r => stg(r) === 'EM ANÁLISE DA DOCUMENTAÇÃO' || stg(r) === 'EM ANÁLISE DO PLANO DE TRABALHO').length;
-  const agDoc           = rows.filter(r => stg(r) === 'AGUARDANDO DOCUMENTAÇÃO').length;
-  const diligencia      = rows.filter(r => stg(r).startsWith('DEMANDA EM DILIGÊNCIA')).length;
-  const formalizacao    = rows.filter(r => stg(r) === 'EM FORMALIZAÇÃO').length;
-  const emConferencia   = rows.filter(r => stg(r) === 'EM CONFERÊNCIA').length;
-  const confPendencia   = rows.filter(r => stg(r) === 'CONF / PENDÊNCIA').length;
-  const emAssinatura    = rows.filter(r => stg(r) === 'EM ASSINATURA').length;
-  const laudas          = rows.filter(r => stg(r) === 'LAUDAS + PUBLI DOE').length;
-  const comite          = rows.filter(r => stg(r) === 'COMITE GESTOR').length;
-  const outras          = rows.filter(r => stg(r) === 'OUTRAS PENDÊNCIAS').length;
+  const cTecnico        = rows.filter(r => stgNorm(r) === 'DEMANDA COM O TÉCNICO').length;
+  const emAnalise       = rows.filter(r => stgNorm(r) === 'EM ANÁLISE DA DOCUMENTAÇÃO' || stgNorm(r) === 'EM ANÁLISE DO PLANO DE TRABALHO').length;
+  const agDoc           = rows.filter(r => stgNorm(r) === 'AGUARDANDO DOCUMENTAÇÃO').length;
+  const diligencia      = rows.filter(r => stgNorm(r).startsWith('DEMANDA EM DILIGÊNCIA')).length;
+  const formalizacao    = rows.filter(r => stgNorm(r) === 'EM FORMALIZAÇÃO').length;
+  const emConferencia   = rows.filter(r => stgNorm(r) === 'EM CONFERÊNCIA').length;
+  const confPendencia   = rows.filter(r => stgNorm(r) === 'CONF / PENDÊNCIA').length;
+  const emAssinatura    = rows.filter(r => stgNorm(r) === 'EM ASSINATURA').length;
+  const laudas          = rows.filter(r => stgNorm(r) === 'LAUDAS + PUBLI DOE').length;
+  const comite          = rows.filter(r => stgNorm(r) === 'COMITE GESTOR').length;
+  const outras          = rows.filter(r => stgNorm(r) === 'OUTRAS PENDÊNCIAS').length;
   // Total GGCON = soma dos estágios GGCON_STAGES (Diligência NOT included)
-  const totalGgcon      = rows.filter(r => GGCON_STAGES.has(stg(r))).length;
+  const totalGgcon      = rows.filter(r => GGCON_STAGES.has(stgNorm(r))).length;
   // Concluída = tem data preenchida em concluida_em
   const concluida       = rows.filter(r => !!(r.concluida_em ?? '').trim()).length;
   const transfVol       = rows.filter(r => cls(r).includes('TRANSFER')).length;
@@ -149,18 +174,18 @@ function computeColValues(rows: FormalizacaoRow[]): Record<ColKey, number> {
 function getColRows(colKey: ColKey, rows: FormalizacaoRow[]): FormalizacaoRow[] {
   switch (colKey) {
     case 'demandas_recebidas': return rows;
-    case 'c_tecnico':      return rows.filter(r => stg(r) === 'DEMANDA COM O TÉCNICO');
-    case 'em_analise':     return rows.filter(r => stg(r) === 'EM ANÁLISE DA DOCUMENTAÇÃO' || stg(r) === 'EM ANÁLISE DO PLANO DE TRABALHO');
-    case 'ag_doc':         return rows.filter(r => stg(r) === 'AGUARDANDO DOCUMENTAÇÃO');
-    case 'diligencia':     return rows.filter(r => stg(r).startsWith('DEMANDA EM DILIGÊNCIA'));
-    case 'formalizacao':   return rows.filter(r => stg(r) === 'EM FORMALIZAÇÃO');
-    case 'em_conferencia': return rows.filter(r => stg(r) === 'EM CONFERÊNCIA');
-    case 'conf_pendencia': return rows.filter(r => stg(r) === 'CONF / PENDÊNCIA');
-    case 'em_assinatura':  return rows.filter(r => stg(r) === 'EM ASSINATURA');
-    case 'laudas':         return rows.filter(r => stg(r) === 'LAUDAS + PUBLI DOE');
-    case 'comite':         return rows.filter(r => stg(r) === 'COMITE GESTOR');
-    case 'outras':         return rows.filter(r => stg(r) === 'OUTRAS PENDÊNCIAS');
-    case 'total_ggcon':    return rows.filter(r => GGCON_STAGES.has(stg(r)));
+    case 'c_tecnico':      return rows.filter(r => stgNorm(r) === 'DEMANDA COM O TÉCNICO');
+    case 'em_analise':     return rows.filter(r => stgNorm(r) === 'EM ANÁLISE DA DOCUMENTAÇÃO' || stgNorm(r) === 'EM ANÁLISE DO PLANO DE TRABALHO');
+    case 'ag_doc':         return rows.filter(r => stgNorm(r) === 'AGUARDANDO DOCUMENTAÇÃO');
+    case 'diligencia':     return rows.filter(r => stgNorm(r).startsWith('DEMANDA EM DILIGÊNCIA'));
+    case 'formalizacao':   return rows.filter(r => stgNorm(r) === 'EM FORMALIZAÇÃO');
+    case 'em_conferencia': return rows.filter(r => stgNorm(r) === 'EM CONFERÊNCIA');
+    case 'conf_pendencia': return rows.filter(r => stgNorm(r) === 'CONF / PENDÊNCIA');
+    case 'em_assinatura':  return rows.filter(r => stgNorm(r) === 'EM ASSINATURA');
+    case 'laudas':         return rows.filter(r => stgNorm(r) === 'LAUDAS + PUBLI DOE');
+    case 'comite':         return rows.filter(r => stgNorm(r) === 'COMITE GESTOR');
+    case 'outras':         return rows.filter(r => stgNorm(r) === 'OUTRAS PENDÊNCIAS');
+    case 'total_ggcon':    return rows.filter(r => GGCON_STAGES.has(stgNorm(r)));
     case 'concluida':      return rows.filter(r => !!(r.concluida_em ?? '').trim());
     case 'transf_vol':     return rows.filter(r => cls(r).includes('TRANSFER'));
     case 'emenda_loa':     return rows.filter(r => cls(r).includes('LOA') || cls(r).includes('EMENDA LOA'));
