@@ -94,9 +94,14 @@ const FUNDO_REMAP: Record<string, string> = {
 };
 const stgNorm = (r: FormalizacaoRow): string => {
   const raw = stg(r);
-  if (FUNDO_REMAP[raw]) return FUNDO_REMAP[raw];          // nome completo especial
-  const base = raw.replace(FF_SUFFIX, '').trim();          // remove sufixo FF
-  return FUNDO_REMAP[base] ?? base;                        // remapeia ou usa base
+  // Só aplica remapeamento se o estágio for de Fundo a Fundo — evita
+  // contaminar contagens de registros que têm estágios homônimos sem o sufixo FF
+  if (!raw.includes('FUNDO A FUNDO')) return raw;
+  // Nome completo especial (não tem sufixo removível)
+  if (FUNDO_REMAP[raw]) return FUNDO_REMAP[raw];
+  // Remove sufixo FF e busca nome canônico; se não houver, usa a base limpa
+  const base = raw.replace(FF_SUFFIX, '').trim();
+  return FUNDO_REMAP[base] ?? base;
 };
 
 // ─── Situação color mapping ───────────────────────────────────────────────
