@@ -1486,6 +1486,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
   const [filtroParlamentar, setFiltroParlamentar] = useState<string[]>([]);
   const [filtroTipo, setFiltroTipo] = useState<string[]>([]);
   const [filtroSituacao, setFiltroSituacao] = useState<string[]>([]);
+  const [filtroClassificacao, setFiltroClassificacao] = useState<string[]>([]);
   const [filtroDataDe, setFiltroDataDe] = useState('');
   const [filtroDataAte, setFiltroDataAte] = useState('');
   // Quick-filter: '' = todos | 'fundo_a_fundo' = somente Fundo a Fundo
@@ -1581,6 +1582,8 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
     [...new Set(rawData.map(r => String(r.tipo_formalizacao ?? '').trim()).filter(Boolean))].sort(), [rawData]);
   const situacaoOptions = useMemo(() =>
     [...new Set(rawData.map(r => String(r.area_estagio_situacao_demanda ?? '').trim()).filter(Boolean))].sort(), [rawData]);
+  const classificacaoOptions = useMemo(() =>
+    [...new Set(rawData.map(r => String(r.classificacao_emenda_demanda ?? '').trim()).filter(Boolean))].sort(), [rawData]);
 
   // Apply global filters
   const filtered = useMemo(() => {
@@ -1592,13 +1595,14 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
     if (filtroParlamentar.length) data = data.filter(r => filtroParlamentar.includes(String(r.parlamentar ?? '').trim()));
     if (filtroTipo.length) data = data.filter(r => filtroTipo.includes(String(r.tipo_formalizacao ?? '').trim()));
     if (filtroSituacao.length) data = data.filter(r => filtroSituacao.includes(String(r.area_estagio_situacao_demanda ?? '').trim()));
+    if (filtroClassificacao.length) data = data.filter(r => filtroClassificacao.includes(String(r.classificacao_emenda_demanda ?? '').trim()));
     if (filtroDataDe) data = data.filter(r => (String(r[filtroDataCampo] ?? '')) >= filtroDataDe);
     if (filtroDataAte) data = data.filter(r => (String(r[filtroDataCampo] ?? '')) <= filtroDataAte);
     // Quick filter: Fundo a Fundo — filtra pelo campo Área/Estágio da Situação da Demanda
     if (filtroTipoRapido === 'fundo_a_fundo')
       data = data.filter(r => (r.area_estagio_situacao_demanda ?? '').toUpperCase().includes('FUNDO A FUNDO'));
     return data;
-  }, [rawData, filtroAno, filtroRegional, filtroTecnico, filtroConferencista, filtroParlamentar, filtroTipo, filtroSituacao, filtroDataDe, filtroDataAte, filtroDataCampo, filtroTipoRapido]);
+  }, [rawData, filtroAno, filtroRegional, filtroTecnico, filtroConferencista, filtroParlamentar, filtroTipo, filtroSituacao, filtroClassificacao, filtroDataDe, filtroDataAte, filtroDataCampo, filtroTipoRapido]);
 
   // Person field based on view mode
   const personField = viewMode === 'tecnico' ? 'tecnico' : 'conferencista';
@@ -1625,7 +1629,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
 
   const hasActiveFilters = filtroAno.length || filtroRegional.length || filtroTecnico.length ||
     filtroConferencista.length || filtroParlamentar.length || filtroTipo.length ||
-    filtroSituacao.length || filtroDataDe || filtroDataAte || filtroTipoRapido;
+    filtroSituacao.length || filtroClassificacao.length || filtroDataDe || filtroDataAte || filtroTipoRapido;
 
   // Produtividade mês a mês (data_liberacao → publicacao) por técnico e conferencista
   const produtividadeData = useMemo(() => {
@@ -1705,7 +1709,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
 
   const clearFilters = () => {
     setFiltroAno([]); setFiltroRegional([]); setFiltroTecnico([]); setFiltroConferencista([]);
-    setFiltroParlamentar([]); setFiltroTipo([]); setFiltroSituacao([]);
+    setFiltroParlamentar([]); setFiltroTipo([]); setFiltroSituacao([]); setFiltroClassificacao([]);
     setFiltroDataDe(''); setFiltroDataAte('');
     setFiltroTipoRapido('');
   };
@@ -1817,6 +1821,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               <MultiCheckFilter label="Parlamentar" options={parlamentarOptions} selected={filtroParlamentar} onChange={setFiltroParlamentar} />
               <MultiCheckFilter label="Tipo Form." options={tipoOptions} selected={filtroTipo} onChange={setFiltroTipo} />
               <MultiCheckFilter label="Situação/Estágio" options={situacaoOptions} selected={filtroSituacao} onChange={setFiltroSituacao} />
+              <MultiCheckFilter label="Classificação" options={classificacaoOptions.length ? classificacaoOptions : ['Emenda LOA', 'Transferência Voluntária']} selected={filtroClassificacao} onChange={setFiltroClassificacao} />
             </div>
             <div className="grid grid-cols-3 gap-2 mt-2">
               <div>

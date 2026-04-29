@@ -697,28 +697,29 @@ export default function App() {
   // 🎯 Estado dos filtros - campos dropdown usam arrays para múltiplas seleções
   const [filters, setFilters] = useState({
     ano: [] as string[],
-    demandas_formalizacao: [] as string[], // Filtro por número de demanda
+    demandas_formalizacao: [] as string[],
     area_estagio: [] as string[],
     recurso: [] as string[],
     tecnico: [] as string[],
-    data_liberacao: [] as string[], // Multi-select de datas
+    data_liberacao: [] as string[],
     area_estagio_situacao_demanda: [] as string[],
     situacao_analise_demanda: [] as string[],
-    data_analise_demanda: [] as string[], // Multi-select de datas
+    data_analise_demanda: [] as string[],
     conferencista: [] as string[],
-    data_recebimento_demanda: [] as string[], // Multi-select de datas
-    data_retorno: [] as string[], // Multi-select de datas
+    data_recebimento_demanda: [] as string[],
+    data_retorno: [] as string[],
     falta_assinatura: [] as string[],
     publicacao: [] as string[],
     vigencia: [] as string[],
-    encaminhado_em: [] as string[], // Multi-select de datas
-    concluida_em: [] as string[], // Multi-select de datas
+    encaminhado_em: [] as string[],
+    concluida_em: [] as string[],
     parlamentar: [] as string[],
     partido: [] as string[],
     regional: [] as string[],
     municipio: [] as string[],
     conveniado: [] as string[],
     objeto: [] as string[],
+    classificacao_emenda_demanda: [] as string[],
   });
 
   // Estado para opções dos filtros fixos
@@ -2041,6 +2042,9 @@ export default function App() {
         if (Array.isArray(filtersToUse.objeto) && filtersToUse.objeto.length > 0) {
           if (!matchesAnyFilter(f.objeto, filtersToUse.objeto)) return false;
         }
+        if (Array.isArray((filtersToUse as any).classificacao_emenda_demanda) && (filtersToUse as any).classificacao_emenda_demanda.length > 0) {
+          if (!matchesAnyFilter(f.classificacao_emenda_demanda, (filtersToUse as any).classificacao_emenda_demanda)) return false;
+        }
 
         // Quick filter: Fundo a Fundo
         if (fundoAFundoFilter && !(f.area_estagio_situacao_demanda ?? '').toUpperCase().includes('FUNDO A FUNDO')) return false;
@@ -2373,7 +2377,7 @@ export default function App() {
       data_analise_demanda: [], conferencista: [], data_recebimento_demanda: [],
       data_retorno: [], falta_assinatura: [], publicacao: [], vigencia: [],
       encaminhado_em: [], concluida_em: [], parlamentar: [], partido: [],
-      regional: [], municipio: [], conveniado: [], objeto: [],
+      regional: [], municipio: [], conveniado: [], objeto: [], classificacao_emenda_demanda: [],
     });
     setHeaderFilters({});
     setColumnTextFilters({});
@@ -2382,7 +2386,7 @@ export default function App() {
     setShowOnlyEmptyFields({});
     setShowSomenteMinhas(false);
     setFundoAFundoFilter(false);
-    fetchFormalizacoesComFiltros(0, { ano: [], demandas_formalizacao: [], area_estagio: [], recurso: [], tecnico: [], data_liberacao: [], area_estagio_situacao_demanda: [], situacao_analise_demanda: [], data_analise_demanda: [], conferencista: [], data_recebimento_demanda: [], data_retorno: [], falta_assinatura: [], publicacao: [], vigencia: [], encaminhado_em: [], concluida_em: [], parlamentar: [], partido: [], regional: [], municipio: [], conveniado: [], objeto: [] }, undefined, false);
+    fetchFormalizacoesComFiltros(0, { ano: [], demandas_formalizacao: [], area_estagio: [], recurso: [], tecnico: [], data_liberacao: [], area_estagio_situacao_demanda: [], situacao_analise_demanda: [], data_analise_demanda: [], conferencista: [], data_recebimento_demanda: [], data_retorno: [], falta_assinatura: [], publicacao: [], vigencia: [], encaminhado_em: [], concluida_em: [], parlamentar: [], partido: [], regional: [], municipio: [], conveniado: [], objeto: [], classificacao_emenda_demanda: [] }, undefined, false);
   };
 
   // Silent background refresh: invalidate cache and reload data with progress bar (preserva filtros)
@@ -3341,6 +3345,17 @@ export default function App() {
                     searchPlaceholder="Buscar objeto..."
                     hideEmpty={hideEmptyFields.objeto || false}
                     onHideEmptyChange={(hide) => setHideEmptyFields({ ...hideEmptyFields, objeto: hide })}
+                  />
+
+                  {/* Classificação - Multi-Select */}
+                  <MultiSelectFilter
+                    label="Classificação"
+                    options={filterOptions.classificacao_emenda_demanda || ['Emenda LOA', 'Transferência Voluntária']}
+                    selectedValues={filters.classificacao_emenda_demanda}
+                    onSelectionChange={(values) => setFilters({ ...filters, classificacao_emenda_demanda: values })}
+                    searchPlaceholder="Buscar classificação..."
+                    hideEmpty={hideEmptyFields.classificacao_emenda_demanda || false}
+                    onHideEmptyChange={(hide) => setHideEmptyFields({ ...hideEmptyFields, classificacao_emenda_demanda: hide })}
                   />
 
                   {/* Situação Demanda - Multi-Select */}
