@@ -275,9 +275,9 @@ const SEMPAPEL_AREA_MAP: Record<string, string> = {
   'Aguardando análise orçamentária - CGOF': 'Orçamento CGOF',
   'Repasse': 'Secretário',
   'Demanda reprovada': 'Secretário',
-  'Classificação das Emendas  - CGCSS': 'CSS',
-  'Classificação das Emendas - CGCSS': 'CSS',
-  'Unidade (Beneficiário)': 'CSS',
+  'Classificação das Emendas  - CGCSS': 'CGCSS',
+  'Classificação das Emendas - CGCSS': 'CGCSS',
+  'Unidade (Beneficiário)': 'CGCSS/CSS',
   'Aguardando aprovação do Secretario de Estado da Saúde': 'Secretário',
   'Aguardando análise administrativa inicial - CDSA': 'Saúde Animal',
   'Aguardando análise administrativa - CDSA': 'Saúde Animal',
@@ -338,6 +338,8 @@ function getAreaPalette(area: string): { bg: string; dot: string; bar: string; b
   if (a === 'repasse próprio beneficiário') return { bg: 'bg-indigo-50', dot: 'bg-indigo-500', bar: 'bg-indigo-500', border: 'border-indigo-200', num: 'text-indigo-700' };
   if (a === 'saúde animal')             return { bg: 'bg-lime-50',    dot: 'bg-lime-500',    bar: 'bg-lime-500',    border: 'border-lime-200',    num: 'text-lime-700' };
   if (a === 'concluída')               return { bg: 'bg-emerald-50', dot: 'bg-emerald-500', bar: 'bg-emerald-500', border: 'border-emerald-200', num: 'text-emerald-700' };
+  if (a === 'cgcss')                    return { bg: 'bg-orange-50',  dot: 'bg-orange-500',  bar: 'bg-orange-500',  border: 'border-orange-200',  num: 'text-orange-700' };
+  if (a === 'cgcss/css')                return { bg: 'bg-orange-50',  dot: 'bg-orange-400',  bar: 'bg-orange-400',  border: 'border-orange-200',  num: 'text-orange-600' };
   if (a === 'css')                      return { bg: 'bg-orange-50',  dot: 'bg-orange-500',  bar: 'bg-orange-500',  border: 'border-orange-200',  num: 'text-orange-700' };
   if (a === 'coordenador cgof')         return { bg: 'bg-fuchsia-50', dot: 'bg-fuchsia-500', bar: 'bg-fuchsia-500', border: 'border-fuchsia-200', num: 'text-fuchsia-700' };
   if (a === 'chefia de gabinete')       return { bg: 'bg-rose-50',    dot: 'bg-rose-400',    bar: 'bg-rose-400',    border: 'border-rose-200',    num: 'text-rose-700' };
