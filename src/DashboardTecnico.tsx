@@ -1753,35 +1753,6 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
-          {/* View toggle */}
-          <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-white text-[11px] font-semibold">
-            <button onClick={() => setViewMode('tecnico')}
-              className={`px-3 py-1.5 flex items-center gap-1 transition-all ${viewMode === 'tecnico' ? 'bg-[#1351B4] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-              <User className="w-3 h-3" /> Técnico
-            </button>
-            <button onClick={() => setViewMode('conferencista')}
-              className={`px-3 py-1.5 flex items-center gap-1 transition-all ${viewMode === 'conferencista' ? 'bg-[#1351B4] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-              <Users className="w-3 h-3" /> Conferencista
-            </button>
-          </div>
-          {/* Quick filter: Fundo a Fundo */}
-          <button
-            onClick={() => setFiltroTipoRapido(v => v === 'fundo_a_fundo' ? '' : 'fundo_a_fundo')}
-            className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg border transition-all flex items-center gap-1.5 ${
-              filtroTipoRapido === 'fundo_a_fundo'
-                ? 'bg-[#1351B4] text-white border-[#1351B4]'
-                : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-            }`}
-            title="Filtrar somente registros Fundo a Fundo">
-            <DollarSign className="w-3 h-3" />
-            Fundo a Fundo
-            {filtroTipoRapido === 'fundo_a_fundo' && (
-              <span className="ml-0.5 bg-white/25 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                {filtered.length.toLocaleString('pt-BR')}
-              </span>
-            )}
-          </button>
         </div>
       </div>
 
@@ -1802,6 +1773,34 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* View toggle */}
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-white text-[11px] font-semibold" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setViewMode('tecnico')}
+                className={`px-3 py-1.5 flex items-center gap-1 transition-all ${viewMode === 'tecnico' ? 'bg-[#1351B4] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <User className="w-3 h-3" /> Técnico
+              </button>
+              <button onClick={() => setViewMode('conferencista')}
+                className={`px-3 py-1.5 flex items-center gap-1 transition-all ${viewMode === 'conferencista' ? 'bg-[#1351B4] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <Users className="w-3 h-3" /> Conferencista
+              </button>
+            </div>
+            {/* Quick filter: Fundo a Fundo */}
+            <button
+              onClick={e => { e.stopPropagation(); setFiltroTipoRapido(v => v === 'fundo_a_fundo' ? '' : 'fundo_a_fundo'); }}
+              className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg border transition-all flex items-center gap-1.5 ${
+                filtroTipoRapido === 'fundo_a_fundo'
+                  ? 'bg-[#1351B4] text-white border-[#1351B4]'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+              title="Filtrar somente registros Fundo a Fundo">
+              <DollarSign className="w-3 h-3" />
+              Fundo a Fundo
+              {filtroTipoRapido === 'fundo_a_fundo' && (
+                <span className="ml-0.5 bg-white/25 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                  {filtered.length.toLocaleString('pt-BR')}
+                </span>
+              )}
+            </button>
             {hasActiveFilters && (
               <button onClick={e => { e.stopPropagation(); clearFilters(); }}
                 className="flex items-center gap-1 text-[11px] font-bold text-red-500 hover:text-red-700 transition-colors">
