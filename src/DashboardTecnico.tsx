@@ -1753,7 +1753,6 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             </span>
           )}
         </div>
-        </div>
       </div>
 
       {/* ── Filters ─────────────────────────────────────────────────── */}

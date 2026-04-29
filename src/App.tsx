@@ -46,7 +46,9 @@ import {
   EyeOff,
   Lock,
   Download,
-  Menu
+  Menu,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Papa from 'papaparse';
@@ -3046,87 +3048,111 @@ export default function App() {
         <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
           {/* List Section - Full Width */}
           <div className="w-full">
-            <div className="flex items-center justify-end gap-2 mb-2">
+            <div className="flex items-center justify-between gap-2 mb-2">
                 {activeTab === 'formalizacao' && (
                   <>
-                    {/* Botão Atribuir a Técnico - aparece quando há seleção (só admin) */}
-                    {isAdmin && selectedRows.size > 0 && (
-                      <motion.button
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        onClick={() => setShowAtribuirTecnicoModal(true)}
-                        className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-yellow-200 text-yellow-900 hover:bg-yellow-300 border border-yellow-600"
-                      >
-                        <User className="w-4 h-4" />
-                        Atribuir a Técnico ({selectedRows.size})
-                      </motion.button>
-                    )}
-                    {/* Botão Atribuir a Conferencista - aparece quando há seleção (só admin) */}
-                    {isAdmin && selectedRows.size > 0 && (
-                      <motion.button
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        onClick={() => setShowAtribuirConferencistaModal(true)}
-                        className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-green-200 text-green-900 hover:bg-green-300 border border-green-600"
-                      >
-                        <User className="w-4 h-4" />
-                        Atribuir a Conferencista ({selectedRows.size})
-                      </motion.button>
-                    )}
-                    {/* Botão Liberar para Assinatura - aparece quando há seleção (só admin) */}
-                    {isAdmin && selectedRows.size > 0 && (
-                      <motion.button
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        onClick={() => setShowLiberarAssinaturaModal(true)}
-                        className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-orange-200 text-orange-900 hover:bg-orange-300 border border-orange-600"
-                      >
-                        <PenLine className="w-4 h-4" />
-                        Liberar para Assinatura ({selectedRows.size})
-                      </motion.button>
-                    )}
-                    {/* Quick filter: Fundo a Fundo */}
-                    <button
-                      onClick={() => setFundoAFundoFilter(v => !v)}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 border ${
-                        fundoAFundoFilter
-                          ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
-                          : 'bg-white text-teal-700 border-teal-400 hover:bg-teal-50'
-                      }`}
-                      title="Filtrar somente registros Fundo a Fundo"
-                    >
-                      <DollarSign className="w-4 h-4" />
-                      Fundo a Fundo
-                      {fundoAFundoFilter && (
-                        <span className="ml-1 bg-white/25 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
-                          {formalizacaoSearchResult.total.toLocaleString('pt-BR')}
-                        </span>
+                    {/* LEFT: Admin selection actions (conditional) */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {isAdmin && selectedRows.size > 0 && (
+                        <motion.button
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          onClick={() => setShowAtribuirTecnicoModal(true)}
+                          className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-yellow-200 text-yellow-900 hover:bg-yellow-300 border border-yellow-600"
+                        >
+                          <User className="w-4 h-4" />
+                          Atribuir a Técnico ({selectedRows.size})
+                        </motion.button>
                       )}
-                    </button>
-                    {/* Botão Limpar Todos os Filtros */}
-                    <button
-                      onClick={() => clearAllFilters()}
-                      className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-white text-red-600 border border-red-300 hover:bg-red-50 hover:border-red-500"
-                      title="Limpar todos os filtros"
-                    >
-                      <X className="w-4 h-4" />
-                      Limpar Filtros
-                    </button>
-                    {/* Botão Exportar XLSX */}
-                    <button
-                      onClick={exportFormalizacaoXLSX}
-                      className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 hover:border-emerald-500"
-                      title={`Exportar ${(filteredForExportRef.current?.length || formalizacaoSearchResult.total || 0).toLocaleString('pt-BR')} registros como XLSX`}
-                    >
-                      <Download className="w-4 h-4" />
-                      XLSX ({(filteredForExportRef.current?.length || formalizacaoSearchResult.total || 0).toLocaleString('pt-BR')})
-                    </button>
-                    <button
-                      onClick={() => setIsColumnMenuOpen(!isColumnMenuOpen)}
-                      className={`relative px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
-                        isColumnMenuOpen ? 'bg-[#1351B4] text-white border-2 border-[#1351B4]' : 'bg-white text-gray-700 border border-gray-300 hover:border-[#1351B4] hover:text-[#1351B4]'
-                      }`}
-                    >
+                      {isAdmin && selectedRows.size > 0 && (
+                        <motion.button
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          onClick={() => setShowAtribuirConferencistaModal(true)}
+                          className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-green-200 text-green-900 hover:bg-green-300 border border-green-600"
+                        >
+                          <User className="w-4 h-4" />
+                          Atribuir a Conferencista ({selectedRows.size})
+                        </motion.button>
+                      )}
+                      {isAdmin && selectedRows.size > 0 && (
+                        <motion.button
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          onClick={() => setShowLiberarAssinaturaModal(true)}
+                          className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-orange-200 text-orange-900 hover:bg-orange-300 border border-orange-600"
+                        >
+                          <PenLine className="w-4 h-4" />
+                          Liberar para Assinatura ({selectedRows.size})
+                        </motion.button>
+                      )}
+                    </div>
+
+                    {/* RIGHT: Filters group + separator + Export group */}
+                    <div className="flex items-center gap-1.5">
+                      {/* Filter toggle */}
+                      <button
+                        onClick={() => setIsFilterOpen(v => !v)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 border ${
+                          isFilterOpen
+                            ? 'bg-[#1351B4] text-white border-[#1351B4]'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-[#1351B4] hover:text-[#1351B4]'
+                        }`}
+                        title="Abrir filtros avançados"
+                      >
+                        <SlidersHorizontal className="w-4 h-4" />
+                        Filtros
+                        {isFilterOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+                      {/* Fundo a Fundo quick filter */}
+                      <button
+                        onClick={() => setFundoAFundoFilter(v => !v)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 border ${
+                          fundoAFundoFilter
+                            ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                            : 'bg-white text-teal-700 border-teal-400 hover:bg-teal-50'
+                        }`}
+                        title="Filtrar somente registros Fundo a Fundo"
+                      >
+                        <DollarSign className="w-4 h-4" />
+                        Fundo a Fundo
+                        {fundoAFundoFilter && (
+                          <span className="ml-1 bg-white/25 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                            {formalizacaoSearchResult.total.toLocaleString('pt-BR')}
+                          </span>
+                        )}
+                      </button>
+                      {/* Limpar filtros — só aparece quando há filtros ativos */}
+                      {(Object.values(filters).some(v => Array.isArray(v) && v.length > 0) || fundoAFundoFilter || headerFilters.size > 0) && (
+                        <button
+                          onClick={() => clearAllFilters()}
+                          className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-red-50 text-red-600 border border-red-300 hover:bg-red-100 hover:border-red-500"
+                          title="Limpar todos os filtros"
+                        >
+                          <X className="w-4 h-4" />
+                          Limpar
+                        </button>
+                      )}
+
+                      {/* Separator */}
+                      <div className="h-6 w-px bg-gray-200 mx-1" />
+
+                      {/* XLSX export */}
+                      <button
+                        onClick={exportFormalizacaoXLSX}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 hover:border-emerald-500"
+                        title={`Exportar ${(filteredForExportRef.current?.length || formalizacaoSearchResult.total || 0).toLocaleString('pt-BR')} registros como XLSX`}
+                      >
+                        <Download className="w-4 h-4" />
+                        XLSX ({(filteredForExportRef.current?.length || formalizacaoSearchResult.total || 0).toLocaleString('pt-BR')})
+                      </button>
+                      {/* Column selector */}
+                      <button
+                        onClick={() => setIsColumnMenuOpen(!isColumnMenuOpen)}
+                        className={`relative px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                          isColumnMenuOpen ? 'bg-[#1351B4] text-white border-2 border-[#1351B4]' : 'bg-white text-gray-700 border border-gray-300 hover:border-[#1351B4] hover:text-[#1351B4]'
+                        }`}
+                      >
                       <Settings className="w-4 h-4" />
                       Colunas
                       <span className={`ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded ${
@@ -3203,6 +3229,7 @@ export default function App() {
                         </div>
                       )}
                     </button>
+                    </div> {/* end right group */}
                   </>
                 )}
             </div>
@@ -3483,16 +3510,6 @@ export default function App() {
                     hideEmpty={hideEmptyFields.concluida_em || false}
                     onHideEmptyChange={(hide) => setHideEmptyFields({ ...hideEmptyFields, concluida_em: hide })}
                   />
-                </div>
-
-                {/* Botão Limpar Filtros */}
-                <div className="mt-4 flex justify-end">
-                  <button
-                    onClick={() => clearAllFilters()}
-                    className="px-4 py-2 text-sm font-bold text-white rounded-lg transition-all border border-[#1351B4] bg-[#1351B4] hover:bg-[#0C326F]"
-                  >
-                    Limpar Filtros
-                  </button>
                 </div>
               </motion.div>
             )}
