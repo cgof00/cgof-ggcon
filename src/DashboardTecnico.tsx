@@ -1123,11 +1123,373 @@ function TimelineSection({
 }
 
 // ─── Produção de Análise por Técnico ────────────────────────────────────────
-// Mostra por técnico e mês: demandas RECEBIDAS (data_liberacao) vs ANALISADAS
-// (data_analise_demanda). Demandas presas em "c/ técnico" sem análise = Backlog.
+// Por cohort (mês de recebimento), mostra quantas demandas foram analisadas
+// (saíram de "c/Técnico" e "Em Análise") e quantas ainda estão presas.
 function ProducaoAnaliseSection({ filtered, openDrilldown }: {
   filtered: FormalizacaoRow[];
   openDrilldown: (title: string, rows: FormalizacaoRow[]) => void;
+}) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // Classifica cada demanda do ponto de vista do técnico:
+  // - 'analisada'  = passou das etapas "c/Técnico" e "Em Análise" (tem data_recebimento_demanda ou além)
+  // - 'em_analise' = tem data_analise_demanda mas não tem data_recebimento_demanda
+  // - 'c_tecnico'  = tem data_liberacao mas não tem data_analise_demanda
+  // - 'concluida'  = tem publicacao ou concluida_em
+  const classify = (r: FormalizacaoRow): 'analisada' | 'em_analise' | 'c_tecnico' | 'concluida' => {
+    const conc     = !!(r.concluida_em ?? '').trim() || !!(r.publicacao ?? '').trim();
+    const hasConf  = !!(r.data_recebimento_demanda ?? '').trim();
+    const hasLater = !!(r.data_liberacao_assinatura_conferencista ?? '').trim()
+                  || !!(r.data_liberacao_assinatura ?? '').trim()
+                  || !!(r.assinatura ?? '').trim();
+    const hasAnal  = !!(r.data_analise_demanda ?? '').trim();
+    if (conc)                   return 'concluida';
+    if (hasConf || hasLater)    return 'analisada';
+    if (hasAnal)                return 'em_analise';
+    return 'c_tecnico';
+  };
+
+  type CellData = { total: FormalizacaoRow[]; anal: FormalizacaoRow[]; cTec: FormalizacaoRow[]; emAnal: FormalizacaoRow[]; conc: FormalizacaoRow[] };
+
+  const { pessoas, allMeses } = useMemo(() => {
+    const MAP = new Map<string, Map<string, CellData>>();
+
+    for (const r of filtered) {
+      const tec  = String(r.tecnico ?? '').trim(); if (!tec) continue;
+      const dLib = parseDateTL(r.data_liberacao as string); if (!dLib) continue;
+      const mes  = toMes(dLib);
+      if (!MAP.has(tec)) MAP.set(tec, new Map());
+      const tm = MAP.get(tec)!;
+      if (!tm.has(mes)) tm.set(mes, { total: [], anal: [], cTec: [], emAnal: [], conc: [] });
+      const cell   = tm.get(mes)!;
+      const status = classify(r);
+      cell.total.push(r);
+      if (status === 'analisada')  cell.anal.push(r);
+      else if (status === 'em_analise') cell.emAnal.push(r);
+      else if (status === 'c_tecnico') cell.cTec.push(r);
+      else cell.conc.push(r);
+    }
+
+    const allMesesSet = new Set<string>();
+    MAP.forEach(tm => tm.forEach((_, m) => allMesesSet.add(m)));
+    const allMeses = [...allMesesSet].sort();
+
+    const pessoas = Array.from(MAP.entries()).map(([nome, monthMap]) => {
+      const totalRec   = [...monthMap.values()].reduce((s, c) => s + c.total.length,  0);
+      const totalAnal  = [...monthMap.values()].reduce((s, c) => s + c.anal.length,   0);
+      const totalConc  = [...monthMap.values()].reduce((s, c) => s + c.conc.length,   0);
+      const totalCTec  = [...monthMap.values()].reduce((s, c) => s + c.cTec.length,   0);
+      const totalEmAnal= [...monthMap.values()].reduce((s, c) => s + c.emAnal.length, 0);
+      const taxa       = totalRec > 0 ? Math.round(((totalAnal + totalConc) / totalRec) * 100) : 0;
+      // All stuck demands (c/Técnico + Em Análise)
+      const stuck = [
+        ...[...monthMap.values()].flatMap(c => c.cTec),
+        ...[...monthMap.values()].flatMap(c => c.emAnal),
+      ];
+      return { nome, monthMap, totalRec, totalAnal, totalConc, totalCTec, totalEmAnal, taxa, stuck };
+    }).sort((a, b) => (b.totalCTec + b.totalEmAnal) - (a.totalCTec + a.totalEmAnal) || b.totalRec - a.totalRec);
+
+    return { pessoas, allMeses };
+  }, [filtered]);
+
+  const kpis = useMemo(() => {
+    const totRec    = pessoas.reduce((s, p) => s + p.totalRec,    0);
+    const totAnal   = pessoas.reduce((s, p) => s + p.totalAnal + p.totalConc, 0);
+    const totCTec   = pessoas.reduce((s, p) => s + p.totalCTec,   0);
+    const totEmAnal = pessoas.reduce((s, p) => s + p.totalEmAnal, 0);
+    const taxa      = totRec > 0 ? Math.round((totAnal / totRec) * 100) : 0;
+    return { totRec, totAnal, totCTec, totEmAnal, taxa };
+  }, [pessoas]);
+
+  const exportXLSX = () => {
+    const wb = XLSX.utils.book_new();
+
+    // Aba 1: resumo por técnico
+    const h1 = ['Técnico', 'Recebidas', 'Analisadas', 'c/Técnico (preso)', 'Em Análise (preso)', 'Taxa %'];
+    const d1 = pessoas.map(p => [p.nome, p.totalRec, p.totalAnal + p.totalConc, p.totalCTec, p.totalEmAnal, p.taxa]);
+    d1.push(['TOTAL', kpis.totRec, kpis.totAnal, kpis.totCTec, kpis.totEmAnal, kpis.taxa]);
+    const ws1 = XLSX.utils.aoa_to_sheet([h1, ...d1]);
+    ws1['!cols'] = [{ wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, ws1, 'Resumo por Técnico');
+
+    // Aba 2: detalhe por cohort (mês de recebimento)
+    const h2 = ['Técnico', 'Mês de Recebimento', 'Total Recebidas', 'Analisadas', 'c/Técnico', 'Em Análise'];
+    const d2: (string | number)[][] = [];
+    pessoas.forEach(p => {
+      allMeses.forEach(mes => {
+        const c = p.monthMap.get(mes);
+        if (c && c.total.length > 0) d2.push([p.nome, fmtMesProd(mes), c.total.length, c.anal.length + c.conc.length, c.cTec.length, c.emAnal.length]);
+      });
+    });
+    const ws2 = XLSX.utils.aoa_to_sheet([h2, ...d2]);
+    ws2['!cols'] = [{ wch: 32 }, { wch: 20 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, ws2, 'Por Cohort-Mês');
+
+    // Aba 3: demandas presas (detalhe completo)
+    const h3 = ['Técnico', 'Demanda', 'Mês Recebimento', 'Situação', 'Dias aguardando'];
+    const d3: (string | number)[][] = [];
+    pessoas.forEach(p => {
+      p.stuck.forEach(r => {
+        const dLib = parseDateTL(r.data_liberacao as string);
+        d3.push([
+          p.nome,
+          String(r.demandas_formalizacao ?? r.demanda ?? ''),
+          dLib ? fmtMesProd(toMes(dLib)) : '',
+          classify(r) === 'c_tecnico' ? 'Preso: c/Técnico' : 'Preso: Em Análise',
+          daysSinceTL(r.data_liberacao as string),
+        ]);
+      });
+    });
+    d3.sort((a, b) => Number(b[4]) - Number(a[4]));
+    const ws3 = XLSX.utils.aoa_to_sheet([h3, ...d3]);
+    ws3['!cols'] = [{ wch: 32 }, { wch: 40 }, { wch: 18 }, { wch: 24 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, ws3, 'Presas (detalhe)');
+
+    XLSX.writeFile(wb, `producao_analise_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  if (pessoas.length === 0)
+    return <p className="text-slate-400 text-center py-8 text-sm">Sem dados. Verifique se <code className="bg-slate-100 px-1 rounded">data_liberacao</code> e <code className="bg-slate-100 px-1 rounded">tecnico</code> estão preenchidos.</p>;
+
+  return (
+    <div>
+      {/* ── KPIs + Export ─────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          {[
+            { lbl: 'Recebidas',    val: kpis.totRec,    cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+            { lbl: 'Analisadas',   val: kpis.totAnal,   cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+            { lbl: 'Presas c/Téc', val: kpis.totCTec,   cls: kpis.totCTec   === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-red-50 text-red-700 border-red-200' },
+            { lbl: 'Em Análise',   val: kpis.totEmAnal, cls: kpis.totEmAnal === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-orange-50 text-orange-700 border-orange-200' },
+            { lbl: 'Taxa',         val: `${kpis.taxa}%`,cls: kpis.taxa >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : kpis.taxa >= 50 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200' },
+          ].map(k => (
+            <div key={k.lbl} className={`border rounded-xl px-4 py-2.5 flex flex-col items-center min-w-[90px] ${k.cls}`}>
+              <span className="text-2xl font-extrabold leading-tight">{k.val}</span>
+              <span className="text-xs font-medium opacity-70 mt-0.5 text-center">{k.lbl}</span>
+            </div>
+          ))}
+        </div>
+        <button onClick={exportXLSX} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors flex-shrink-0">
+          <Download className="w-4 h-4" /> Baixar XLSX completo
+        </button>
+      </div>
+
+      {/* ── Legenda ───────────────────────────────────────────────── */}
+      <div className="flex flex-wrap gap-3 mb-4 text-xs">
+        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-emerald-500 inline-block" /><span className="text-slate-600 font-medium">Analisada</span><span className="text-slate-400">= saiu de c/Técnico e Em Análise (foi para conferencista ou além)</span></div>
+        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-red-400 inline-block" /><span className="text-slate-600 font-medium">Presa c/Técnico</span><span className="text-slate-400">= recebida, sem início de análise</span></div>
+        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-orange-400 inline-block" /><span className="text-slate-600 font-medium">Em Análise</span><span className="text-slate-400">= análise iniciada mas não enviada ao conferencista</span></div>
+        <span className="text-slate-400 ml-auto">Agrupado por mês em que a demanda foi liberada para o técnico</span>
+      </div>
+
+      {/* ── Tabela-matriz ─────────────────────────────────────────── */}
+      <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-10 bg-slate-800 text-white text-left px-4 py-3 font-bold text-sm whitespace-nowrap min-w-[180px]">
+                Técnico
+              </th>
+              {allMeses.map(mes => (
+                <th key={mes} className="bg-slate-700 text-white px-3 py-2.5 text-center whitespace-nowrap min-w-[80px] text-xs font-bold">
+                  {fmtMesProd(mes)}
+                  <div className="text-[10px] opacity-50 font-normal mt-0.5">analisadas</div>
+                </th>
+              ))}
+              <th className="bg-blue-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Total<br/>Rec.</th>
+              <th className="bg-emerald-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Total<br/>Anal.</th>
+              <th className="bg-red-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Presas<br/>c/Téc</th>
+              <th className="bg-orange-700 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Em<br/>Análise</th>
+              <th className="bg-slate-600 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Taxa</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pessoas.map((p, pi) => {
+              const isOpen = expanded.has(p.nome);
+              const rowBg  = pi % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+              return (
+                <React.Fragment key={p.nome}>
+                  <tr className={`border-b border-slate-100 ${rowBg} hover:bg-blue-50/40 transition-colors`}>
+                    {/* Nome */}
+                    <td className={`sticky left-0 z-10 px-4 py-3 border-r border-slate-200 ${rowBg}`}>
+                      <button
+                        onClick={() => setExpanded(s => { const n = new Set(s); n.has(p.nome) ? n.delete(p.nome) : n.add(p.nome); return n; })}
+                        className="flex items-center gap-2 text-left w-full hover:text-[#1351B4] transition-colors"
+                      >
+                        {isOpen
+                          ? <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                          : <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />}
+                        <span className="text-sm font-bold text-slate-800 truncate max-w-[150px]" title={p.nome}>{p.nome}</span>
+                      </button>
+                    </td>
+
+                    {/* Células por mês — mostra quantas foram ANALISADAS daquele cohort */}
+                    {allMeses.map(mes => {
+                      const c      = p.monthMap.get(mes);
+                      const total  = c?.total.length  ?? 0;
+                      const anal   = (c?.anal.length ?? 0) + (c?.conc.length ?? 0);
+                      const cTec   = c?.cTec.length   ?? 0;
+                      const emAnal = c?.emAnal.length ?? 0;
+                      if (total === 0) return <td key={mes} className="px-2 py-3 text-center"><span className="text-slate-200 text-xs">—</span></td>;
+
+                      const allOk  = anal === total;
+                      const noneOk = anal === 0;
+                      const cls    = allOk  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                   : noneOk ? 'bg-red-100 text-red-800 border-red-300'
+                                            : 'bg-amber-100 text-amber-800 border-amber-300';
+                      return (
+                        <td key={mes} className="px-2 py-3 text-center">
+                          <button
+                            onClick={() => {
+                              const rows = c ? [...c.anal, ...c.conc, ...c.cTec, ...c.emAnal] : [];
+                              openDrilldown(`${p.nome} — ${fmtMesProd(mes)} (${total} demandas)`, rows);
+                            }}
+                            className={`inline-flex flex-col items-center px-2.5 py-1.5 rounded-lg border text-center hover:opacity-80 transition-opacity ${cls}`}
+                            title={`${anal} analisadas de ${total} recebidas${cTec > 0 ? ` | ${cTec} presas c/Téc` : ''}${emAnal > 0 ? ` | ${emAnal} em análise` : ''}`}
+                          >
+                            <span className="text-base font-extrabold leading-none">{anal}</span>
+                            <span className="text-[10px] font-medium opacity-70 leading-none mt-0.5">de {total}</span>
+                          </button>
+                        </td>
+                      );
+                    })}
+
+                    {/* Total recebidas */}
+                    <td className="px-3 py-3 text-center">
+                      <button onClick={() => openDrilldown(`${p.nome} — Todas recebidas`, [...p.monthMap.values()].flatMap(c => c.total))} className="text-sm font-bold text-blue-700 hover:underline">{p.totalRec}</button>
+                    </td>
+
+                    {/* Total analisadas */}
+                    <td className="px-3 py-3 text-center">
+                      <span className="text-sm font-bold text-emerald-700">{p.totalAnal + p.totalConc}</span>
+                    </td>
+
+                    {/* Presas c/Técnico */}
+                    <td className="px-3 py-3 text-center">
+                      {p.totalCTec > 0 ? (
+                        <button
+                          onClick={() => openDrilldown(`${p.nome} — Presas c/Técnico (${p.totalCTec})`, [...p.monthMap.values()].flatMap(c => c.cTec))}
+                          className="text-sm font-bold text-red-700 bg-red-50 px-2.5 py-1 rounded-full hover:bg-red-100 transition-colors border border-red-200"
+                        >{p.totalCTec}</button>
+                      ) : <span className="text-emerald-500 font-black text-base">✓</span>}
+                    </td>
+
+                    {/* Em Análise */}
+                    <td className="px-3 py-3 text-center">
+                      {p.totalEmAnal > 0 ? (
+                        <button
+                          onClick={() => openDrilldown(`${p.nome} — Em Análise (${p.totalEmAnal})`, [...p.monthMap.values()].flatMap(c => c.emAnal))}
+                          className="text-sm font-bold text-orange-700 bg-orange-50 px-2.5 py-1 rounded-full hover:bg-orange-100 transition-colors border border-orange-200"
+                        >{p.totalEmAnal}</button>
+                      ) : <span className="text-emerald-500 font-black text-base">✓</span>}
+                    </td>
+
+                    {/* Taxa */}
+                    <td className="px-3 py-3 text-center">
+                      <span className={`text-sm font-bold ${p.taxa >= 80 ? 'text-emerald-600' : p.taxa >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {p.taxa}%
+                      </span>
+                    </td>
+                  </tr>
+
+                  {/* Linha expandida — chips das demandas presas */}
+                  {isOpen && (
+                    <tr key={`${p.nome}-detail`} className="border-b border-slate-100 bg-slate-50/80">
+                      <td colSpan={allMeses.length + 6} className="px-6 py-4">
+                        {p.stuck.length > 0 ? (
+                          <div className="space-y-3">
+                            {/* c/Técnico stuck */}
+                            {p.totalCTec > 0 && (
+                              <div>
+                                <div className="text-xs font-bold text-red-700 mb-2 flex items-center gap-2">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
+                                  Presas em c/Técnico ({p.totalCTec}) — sem início de análise:
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {[...p.monthMap.values()].flatMap(c => c.cTec)
+                                    .sort((a, b) => daysSinceTL(b.data_liberacao as string) - daysSinceTL(a.data_liberacao as string))
+                                    .slice(0, 20)
+                                    .map((r, ri) => {
+                                      const dias  = daysSinceTL(r.data_liberacao as string);
+                                      const label = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`).substring(0, 40);
+                                      return (
+                                        <button key={ri} onClick={() => openDrilldown(label, [r])}
+                                          className={`text-xs border rounded-lg px-2.5 py-1 hover:opacity-80 transition-opacity flex items-center gap-1.5 ${dias > 90 ? 'bg-red-100 border-red-300 text-red-800 font-bold' : dias > 30 ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-white border-slate-200 text-slate-700'}`}>
+                                          {label}
+                                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${dias > 90 ? 'bg-red-200' : dias > 30 ? 'bg-amber-200' : 'bg-slate-100'}`}>{dias}d</span>
+                                        </button>
+                                      );
+                                    })}
+                                  {p.totalCTec > 20 && <button onClick={() => openDrilldown(`${p.nome} — Presas c/Técnico`, [...p.monthMap.values()].flatMap(c => c.cTec))} className="text-xs text-[#1351B4] hover:underline">+{p.totalCTec - 20} mais →</button>}
+                                </div>
+                              </div>
+                            )}
+                            {/* Em Análise stuck */}
+                            {p.totalEmAnal > 0 && (
+                              <div>
+                                <div className="text-xs font-bold text-orange-700 mb-2 flex items-center gap-2">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block" />
+                                  Em Análise ({p.totalEmAnal}) — análise iniciada mas não enviada ao conferencista:
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {[...p.monthMap.values()].flatMap(c => c.emAnal)
+                                    .sort((a, b) => daysSinceTL(b.data_liberacao as string) - daysSinceTL(a.data_liberacao as string))
+                                    .slice(0, 20)
+                                    .map((r, ri) => {
+                                      const dias  = daysSinceTL(r.data_analise_demanda as string);
+                                      const label = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`).substring(0, 40);
+                                      return (
+                                        <button key={ri} onClick={() => openDrilldown(label, [r])}
+                                          className={`text-xs border rounded-lg px-2.5 py-1 hover:opacity-80 transition-opacity flex items-center gap-1.5 ${dias > 60 ? 'bg-orange-100 border-orange-300 text-orange-800 font-bold' : dias > 20 ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-white border-slate-200 text-slate-700'}`}>
+                                          {label}
+                                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${dias > 60 ? 'bg-orange-200' : dias > 20 ? 'bg-amber-200' : 'bg-slate-100'}`}>{dias}d em análise</span>
+                                        </button>
+                                      );
+                                    })}
+                                  {p.totalEmAnal > 20 && <button onClick={() => openDrilldown(`${p.nome} — Em Análise`, [...p.monthMap.values()].flatMap(c => c.emAnal))} className="text-xs text-[#1351B4] hover:underline">+{p.totalEmAnal - 20} mais →</button>}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-emerald-600 font-semibold flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4" />
+                            Nenhuma demanda presa — todas foram analisadas ou concluídas.
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+
+            {/* Linha de totais */}
+            <tr className="bg-slate-800 text-white font-bold">
+              <td className="sticky left-0 z-10 bg-slate-800 px-4 py-3 text-sm uppercase tracking-wide">TOTAL</td>
+              {allMeses.map(mes => {
+                const anal  = pessoas.reduce((s, p) => { const c = p.monthMap.get(mes); return s + (c?.anal.length ?? 0) + (c?.conc.length ?? 0); }, 0);
+                const total = pessoas.reduce((s, p) => s + (p.monthMap.get(mes)?.total.length ?? 0), 0);
+                return (
+                  <td key={mes} className="px-2 py-3 text-center">
+                    {total > 0
+                      ? <span className="text-xs font-bold">{anal}<span className="opacity-50 text-[10px]">/{total}</span></span>
+                      : <span className="text-slate-600 text-xs">—</span>}
+                  </td>
+                );
+              })}
+              <td className="px-3 py-3 text-center text-sm font-black">{kpis.totRec}</td>
+              <td className="px-3 py-3 text-center text-sm font-black">{kpis.totAnal}</td>
+              <td className="px-3 py-3 text-center text-sm font-black text-red-300">{kpis.totCTec}</td>
+              <td className="px-3 py-3 text-center text-sm font-black text-orange-300">{kpis.totEmAnal}</td>
+              <td className="px-3 py-3 text-center text-sm font-black">{kpis.taxa}%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
