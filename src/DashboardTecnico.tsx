@@ -2282,21 +2282,8 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
         )}
       </AnimatePresence>
 
-      {/* ── Header ─────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2 min-w-0">
-          <BarChart3 className="w-4 h-4 text-[#1351B4] flex-shrink-0" />
-          <h2 className="text-sm font-bold text-slate-700 truncate">Demonstrativo</h2>
-          {lastUpdated && (
-            <span className="text-[10px] text-slate-400 hidden md:inline flex-shrink-0">
-              {rawData.length.toLocaleString('pt-BR')} registros · {lastUpdated.toLocaleTimeString('pt-BR')}
-            </span>
-          )}
-        </div>
-      </div>
-
       {/* ── Filters ─────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+      <div className="sticky top-0 z-40 bg-white rounded-xl shadow-md border border-slate-200">
         <button
           onClick={() => setFiltersOpen(v => !v)}
           className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-slate-50 rounded-xl transition-colors">
@@ -2894,15 +2881,6 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
           })()}
           </CollapsibleSection>
 
-          {/* ── Linha do Tempo das Demandas ──────────────────────────── */}
-          <CollapsibleSection title="Linha do Tempo — Demandas em Andamento" icon={Calendar} headerBg="bg-slate-600 hover:bg-slate-500" collapsed={sec.timeline} onToggle={() => toggleSec('timeline')}>
-            <TimelineSection
-              filtered={filtered}
-              personField={personField}
-              openDrilldown={openDrilldown}
-              viewMode={viewMode}
-            />
-          </CollapsibleSection>
 
           {/* ── Produção de Análise por Técnico ─────────────────────── */}
           {viewMode === 'tecnico' && (
@@ -2919,24 +2897,6 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               />
             </CollapsibleSection>
           )}
-
-          {/* ── Produtividade Mês a Mês ──────────────────────────────── */}
-          <CollapsibleSection
-            title={`Produtividade — por ${viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}`}
-            icon={Activity}
-            headerBg="bg-slate-600 hover:bg-slate-500"
-            collapsed={sec.produtividade}
-            onToggle={() => toggleSec('produtividade')}
-          >
-            <ProdutividadeAnalise
-              pessoas={viewMode === 'tecnico' ? produtividadeData.tecnicos : produtividadeData.conferencistas}
-              label={viewMode === 'tecnico' ? 'Técnicos' : 'Conferencistas'}
-              allMeses={produtividadeData.allMeses}
-              filtered={filtered}
-              dateField={viewMode === 'tecnico' ? 'data_liberacao' : 'data_recebimento_demanda'}
-              openDrilldown={openDrilldown}
-            />
-          </CollapsibleSection>
 
         </>
       )}
