@@ -807,8 +807,9 @@ function TimelineSection({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   // Only include demands that are NOT yet concluded
+  // publicacao preenchida = publicado no DOE = efetivamente concluído mesmo sem concluida_em
   const pending = useMemo(
-    () => filtered.filter(r => !(r.concluida_em ?? '').trim()),
+    () => filtered.filter(r => !(r.concluida_em ?? '').trim() && !(r.publicacao ?? '').trim()),
     [filtered]
   );
 
@@ -1113,6 +1114,313 @@ function TimelineSection({
               <td className="px-3 py-2.5 text-center text-[12px] font-black">{pending.length}</td>
               <td className="px-3 py-2.5 text-center text-slate-400 text-[11px]">—</td>
               <td className="px-3 py-2.5 text-center text-slate-400 text-[11px]">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+      </div>
+    </div>
+  );
+}
+
+// ─── Produção de Análise por Técnico ────────────────────────────────────────
+// Mostra por técnico e mês: demandas RECEBIDAS (data_liberacao) vs ANALISADAS
+// (data_analise_demanda). Demandas presas em "c/ técnico" sem análise = Backlog.
+function ProducaoAnaliseSection({ filtered, openDrilldown }: {
+  filtered: FormalizacaoRow[];
+  openDrilldown: (title: string, rows: FormalizacaoRow[]) => void;
+}) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const { pessoas, allMeses } = useMemo(() => {
+    type PersonData = {
+      rec:     Map<string, FormalizacaoRow[]>; // recebidas por mês (data_liberacao)
+      anal:    Map<string, FormalizacaoRow[]>; // analisadas por mês (data_analise_demanda)
+      backlog: FormalizacaoRow[];              // recebidas mas sem análise e sem conclusão
+    };
+    const MAP = new Map<string, PersonData>();
+
+    for (const r of filtered) {
+      const tec = String(r.tecnico ?? '').trim();
+      if (!tec) continue;
+      if (!MAP.has(tec)) MAP.set(tec, { rec: new Map(), anal: new Map(), backlog: [] });
+      const pd = MAP.get(tec)!;
+
+      // Recebida: data_liberacao preenchida
+      const dLib = parseDateTL(r.data_liberacao as string);
+      if (dLib) {
+        const mes = toMes(dLib);
+        if (!pd.rec.has(mes)) pd.rec.set(mes, []);
+        pd.rec.get(mes)!.push(r);
+      }
+
+      // Analisada: data_analise_demanda preenchida (contada no mês em que foi analisada)
+      const dAnal = parseDateTL(r.data_analise_demanda as string);
+      if (dAnal) {
+        const mes = toMes(dAnal);
+        if (!pd.anal.has(mes)) pd.anal.set(mes, []);
+        pd.anal.get(mes)!.push(r);
+      } else if (dLib && !(r.concluida_em ?? '').trim() && !(r.publicacao ?? '').trim()) {
+        // Recebida mas sem análise e sem publicação/conclusão → backlog
+        pd.backlog.push(r);
+      }
+    }
+
+    const allMesesSet = new Set<string>();
+    MAP.forEach(pd => {
+      pd.rec.forEach((_, m) => allMesesSet.add(m));
+      pd.anal.forEach((_, m) => allMesesSet.add(m));
+    });
+    const allMeses = [...allMesesSet].sort();
+
+    const pessoas = Array.from(MAP.entries()).map(([nome, data]) => {
+      const totalRec  = [...data.rec.values()].reduce((s, arr) => s + arr.length, 0);
+      const totalAnal = [...data.anal.values()].reduce((s, arr) => s + arr.length, 0);
+      return { nome, rec: data.rec, anal: data.anal, backlog: data.backlog, totalRec, totalAnal };
+    }).sort((a, b) => b.backlog.length - a.backlog.length || b.totalRec - a.totalRec);
+
+    return { pessoas, allMeses };
+  }, [filtered]);
+
+  const totRec     = pessoas.reduce((s, p) => s + p.totalRec,      0);
+  const totAnal    = pessoas.reduce((s, p) => s + p.totalAnal,     0);
+  const totBacklog = pessoas.reduce((s, p) => s + p.backlog.length, 0);
+  const taxaGeral  = totRec > 0 ? Math.round((totAnal / totRec) * 100) : 0;
+
+  const exportXLSX = () => {
+    const header = ['Técnico', 'Mês', 'Recebidas', 'Analisadas', 'Saldo não analisado no mês'];
+    const dataRows: (string | number)[][] = [];
+    pessoas.forEach(p => {
+      allMeses.forEach(mes => {
+        const rec  = (p.rec.get(mes)  ?? []).length;
+        const anal = (p.anal.get(mes) ?? []).length;
+        if (rec > 0 || anal > 0) dataRows.push([p.nome, fmtMesProd(mes), rec, anal, Math.max(0, rec - anal)]);
+      });
+      if (p.backlog.length > 0) {
+        dataRows.push([p.nome, 'BACKLOG ATUAL', 0, 0, p.backlog.length]);
+      }
+    });
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
+    ws['!cols'] = [{ wch: 32 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 28 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Produção de Análise');
+    XLSX.writeFile(wb, `producao_analise_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  if (pessoas.length === 0)
+    return <p className="text-slate-400 text-center py-8 text-sm">Sem dados. Verifique se os campos <code className="bg-slate-100 px-1 rounded">data_liberacao</code> e <code className="bg-slate-100 px-1 rounded">tecnico</code> estão preenchidos.</p>;
+
+  return (
+    <div>
+      {/* KPIs + Export */}
+      <div className="flex items-start justify-between gap-4 mb-3 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          {[
+            { lbl: 'Recebidas',      val: totRec,     cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+            { lbl: 'Analisadas',     val: totAnal,    cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+            { lbl: 'Backlog',        val: totBacklog, cls: totBacklog === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-red-50 text-red-700 border-red-200' },
+            { lbl: 'Taxa de análise',val: `${taxaGeral}%`, cls: taxaGeral >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : taxaGeral >= 50 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200' },
+          ].map(k => (
+            <div key={k.lbl} className={`border rounded-xl px-4 py-2.5 flex flex-col items-center min-w-[90px] ${k.cls}`}>
+              <span className="text-xl font-extrabold leading-tight">{k.val}</span>
+              <span className="text-[11px] font-medium opacity-70 mt-0.5 text-center">{k.lbl}</span>
+            </div>
+          ))}
+        </div>
+        <button onClick={exportXLSX} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors flex-shrink-0">
+          <Download className="w-3.5 h-3.5" /> Baixar XLSX
+        </button>
+      </div>
+
+      {/* Legenda */}
+      <p className="text-[11px] text-slate-500 mb-3 leading-relaxed">
+        Cada célula mostra <strong>Rec/Anal</strong>: demandas liberadas para o técnico naquele mês vs. demandas analisadas
+        (por <code className="bg-slate-100 px-1 rounded">data_analise_demanda</code>) naquele mês — mesmo que tenham sido recebidas antes.
+        Demandas recebidas sem análise e sem publicação = <span className="text-red-600 font-bold">Backlog</span>.
+      </p>
+
+      {/* Tabela-matriz */}
+      <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-10 bg-slate-800 text-white text-left px-3 py-2.5 font-bold text-[11px] whitespace-nowrap min-w-[160px]">
+                Técnico
+              </th>
+              {allMeses.map(mes => (
+                <th key={mes} className="bg-slate-700 text-white px-2 py-1 text-center whitespace-nowrap min-w-[72px]">
+                  <div className="text-[10px] font-bold">{fmtMesProd(mes)}</div>
+                  <div className="flex justify-center gap-0.5 text-[8px] font-semibold opacity-60 mt-0.5">
+                    <span className="text-blue-300">Rec</span>
+                    <span>/</span>
+                    <span className="text-emerald-300">Anal</span>
+                  </div>
+                </th>
+              ))}
+              <th className="bg-blue-800 text-white px-2 py-2.5 text-center whitespace-nowrap text-[10px] font-bold">Tot. Rec.</th>
+              <th className="bg-emerald-800 text-white px-2 py-2.5 text-center whitespace-nowrap text-[10px] font-bold">Tot. Anal.</th>
+              <th className="bg-red-800 text-white px-2 py-2.5 text-center whitespace-nowrap text-[10px] font-bold">Backlog</th>
+              <th className="bg-slate-600 text-white px-2 py-2.5 text-center whitespace-nowrap text-[10px] font-bold">Taxa %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pessoas.map((p, pi) => {
+              const isOpen = expanded.has(p.nome);
+              const taxa = p.totalRec > 0 ? Math.round((p.totalAnal / p.totalRec) * 100) : 0;
+              return (
+                <React.Fragment key={p.nome}>
+                  <tr className={`border-b border-slate-100 ${pi % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-blue-50/40 transition-colors`}>
+                    {/* Nome — clica para expandir backlog */}
+                    <td className={`sticky left-0 z-10 px-3 py-2.5 border-r border-slate-200 ${pi % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
+                      <button
+                        onClick={() => setExpanded(s => { const n = new Set(s); n.has(p.nome) ? n.delete(p.nome) : n.add(p.nome); return n; })}
+                        className="flex items-center gap-1.5 text-left w-full hover:text-[#1351B4] transition-colors"
+                      >
+                        {isOpen
+                          ? <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                          : <ChevronRight className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />}
+                        <span className="text-[12px] font-bold text-slate-800 truncate max-w-[130px]" title={p.nome}>{p.nome}</span>
+                      </button>
+                    </td>
+
+                    {/* Células por mês: Rec / Anal */}
+                    {allMeses.map(mes => {
+                      const recArr  = p.rec.get(mes)  ?? [];
+                      const analArr = p.anal.get(mes) ?? [];
+                      const rec     = recArr.length;
+                      const anal    = analArr.length;
+                      const hasData = rec > 0 || anal > 0;
+                      const color   = !hasData ? ''
+                        : rec === 0 ? 'bg-emerald-100 text-emerald-700'
+                        : anal === 0 ? 'bg-red-100 text-red-700'
+                        : anal >= rec ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-amber-100 text-amber-700';
+                      return (
+                        <td key={mes} className="px-1.5 py-2 text-center">
+                          {hasData ? (
+                            <div className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${color}`}>
+                              <button
+                                onClick={() => rec > 0 && openDrilldown(`${p.nome} — Recebidas ${fmtMesProd(mes)} (${rec})`, recArr)}
+                                className={rec > 0 ? 'hover:underline' : ''}
+                              >{rec}</button>
+                              <span className="opacity-40">/</span>
+                              <button
+                                onClick={() => anal > 0 && openDrilldown(`${p.nome} — Analisadas ${fmtMesProd(mes)} (${anal})`, analArr)}
+                                className={anal > 0 ? 'hover:underline' : ''}
+                              >{anal}</button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-200 text-[10px]">—</span>
+                          )}
+                        </td>
+                      );
+                    })}
+
+                    {/* Total Recebidas */}
+                    <td className="px-2 py-2.5 text-center">
+                      <button
+                        onClick={() => openDrilldown(`${p.nome} — Todas recebidas (${p.totalRec})`, [...p.rec.values()].flat())}
+                        className="text-[11px] font-bold text-blue-700 hover:underline"
+                      >{p.totalRec}</button>
+                    </td>
+
+                    {/* Total Analisadas */}
+                    <td className="px-2 py-2.5 text-center">
+                      <button
+                        onClick={() => openDrilldown(`${p.nome} — Todas analisadas (${p.totalAnal})`, [...p.anal.values()].flat())}
+                        className="text-[11px] font-bold text-emerald-700 hover:underline"
+                      >{p.totalAnal}</button>
+                    </td>
+
+                    {/* Backlog */}
+                    <td className="px-2 py-2.5 text-center">
+                      {p.backlog.length > 0 ? (
+                        <button
+                          onClick={() => openDrilldown(`${p.nome} — Backlog sem análise (${p.backlog.length})`, p.backlog)}
+                          className="text-[11px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full hover:bg-red-100 transition-colors"
+                        >{p.backlog.length}</button>
+                      ) : (
+                        <span className="text-emerald-500 text-[12px] font-black">✓</span>
+                      )}
+                    </td>
+
+                    {/* Taxa */}
+                    <td className="px-2 py-2.5 text-center">
+                      <span className={`text-[11px] font-bold ${taxa >= 80 ? 'text-emerald-600' : taxa >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {taxa}%
+                      </span>
+                    </td>
+                  </tr>
+
+                  {/* Linha expandida: lista do backlog */}
+                  {isOpen && (
+                    <tr className="border-b border-slate-100 bg-red-50/30">
+                      <td colSpan={allMeses.length + 5} className="px-4 py-3">
+                        {p.backlog.length > 0 ? (
+                          <>
+                            <div className="text-[11px] font-bold text-red-700 mb-2 flex items-center gap-2">
+                              Backlog — recebidas sem análise registrada ({p.backlog.length}):
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {[...p.backlog]
+                                .sort((a, b) => daysSinceTL(b.data_liberacao) - daysSinceTL(a.data_liberacao))
+                                .slice(0, 25)
+                                .map((r, ri) => {
+                                  const dias = daysSinceTL(r.data_liberacao as string);
+                                  const label = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`).substring(0, 35);
+                                  return (
+                                    <button
+                                      key={ri}
+                                      onClick={() => openDrilldown(label, [r])}
+                                      className={`text-[10px] border rounded px-2 py-0.5 hover:opacity-80 transition-opacity ${dias > 90 ? 'bg-red-100 border-red-300 text-red-800' : dias > 30 ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-white border-slate-200 text-slate-700'}`}
+                                    >
+                                      {label}{dias > 0 ? ` · ${dias}d` : ''}
+                                    </button>
+                                  );
+                                })}
+                              {p.backlog.length > 25 && (
+                                <button
+                                  onClick={() => openDrilldown(`${p.nome} — Backlog (${p.backlog.length})`, p.backlog)}
+                                  className="text-[10px] bg-white border border-slate-200 text-slate-600 rounded px-2 py-0.5 hover:bg-slate-50"
+                                >+{p.backlog.length - 25} mais →</button>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Nenhum backlog — todas as demandas recebidas foram analisadas ou concluídas.
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+
+            {/* Linha de totais */}
+            <tr className="bg-slate-800 text-white font-bold">
+              <td className="sticky left-0 z-10 bg-slate-800 px-3 py-2.5 text-[11px] uppercase tracking-wide">TOTAL</td>
+              {allMeses.map(mes => {
+                const rec  = pessoas.reduce((s, p) => s + (p.rec.get(mes)  ?? []).length, 0);
+                const anal = pessoas.reduce((s, p) => s + (p.anal.get(mes) ?? []).length, 0);
+                return (
+                  <td key={mes} className="px-1.5 py-2.5 text-center">
+                    {rec > 0 || anal > 0
+                      ? <span className="text-[10px] font-bold">{rec}/{anal}</span>
+                      : <span className="text-slate-600 text-[10px]">—</span>}
+                  </td>
+                );
+              })}
+              <td className="px-2 py-2.5 text-center text-[11px] font-black">{totRec}</td>
+              <td className="px-2 py-2.5 text-center text-[11px] font-black">{totAnal}</td>
+              <td className="px-2 py-2.5 text-center text-[11px] font-black text-red-300">{totBacklog}</td>
+              <td className="px-2 py-2.5 text-center text-[11px] font-black">{taxaGeral}%</td>
             </tr>
           </tbody>
         </table>
@@ -1566,7 +1874,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
   // Compact mode
   const [compact, setCompact] = useState(false);
   // Section collapse states (true = collapsed)
-  const [sec, setSec] = useState({ matrix: true, areaEstagio: true, criticas: true, topEstagio: true, atrasadas: true, timeline: true, produtividade: true });
+  const [sec, setSec] = useState({ matrix: true, areaEstagio: true, criticas: true, topEstagio: true, atrasadas: true, timeline: true, analise: true, produtividade: true });
   const toggleSec = (k: keyof typeof sec) => setSec(p => ({ ...p, [k]: !p[k] }));
   // Filter panel collapsed
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -2464,6 +2772,22 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               viewMode={viewMode}
             />
           </CollapsibleSection>
+
+          {/* ── Produção de Análise por Técnico ─────────────────────── */}
+          {viewMode === 'tecnico' && (
+            <CollapsibleSection
+              title="Produção de Análise — Recebidas vs Analisadas por Técnico"
+              icon={ArrowUpDown}
+              headerBg="bg-slate-600 hover:bg-slate-500"
+              collapsed={sec.analise}
+              onToggle={() => toggleSec('analise')}
+            >
+              <ProducaoAnaliseSection
+                filtered={filtered}
+                openDrilldown={openDrilldown}
+              />
+            </CollapsibleSection>
+          )}
 
           {/* ── Produtividade Mês a Mês ──────────────────────────────── */}
           <CollapsibleSection
