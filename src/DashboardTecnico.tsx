@@ -784,6 +784,17 @@ const TIMELINE_STAGES = [
 // Stages shown in the pending view (all except 'Concluído')
 const ACTIVE_STAGES = TIMELINE_STAGES.slice(0, -1);
 
+// ─── Stage flow intervals (for avg-days-per-stage calculation) ───────────────
+const FLOW_INTERVALS = [
+  { key: 'c_tecnico',  label: 'Dem. c/ técnico',   fromKey: 'data_liberacao'                          as keyof FormalizacaoRow, toKey: 'data_analise_demanda'                    as keyof FormalizacaoRow, tlIdx: 0, cls: 'bg-blue-50 border-blue-200 text-blue-800' },
+  { key: 'em_analise', label: 'Análise / ag. doc',  fromKey: 'data_analise_demanda'                    as keyof FormalizacaoRow, toKey: 'data_recebimento_demanda'                 as keyof FormalizacaoRow, tlIdx: 1, cls: 'bg-indigo-50 border-indigo-200 text-indigo-800' },
+  { key: 'em_conf',    label: 'Em conferência',     fromKey: 'data_recebimento_demanda'                as keyof FormalizacaoRow, toKey: 'data_liberacao_assinatura_conferencista'  as keyof FormalizacaoRow, tlIdx: 2, cls: 'bg-violet-50 border-violet-200 text-violet-800' },
+  { key: 'ag_assina',  label: 'Conf / pendência',   fromKey: 'data_liberacao_assinatura_conferencista' as keyof FormalizacaoRow, toKey: 'data_liberacao_assinatura'               as keyof FormalizacaoRow, tlIdx: 3, cls: 'bg-purple-50 border-purple-200 text-purple-800' },
+  { key: 'em_assina',  label: 'Em assinatura',      fromKey: 'data_liberacao_assinatura'               as keyof FormalizacaoRow, toKey: 'assinatura'                               as keyof FormalizacaoRow, tlIdx: 4, cls: 'bg-orange-50 border-orange-200 text-orange-800' },
+  { key: 'publi',      label: 'Laudas + publi DOE', fromKey: 'assinatura'                              as keyof FormalizacaoRow, toKey: 'publicacao'                               as keyof FormalizacaoRow, tlIdx: 5, cls: 'bg-teal-50 border-teal-200 text-teal-800' },
+  { key: 'conclusao',  label: 'Comitê / conclusão', fromKey: 'publicacao'                              as keyof FormalizacaoRow, toKey: 'concluida_em'                             as keyof FormalizacaoRow, tlIdx: 6, cls: 'bg-emerald-50 border-emerald-200 text-emerald-800' },
+] as const;
+
 function parseDateTL(s?: string | null): Date | null {
   if (!s?.trim()) return null;
   const d = new Date(s.includes('T') ? s : `${s}T00:00:00`);
@@ -1088,18 +1099,21 @@ function perfScore(taxa: number, medG: number | null) {
 }
 
 // ─── Professional Productivity Analysis Component ────────────────────────────
-function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, openDrilldown }: {
+function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, openDrilldown, viewMode, personField }: {
   pessoas: PessoaProd[];
   label: string;
   allMeses: string[];
   filtered: FormalizacaoRow[];
   dateField: keyof FormalizacaoRow;
   openDrilldown: (title: string, rows: FormalizacaoRow[]) => void;
+  viewMode: 'tecnico' | 'conferencista';
+  personField: keyof FormalizacaoRow;
 }) {
   const [anoSel, setAnoSel]   = useState<string>('all');
   const [mesSel, setMesSel]   = useState<string>('all'); // 'all' | '01'..'12'
   const [sortBy, setSortBy]   = useState<'lib' | 'taxa' | 'dias'>('lib');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [showTimeline, setShowTimeline] = useState(true);
 
   // Distinct years and months derived from allMeses
   const anosDisp = useMemo(() => [...new Set(allMeses.map(m => m.split('-')[0]))].sort().reverse(), [allMeses]);
@@ -1162,6 +1176,50 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
   const toggleExpand = (nome: string) =>
     setExpanded(s => { const ns = new Set(s); if (ns.has(nome)) ns.delete(nome); else ns.add(nome); return ns; });
 
+  // ── Stage flow: avg days per stage for completed demands ──────────────────
+  const fluxoStats = useMemo(() => {
+    let data = filtered;
+    if (anoSel !== 'all' || mesSel !== 'all') {
+      data = filtered.filter(r => {
+        const d = parseDateProd((r[dateField] as string) ?? '');
+        if (!d) return false;
+        const mes = toMes(d);
+        const [y, m] = mes.split('-');
+        if (anoSel !== 'all' && y !== anoSel) return false;
+        if (mesSel !== 'all' && m !== mesSel) return false;
+        return true;
+      });
+    }
+    const completed = data.filter(r => (r.concluida_em ?? '').trim());
+    const pending   = data.filter(r => !(r.concluida_em ?? '').trim());
+    const getIdx = (r: FormalizacaoRow): number => {
+      for (let i = ACTIVE_STAGES.length - 1; i >= 0; i--) {
+        if ((r[ACTIVE_STAGES[i].key] as string)?.trim()) return i;
+      }
+      return -1;
+    };
+    const totalDurations = completed.map(r => {
+      const from = parseDateProd((r.data_liberacao as string) ?? '');
+      const to   = parseDateProd((r.concluida_em   as string) ?? '');
+      if (!from || !to) return null;
+      const d = Math.round((to.getTime() - from.getTime()) / 86400000);
+      return d >= 0 ? d : null;
+    }).filter((d): d is number => d !== null);
+    const avgTotal = totalDurations.length > 0 ? Math.round(totalDurations.reduce((s, d) => s + d, 0) / totalDurations.length) : null;
+    const intervals = FLOW_INTERVALS.map(interval => {
+      const durations = completed.map(r => {
+        const from = parseDateProd((r[interval.fromKey] as string) ?? '');
+        const to   = parseDateProd((r[interval.toKey]   as string) ?? '');
+        if (!from || !to) return null;
+        const d = Math.round((to.getTime() - from.getTime()) / 86400000);
+        return d >= 0 ? d : null;
+      }).filter((d): d is number => d !== null);
+      const avgDays = durations.length > 0 ? Math.round(durations.reduce((s, d) => s + d, 0) / durations.length) : null;
+      return { ...interval, avgDays, sampleCount: durations.length, pendingCount: pending.filter(r => getIdx(r) === interval.tlIdx).length };
+    });
+    return { intervals, totalCompleted: completed.length, totalPending: pending.length, avgTotal };
+  }, [filtered, anoSel, mesSel, dateField]);
+
   // Returns raw rows for a given person, optionally filtered to a specific month
   const getRows = (nome: string, mes?: string): FormalizacaoRow[] => {
     const personKey = dateField === 'data_liberacao' ? 'tecnico' : 'conferencista';
@@ -1177,7 +1235,13 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
     return <p className="text-slate-400 text-center py-10 text-sm">Sem dados de liberação para o período. Verifique se <code className="bg-slate-100 px-1 rounded">data_liberacao</code> está preenchido.</p>;
 
   const exportXLSX = () => {
-    // Sheet 1: Resumo por pessoa
+    // Sheet 1: Tempo por etapa
+    const fluxoHeader = ['Etapa', 'Média Dias (concluídas)', 'Qtd Concluídas', 'Pendentes agora'];
+    const fluxoRows = fluxoStats.intervals.map(f => [f.label, f.avgDays ?? '—', f.sampleCount, f.pendingCount]);
+    const wsFluxo = XLSX.utils.aoa_to_sheet([fluxoHeader, ...fluxoRows]);
+    wsFluxo['!cols'] = [{ wch: 26 }, { wch: 22 }, { wch: 18 }, { wch: 16 }];
+
+    // Sheet 2: Resumo por pessoa
     const resumoHeader = ['Posição', label, 'Lib.', 'Pub.', 'Conc.', 'Pend.', 'Dilig.', 'Taxa %'];
     const resumoRows = sorted.map((p, i) => [
       i + 1, p.nome, p.totLib, p.totPub, p.totConc, p.totNaoConcl, p.totDilig, p.taxa,
@@ -1185,7 +1249,7 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
     const wsResumo = XLSX.utils.aoa_to_sheet([resumoHeader, ...resumoRows]);
     wsResumo['!cols'] = [{ wch: 6 }, { wch: 32 }, ...Array(6).fill({ wch: 10 })];
 
-    // Sheet 2: Mês a mês
+    // Sheet 3: Mês a mês
     const mesHeader = [label, 'Mês', 'Lib.', 'Pub.', 'Conc.', 'Pend.', 'Dilig.', 'Taxa %'];
     const mesRows: (string | number)[][] = [];
     sorted.forEach(p => {
@@ -1198,13 +1262,14 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
     wsMes['!cols'] = [{ wch: 32 }, { wch: 12 }, ...Array(6).fill({ wch: 10 })];
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo');
+    XLSX.utils.book_append_sheet(wb, wsFluxo, 'Tempo por Etapa');
+    XLSX.utils.book_append_sheet(wb, wsResumo, 'Produtividade');
     XLSX.utils.book_append_sheet(wb, wsMes, 'Mês a Mês');
     const periodoLabel = [
       mesSel !== 'all' ? MESES_PT_PROD[parseInt(mesSel) - 1] : '',
       anoSel !== 'all' ? anoSel : '',
     ].filter(Boolean).join('-') || 'todos';
-    XLSX.writeFile(wb, `produtividade_${label.toLowerCase()}_${periodoLabel}.xlsx`);
+    XLSX.writeFile(wb, `produtividade_fluxo_${label.toLowerCase()}_${periodoLabel}.xlsx`);
   };
 
   return (
@@ -1253,7 +1318,7 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
         <button
           onClick={exportXLSX}
           className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-all flex-shrink-0"
-          title="Exportar produtividade como XLSX">
+          title="Exportar XLSX completo (fluxo + produtividade + mês a mês)">
           <Download className="w-3.5 h-3.5" /> XLSX
         </button>
       </div>
@@ -1275,6 +1340,29 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
             <span className="text-[11px] font-medium text-current opacity-70 mt-0.5 text-center">{k.lbl}</span>
           </div>
         ))}
+      </div>
+
+      {/* ── Tempo Médio por Etapa ─────────────────────────────── */}
+      <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
+        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+          <Activity className="w-3.5 h-3.5" />
+          Tempo Médio por Etapa — {fluxoStats.totalCompleted} dem. concluídas
+          {fluxoStats.avgTotal !== null && (
+            <span className="ml-2 text-[10px] bg-slate-700 text-white px-2 py-0.5 rounded-full font-bold">Total: ⌀ {fluxoStats.avgTotal}d</span>
+          )}
+          <span className="text-[10px] text-slate-400 ml-1">({fluxoStats.totalPending} em andamento)</span>
+        </h4>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+          {fluxoStats.intervals.map(f => (
+            <div key={f.key} className={`border rounded-xl p-3 ${f.cls}`}>
+              <div className="text-2xl font-extrabold leading-tight">{f.avgDays !== null ? `${f.avgDays}d` : '—'}</div>
+              <div className="text-[11px] font-semibold mt-1 opacity-90 leading-tight">{f.label}</div>
+              <div className="text-[9px] opacity-60 mt-1">
+                {f.sampleCount} conc.{f.pendingCount > 0 ? ` · ${f.pendingCount} pend.` : ''}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── Person Cards ─────────────────────────────────────── */}
@@ -1442,6 +1530,29 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
         )}
       </div>
 
+      {/* ── Linha do Tempo integrada ──────────────────────────── */}
+      <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setShowTimeline(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white transition-colors text-sm font-bold"
+        >
+          <span className="flex items-center gap-2">
+            <Clock className="w-4 h-4" />
+            Linha do Tempo — Demandas em Andamento
+          </span>
+          {showTimeline ? <ChevronUp className="w-4 h-4 text-slate-300" /> : <ChevronDown className="w-4 h-4 text-slate-300" />}
+        </button>
+        <AnimatePresence initial={false}>
+          {showTimeline && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }} className="overflow-hidden">
+              <div className="p-4">
+                <TimelineSection filtered={filtered} personField={personField} openDrilldown={openDrilldown} viewMode={viewMode} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       {/* ── Legend ───────────────────────────────────────────── */}
       <div className="flex items-center gap-3 text-xs text-slate-400 pt-3 border-t border-slate-100">
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-400 inline-block" /> barra azul = volume de liberações</span>
@@ -1465,7 +1576,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
   // Compact mode
   const [compact, setCompact] = useState(false);
   // Section collapse states (true = collapsed)
-  const [sec, setSec] = useState({ matrix: true, areaEstagio: true, criticas: true, topEstagio: true, atrasadas: true, timeline: true, produtividade: true });
+  const [sec, setSec] = useState({ matrix: true, areaEstagio: true, criticas: true, topEstagio: true, atrasadas: true, fluxoProdutividade: true });
   const toggleSec = (k: keyof typeof sec) => setSec(p => ({ ...p, [k]: !p[k] }));
   // Filter panel collapsed
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -2354,23 +2465,13 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
           })()}
           </CollapsibleSection>
 
-          {/* ── Linha do Tempo das Demandas ──────────────────────────── */}
-          <CollapsibleSection title="Linha do Tempo — Demandas em Andamento" icon={Calendar} headerBg="bg-slate-600 hover:bg-slate-500" collapsed={sec.timeline} onToggle={() => toggleSec('timeline')}>
-            <TimelineSection
-              filtered={filtered}
-              personField={personField}
-              openDrilldown={openDrilldown}
-              viewMode={viewMode}
-            />
-          </CollapsibleSection>
-
-          {/* ── Produtividade Mês a Mês ──────────────────────────────── */}
+          {/* ── Produtividade & Fluxo (merged) ───────────────────────── */}
           <CollapsibleSection
-            title={`Produtividade — por ${viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}`}
+            title={`Produtividade & Fluxo — ${viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}`}
             icon={Activity}
             headerBg="bg-slate-600 hover:bg-slate-500"
-            collapsed={sec.produtividade}
-            onToggle={() => toggleSec('produtividade')}
+            collapsed={sec.fluxoProdutividade}
+            onToggle={() => toggleSec('fluxoProdutividade')}
           >
             <ProdutividadeAnalise
               pessoas={viewMode === 'tecnico' ? produtividadeData.tecnicos : produtividadeData.conferencistas}
@@ -2379,6 +2480,8 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               filtered={filtered}
               dateField={viewMode === 'tecnico' ? 'data_liberacao' : 'data_recebimento_demanda'}
               openDrilldown={openDrilldown}
+              viewMode={viewMode}
+              personField={personField}
             />
           </CollapsibleSection>
 

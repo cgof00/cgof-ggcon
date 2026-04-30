@@ -610,7 +610,7 @@ export default function App() {
   const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(() => localStorage.getItem('formalizacao_last_update'));
   const [selectedFormalizacao, setSelectedFormalizacao] = useState<Formalizacao | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<any>(null);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(true);
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
   const [paginaAtual, setPaginaAtual] = useState(0);
   const [itensPorPagina] = useState(500); // Paginação de 500, mas filtros aplicados aos 37k completos
@@ -3090,20 +3090,6 @@ export default function App() {
 
                     {/* RIGHT: Filters group + separator + Export group */}
                     <div className="flex items-center gap-1.5">
-                      {/* Filter toggle */}
-                      <button
-                        onClick={() => setIsFilterOpen(v => !v)}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 border ${
-                          isFilterOpen
-                            ? 'bg-[#1351B4] text-white border-[#1351B4]'
-                            : 'bg-white text-gray-700 border-gray-300 hover:border-[#1351B4] hover:text-[#1351B4]'
-                        }`}
-                        title="Abrir filtros avançados"
-                      >
-                        <SlidersHorizontal className="w-4 h-4" />
-                        Filtros
-                        {isFilterOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                      </button>
                       {/* Fundo a Fundo quick filter */}
                       <button
                         onClick={() => setFundoAFundoFilter(v => !v)}
@@ -3122,8 +3108,19 @@ export default function App() {
                           </span>
                         )}
                       </button>
-                      {/* Limpar filtros — só aparece quando há filtros ativos */}
-                      {(Object.values(filters).some(v => Array.isArray(v) && v.length > 0) || fundoAFundoFilter || headerFilters.size > 0) && (
+                      {/* Limpar filtros de coluna — só aparece quando há filtros de coluna ativos */}
+                      {Object.keys(headerFilters).some(k => (headerFilters[k] || []).length > 0) && (
+                        <button
+                          onClick={() => setHeaderFilters({})}
+                          className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-blue-50 text-blue-600 border border-blue-300 hover:bg-blue-100 hover:border-blue-500"
+                          title="Limpar filtros das colunas da tabela"
+                        >
+                          <X className="w-4 h-4" />
+                          Limpar col.
+                        </button>
+                      )}
+                      {/* Limpar filtros gerais — só aparece quando há filtros ativos */}
+                      {(Object.values(filters).some(v => Array.isArray(v) && v.length > 0) || fundoAFundoFilter) && (
                         <button
                           onClick={() => clearAllFilters()}
                           className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-red-50 text-red-600 border border-red-300 hover:bg-red-100 hover:border-red-500"
@@ -3234,25 +3231,27 @@ export default function App() {
                 )}
             </div>
 
-            {/* Filtros Avançados de Formalização - Multi-select com busca */}
-            {activeTab === 'formalizacao' && isFilterOpen && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="bg-white border border-gray-200 rounded-2xl p-5 mb-4 shadow-lg"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-bold text-gray-900">Filtros Avançados</h3>
-                  <button
-                    onClick={() => setIsFilterOpen(false)}
-                    className="p-1.5 rounded-lg transition-colors text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                    title="Fechar filtros"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {/* Filtros Avançados de Formalização - Seção persistente colapsável */}
+            {activeTab === 'formalizacao' && (
+              <div className="bg-white border border-gray-200 rounded-2xl mb-4 shadow-sm overflow-hidden">
+                <button
+                  onClick={() => setIsFilterOpen(v => !v)}
+                  className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4 text-[#1351B4]" />
+                    <span className="text-sm font-bold text-gray-900">Filtros Avançados</span>
+                    {Object.values(filters).filter(v => Array.isArray(v) && v.length > 0).length > 0 && (
+                      <span className="text-[10px] bg-[#1351B4] text-white px-2 py-0.5 rounded-full font-bold">
+                        {Object.values(filters).filter(v => Array.isArray(v) && v.length > 0).length} ativo{Object.values(filters).filter(v => Array.isArray(v) && v.length > 0).length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  {isFilterOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                </button>
+                {isFilterOpen && (
+                <div className="px-5 pb-5 border-t border-gray-100">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-4">
                   {/* Ano - Multi-Select */}
                   <MultiSelectFilter
                     label="Ano"
@@ -3511,7 +3510,9 @@ export default function App() {
                     onHideEmptyChange={(hide) => setHideEmptyFields({ ...hideEmptyFields, concluida_em: hide })}
                   />
                 </div>
-              </motion.div>
+                </div>
+                )}
+              </div>
             )}
 
             {(activeTab === 'admin' || activeTab === 'dashboard') ? (
