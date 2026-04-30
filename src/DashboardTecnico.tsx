@@ -1215,8 +1215,9 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
 
     for (const r of allRows) {
       const tec  = String(r.tecnico ?? '').trim(); if (!tec) continue;
-      const dLib = parseDateTL(r.data_liberacao as string); if (!dLib) continue;
-      const mes  = toMes(dLib);
+      const dLib = parseDateTL(r.data_liberacao as string);
+      // Se não há data_liberacao, agrupa em 'sem-data' para não excluir a demanda dos totais
+      const mes  = dLib ? toMes(dLib) : 'sem-data';
       if (!MAP.has(tec)) MAP.set(tec, new Map());
       const tm = MAP.get(tec)!;
       if (!tm.has(mes)) tm.set(mes, { total: [], anal: [], cTec: [], emAnal: [], conc: [] });
@@ -1231,7 +1232,11 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
 
     const allMesesSet = new Set<string>();
     MAP.forEach(tm => tm.forEach((_, m) => allMesesSet.add(m)));
-    const allMeses = [...allMesesSet].sort();
+    // 'sem-data' sempre no final; demais meses em ordem cronológica
+    const allMeses = [...allMesesSet]
+      .filter(m => m !== 'sem-data')
+      .sort()
+      .concat(allMesesSet.has('sem-data') ? ['sem-data'] : []);
 
     const pessoas = Array.from(MAP.entries()).map(([nome, monthMap]) => {
       const totalRec   = [...monthMap.values()].reduce((s, c) => s + c.total.length,  0);
@@ -1277,7 +1282,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
     pessoas.forEach(p => {
       allMeses.forEach(mes => {
         const c = p.monthMap.get(mes);
-        if (c && c.total.length > 0) d2.push([p.nome, fmtMesProd(mes), c.total.length, c.anal.length + c.conc.length, c.cTec.length, c.emAnal.length]);
+        if (c && c.total.length > 0) d2.push([p.nome, mes === 'sem-data' ? 'Sem Data' : fmtMesProd(mes), c.total.length, c.anal.length + c.conc.length, c.cTec.length, c.emAnal.length]);
       });
     });
     const ws2 = XLSX.utils.aoa_to_sheet([h2, ...d2]);
@@ -1350,9 +1355,9 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
                 Técnico
               </th>
               {allMeses.map(mes => (
-                <th key={mes} className="bg-slate-700 text-white px-3 py-2.5 text-center whitespace-nowrap min-w-[80px] text-xs font-bold">
-                  {fmtMesProd(mes)}
-                  <div className="text-[10px] opacity-50 font-normal mt-0.5">analisadas</div>
+                <th key={mes} className={`text-white px-3 py-2.5 text-center whitespace-nowrap min-w-[80px] text-xs font-bold ${mes === 'sem-data' ? 'bg-slate-500' : 'bg-slate-700'}`}>
+                  {mes === 'sem-data' ? 'Sem Data' : fmtMesProd(mes)}
+                  <div className="text-[10px] opacity-50 font-normal mt-0.5">{mes === 'sem-data' ? 'sem lib.' : 'analisadas'}</div>
                 </th>
               ))}
               <th className="bg-blue-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Total<br/>Rec.</th>
@@ -1401,7 +1406,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
                           <button
                             onClick={() => {
                               const rows = c ? [...c.anal, ...c.conc, ...c.cTec, ...c.emAnal] : [];
-                              openDrilldown(`${p.nome} — ${fmtMesProd(mes)} (${total} demandas)`, rows);
+                              openDrilldown(`${p.nome} — ${mes === 'sem-data' ? 'Sem Data' : fmtMesProd(mes)} (${total} demandas)`, rows);
                             }}
                             className={`inline-flex flex-col items-center px-2.5 py-1.5 rounded-lg border text-center hover:opacity-80 transition-opacity ${cls}`}
                             title={`${anal} analisadas de ${total} recebidas${cTec > 0 ? ` | ${cTec} presas c/Téc` : ''}${emAnal > 0 ? ` | ${emAnal} em análise` : ''}`}
