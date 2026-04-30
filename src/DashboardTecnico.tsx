@@ -10,7 +10,7 @@ import {
 import { useAuth } from './AuthContext';
 import * as XLSX from 'xlsx';
 
-// --- Types ------------------------------------------------------------------
+// ─── Types ──────────────────────────────────────────────────────────────────
 interface FormalizacaoRow {
   id?: number;
   ano?: string;
@@ -49,22 +49,22 @@ interface FormalizacaoRow {
   assinatura?: string;
 }
 
-// --- Fixed column definitions ---------------------------------------------
+// ─── Fixed column definitions ─────────────────────────────────────────────
 const FIXED_COLS = [
   { key: 'demandas_recebidas', line1: 'Deman.',      line2: 'Recebidas',  bgHead: 'bg-slate-700',  bgTotal: 'bg-slate-600' },
-  { key: 'c_tecnico',          line1: 'Demanda',      line2: 'C/ T�cnico', bgHead: 'bg-red-800',    bgTotal: 'bg-red-900' },
-  { key: 'em_analise',         line1: 'Em',           line2: 'An�lise',    bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
+  { key: 'c_tecnico',          line1: 'Demanda',      line2: 'C/ Técnico', bgHead: 'bg-red-800',    bgTotal: 'bg-red-900' },
+  { key: 'em_analise',         line1: 'Em',           line2: 'Análise',    bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
   { key: 'ag_doc',             line1: 'Ag. Doc.',     line2: '',           bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
-  { key: 'diligencia',         line1: 'Dilig�ncia',   line2: '',           bgHead: 'bg-amber-700',  bgTotal: 'bg-amber-800', isDiligencia: true },
-  { key: 'formalizacao',       line1: 'Formaliza��o', line2: '',           bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
-  { key: 'em_conferencia',     line1: 'Em',           line2: 'Confer�ncia',bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
-  { key: 'conf_pendencia',     line1: 'Conf /',       line2: 'Pend�ncia',  bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
+  { key: 'diligencia',         line1: 'Diligência',   line2: '',           bgHead: 'bg-amber-700',  bgTotal: 'bg-amber-800', isDiligencia: true },
+  { key: 'formalizacao',       line1: 'Formalização', line2: '',           bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
+  { key: 'em_conferencia',     line1: 'Em',           line2: 'Conferência',bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
+  { key: 'conf_pendencia',     line1: 'Conf /',       line2: 'Pendência',  bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
   { key: 'em_assinatura',      line1: 'Em',           line2: 'Assinatura', bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
   { key: 'laudas',             line1: 'Laudas +',     line2: 'Publi DOE',  bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
   { key: 'comite',             line1: 'Comite',       line2: 'Gestor',     bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
   { key: 'outras',             line1: 'Outras',       line2: 'Pend.',      bgHead: 'bg-slate-800',  bgTotal: 'bg-slate-700' },
   { key: 'total_ggcon',        line1: 'Total no',     line2: 'GGCON',      bgHead: 'bg-blue-900',   bgTotal: 'bg-blue-950', isTotalGgcon: true },
-  { key: 'concluida',          line1: 'Conclu�da',    line2: '',           bgHead: 'bg-emerald-800',bgTotal: 'bg-emerald-900' },
+  { key: 'concluida',          line1: 'Concluída',    line2: '',           bgHead: 'bg-emerald-800',bgTotal: 'bg-emerald-900' },
   { key: 'transf_vol',         line1: 'Transf.',      line2: 'Vol.',       bgHead: 'bg-teal-800',   bgTotal: 'bg-teal-900' },
   { key: 'emenda_loa',         line1: 'Emenda',       line2: 'LOA',        bgHead: 'bg-violet-800', bgTotal: 'bg-violet-900' },
 ] as const;
@@ -74,342 +74,342 @@ type ColKey = typeof FIXED_COLS[number]['key'];
 const stg = (r: FormalizacaoRow) => (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
 const cls = (r: FormalizacaoRow) => (r.classificacao_emenda_demanda ?? '').trim().toUpperCase();
 
-// Normaliza est�gios Fundo a Fundo para o nome can�nico de cada coluna
-// Regex captura sufixos "� FUNDO A FUNDO", "- FUNDO A FUNDO", etc. (en/em dash ou h�fen)
-const FF_SUFFIX = /\s*[��-]\s*FUNDO A FUNDO\s*$/;
+// Normaliza estágios Fundo a Fundo para o nome canônico de cada coluna
+// Regex captura sufixos "– FUNDO A FUNDO", "- FUNDO A FUNDO", etc. (en/em dash ou hífen)
+const FF_SUFFIX = /\s*[–—-]\s*FUNDO A FUNDO\s*$/;
 const FUNDO_REMAP: Record<string, string> = {
-  // Mapeamento de nomes completos especiais (sem sufixo remov�vel)
-  'AGUARDANDO RESOLU��O PARA EMISS�O RESOLU��O PARA REPASSE FUNDO A FUNDO - DOE': 'LAUDAS + PUBLI DOE',
-  // Mapeamento de bases ap�s remo��o do sufixo
-  'EM AN�LISE OR�AMENT�RIA CGOF':                          'EM AN�LISE DA DOCUMENTA��O',
-  'PARECER COORDENADOR CGOF':                              'EM AN�LISE DA DOCUMENTA��O',
-  'APROVA��O - CHEFIA DE GABINETE':                        'EM AN�LISE DA DOCUMENTA��O',
-  'AGUARDANDO APROVA��O DO SECRETARIO DE ESTADO DA SA�DE': 'AGUARDANDO DOCUMENTA��O',
-  'CONFER�NCIA COM PEND�NCIA':                             'CONF / PEND�NCIA',
+  // Mapeamento de nomes completos especiais (sem sufixo removível)
+  'AGUARDANDO RESOLUÇÃO PARA EMISSÃO RESOLUÇÃO PARA REPASSE FUNDO A FUNDO - DOE': 'LAUDAS + PUBLI DOE',
+  // Mapeamento de bases após remoção do sufixo
+  'EM ANÁLISE ORÇAMENTÁRIA CGOF':                          'EM ANÁLISE DA DOCUMENTAÇÃO',
+  'PARECER COORDENADOR CGOF':                              'EM ANÁLISE DA DOCUMENTAÇÃO',
+  'APROVAÇÃO - CHEFIA DE GABINETE':                        'EM ANÁLISE DA DOCUMENTAÇÃO',
+  'AGUARDANDO APROVAÇÃO DO SECRETARIO DE ESTADO DA SAÚDE': 'AGUARDANDO DOCUMENTAÇÃO',
+  'CONFERÊNCIA COM PENDÊNCIA':                             'CONF / PENDÊNCIA',
   'LAUDAS':                                                'LAUDAS + PUBLI DOE',
-  'PUBLICA��O NO DOE':                                     'LAUDAS + PUBLI DOE',
-  'COMIT� GESTOR':                                         'COMITE GESTOR',
-  'EMPENHO CANCELADO':                                     'OUTRAS PEND�NCIAS',
-  'PROCESSO SIAFEM':                                       'OUTRAS PEND�NCIAS',
+  'PUBLICAÇÃO NO DOE':                                     'LAUDAS + PUBLI DOE',
+  'COMITÊ GESTOR':                                         'COMITE GESTOR',
+  'EMPENHO CANCELADO':                                     'OUTRAS PENDÊNCIAS',
+  'PROCESSO SIAFEM':                                       'OUTRAS PENDÊNCIAS',
 };
 const stgNorm = (r: FormalizacaoRow): string => {
   const raw = stg(r);
-  // S� aplica remapeamento se o est�gio for de Fundo a Fundo � evita
-  // contaminar contagens de registros que t�m est�gios hom�nimos sem o sufixo FF
+  // Só aplica remapeamento se o estágio for de Fundo a Fundo — evita
+  // contaminar contagens de registros que têm estágios homônimos sem o sufixo FF
   if (!raw.includes('FUNDO A FUNDO')) return raw;
-  // Nome completo especial (n�o tem sufixo remov�vel)
+  // Nome completo especial (não tem sufixo removível)
   if (FUNDO_REMAP[raw]) return FUNDO_REMAP[raw];
-  // Remove sufixo FF e busca nome can�nico; se n�o houver, usa a base limpa
+  // Remove sufixo FF e busca nome canônico; se não houver, usa a base limpa
   const base = raw.replace(FF_SUFFIX, '').trim();
   return FUNDO_REMAP[base] ?? base;
 };
 
-// --- Mapeamento SemPapel ? �rea - Est�gio --------------------------------
-// Usado quando area_estagio est� vazio no banco
+// ─── Mapeamento SemPapel → Área - Estágio ────────────────────────────────
+// Usado quando area_estagio está vazio no banco
 const SEMPAPEL_AREA_MAP: Record<string, string> = {
-  'Em Processamento': 'Repasse Pr�prio Benefici�rio',
-  'Em an�lise de admissibilidade do �rg�o Processador': 'Repasse Pr�prio Benefici�rio',
+  'Em Processamento': 'Repasse Próprio Beneficiário',
+  'Em análise de admissibilidade do Órgão Processador': 'Repasse Próprio Beneficiário',
   'Em Assinatura': 'Aguardando assinaturas',
   'Aguardando assinaturas': 'Aguardando assinaturas',
-  'Em An�lise de Admissibilidade do �rg�o/Entidade': 'GGCON CGOF',
-  'Dilig�ncia com o Benefici�rio - an�lise administrativa - DRS': 'Benefici�rio',
-  'Dilig�ncia com o Benefici�rio - Em an�lise t�cnica - DRS': 'Benefici�rio',
-  'Dilig�ncia com o Benefici�rio - an�lise t�cnica - DRS': 'Benefici�rio',
-  'Dilig�ncia com o Benefici�rio - emiss�o parecer t�cnico DRS': 'Benefici�rio',
-  'Dilig�ncia com o Benefici�rio - Em an�lise administrativa - DRS': 'Benefici�rio',
-  'Em dilig�ncia com Benefici�rio': 'Benefici�rio',
-  'Aguardando Informa��es Iniciais do Benefici�rio': 'Benefici�rio',
-  'Dilig�ncia - Documentos benefici�rio': 'Benefici�rio',
-  'dilig�ncia administrativa': 'Benefici�rio',
-  'Documenta��o Interveniente': 'Benefici�rio',
-  'Documentos Benefici�rio (unit�ria)': 'Benefici�rio',
-  'Documento Benefici�rio (novo)': 'Benefici�rio',
-  'Documentos benefici�rio (novo)': 'Benefici�rio',
-  'Em cadastramento': 'Benefici�rio',
-  'Em Cadastramento (novo)': 'Benefici�rio',
-  'Em Cadastramento (Emenda Unit�ria)': 'Benefici�rio',
-  'Em Cadastramento (Emenda Agregadora)': 'Benefici�rio',
-  'Emenda Processada': 'Benefici�rio',
-  'Cadastro e Comunica��o da Demanda': 'Benefici�rio',
-  'Interveniente - FUNDA��O PARA O DESENVOLVIMENTO MEDICO E HOSPITALAR': 'Benefici�rio',
-  'Em dilig�ncia com Interveniente - Funda��o Faculdade de Medicina': 'Benefici�rio',
-  'Em dilig�ncia com Interveniente - FUNDA��O PARA O DESENVOLVIMENTO MEDICO E HOSPITALAR': 'Benefici�rio',
-  'Em dilig�ncia com Benefici�rio - Corrigir obras': 'Benefici�rio',
-  'diligencia - beneficiario': 'Benefici�rio',
-  'Documentos benefici�rio': 'Benefici�rio',
-  'Documentos Benefici�rio (agregadora)': 'Benefici�rio',
-  'Em Preenchimento do Plano de Trabalho': 'Benefici�rio',
-  'Documentos Benefici�rio Agregadora': 'Benefici�rio',
+  'Em Análise de Admissibilidade do Órgão/Entidade': 'GGCON CGOF',
+  'Diligência com o Beneficiário - análise administrativa - DRS': 'Beneficiário',
+  'Diligência com o Beneficiário - Em análise técnica - DRS': 'Beneficiário',
+  'Diligência com o Beneficiário - análise técnica - DRS': 'Beneficiário',
+  'Diligência com o Beneficiário - emissão parecer técnico DRS': 'Beneficiário',
+  'Diligência com o Beneficiário - Em análise administrativa - DRS': 'Beneficiário',
+  'Em diligência com Beneficiário': 'Beneficiário',
+  'Aguardando Informações Iniciais do Beneficiário': 'Beneficiário',
+  'Diligência - Documentos beneficiário': 'Beneficiário',
+  'diligência administrativa': 'Beneficiário',
+  'Documentação Interveniente': 'Beneficiário',
+  'Documentos Beneficiário (unitária)': 'Beneficiário',
+  'Documento Beneficiário (novo)': 'Beneficiário',
+  'Documentos beneficiário (novo)': 'Beneficiário',
+  'Em cadastramento': 'Beneficiário',
+  'Em Cadastramento (novo)': 'Beneficiário',
+  'Em Cadastramento (Emenda Unitária)': 'Beneficiário',
+  'Em Cadastramento (Emenda Agregadora)': 'Beneficiário',
+  'Emenda Processada': 'Beneficiário',
+  'Cadastro e Comunicação da Demanda': 'Beneficiário',
+  'Interveniente - FUNDAÇÃO PARA O DESENVOLVIMENTO MEDICO E HOSPITALAR': 'Beneficiário',
+  'Em diligência com Interveniente - Fundação Faculdade de Medicina': 'Beneficiário',
+  'Em diligência com Interveniente - FUNDAÇÃO PARA O DESENVOLVIMENTO MEDICO E HOSPITALAR': 'Beneficiário',
+  'Em diligência com Beneficiário - Corrigir obras': 'Beneficiário',
+  'diligencia - beneficiario': 'Beneficiário',
+  'Documentos beneficiário': 'Beneficiário',
+  'Documentos Beneficiário (agregadora)': 'Beneficiário',
+  'Em Preenchimento do Plano de Trabalho': 'Beneficiário',
+  'Documentos Beneficiário Agregadora': 'Beneficiário',
   'Demanda Cancelada': 'Cancelada / Impedida',
-  'Transfer�ncia Volunt�ria cancelada': 'Cancelada / Impedida',
+  'Transferência Voluntária cancelada': 'Cancelada / Impedida',
   'Cancelada': 'Cancelada / Impedida',
   'Demanda parlamentar cancelada': 'Cancelada / Impedida',
-  'Em An�lise da Secretaria de Governo e Rela��es Institucionais': 'Secretaria de Governo',
-  'Aguardando An�lise da SGRI': 'Secretaria de Governo',
-  'Em An�lise da Secretaria de Governo e Rela��es Institucionais - Primeiro Remanejamento': 'Secretaria de Governo',
-  'Em An�lise da Secretaria de Governo e Rela��es Institucionais - SGRI': 'Secretaria de Governo',
+  'Em Análise da Secretaria de Governo e Relações Institucionais': 'Secretaria de Governo',
+  'Aguardando Análise da SGRI': 'Secretaria de Governo',
+  'Em Análise da Secretaria de Governo e Relações Institucionais - Primeiro Remanejamento': 'Secretaria de Governo',
+  'Em Análise da Secretaria de Governo e Relações Institucionais - SGRI': 'Secretaria de Governo',
   'Em processamento da Casa Civil': 'Casa Civil',
-  'Aguardando Libera��o da Casa Civil': 'Casa Civil',
+  'Aguardando Liberação da Casa Civil': 'Casa Civil',
   'Aguardando Processamento da Casa Civil': 'Casa Civil',
   'Preparando Comunicado ao Parlamentar': 'Casa Civil',
   'Encaminhar para Processamento na Secretaria': 'Casa Civil',
-  'Aguardando emiss�o de comunicado ao parlamentar': 'Casa Civil',
-  'Em An�lise da Casa Civil': 'Casa Civil',
-  'Aguardando Autoriza��o Superior': 'Chefia de Gabinete',
-  'Aprova��o - Chefia de Gabinete': 'Coordenador CGOF',
+  'Aguardando emissão de comunicado ao parlamentar': 'Casa Civil',
+  'Em Análise da Casa Civil': 'Casa Civil',
+  'Aguardando Autorização Superior': 'Chefia de Gabinete',
+  'Aprovação - Chefia de Gabinete': 'Coordenador CGOF',
   'Parecer - Coordenador CGOF': 'Coordenador CGOF',
-  'Revis�o do �rg�o Processador - Em an�lise t�cnica - CRS': 'CRS',
-  'Em dilig�ncia parecer t�cnico coordenador � CRS': 'CRS',
-  'Em dilig�ncia an�lise t�cnica CRS': 'CRS',
-  'Em dilig�ncia com an�lise t�cnica CRS': 'CRS',
-  'Em an�lise t�cnica - CRS': 'CRS',
-  'Aguardando an�lise t�cnica - CRS': 'CRS',
-  'Em an�lise t�cnico coordenador - CRS': 'CRS',
-  'Em an�lise t�cnica or�ament�ria - CRS': 'CRS',
-  'Em dilig�ncia an�lise t�cnica CRS': 'CRS',
-  'Aguardando an�lise t�cnica coordenador - CRS': 'CRS',
-  'Em dilig�ncia parecer t�cnico coordenador - CRS': 'DRS ou Fundo a Fundo',
+  'Revisão do Órgão Processador - Em análise técnica - CRS': 'CRS',
+  'Em diligência parecer técnico coordenador – CRS': 'CRS',
+  'Em diligência análise técnica CRS': 'CRS',
+  'Em diligência com análise técnica CRS': 'CRS',
+  'Em análise técnica - CRS': 'CRS',
+  'Aguardando análise técnica - CRS': 'CRS',
+  'Em análise técnico coordenador - CRS': 'CRS',
+  'Em análise técnica orçamentária - CRS': 'CRS',
+  'Em diligência análise técnica CRS': 'CRS',
+  'Aguardando análise técnica coordenador - CRS': 'CRS',
+  'Em diligência parecer técnico coordenador - CRS': 'DRS ou Fundo a Fundo',
   'Unificar Emendas': 'DRS',
-  'Em Valida��o da Emenda Agregadora - LOA': 'DRS',
-  'Dilig�ncia com o Benefici�rio - Aguardando an�lise administrativa - DRS': 'DRS',
-  'Dilig�ncia com o Benefici�rio - Em emiss�o parecer t�cnico DRS': 'DRS',
+  'Em Validação da Emenda Agregadora - LOA': 'DRS',
+  'Diligência com o Beneficiário - Aguardando análise administrativa - DRS': 'DRS',
+  'Diligência com o Beneficiário - Em emissão parecer técnico DRS': 'DRS',
   'Aguardando processamento da DRS': 'DRS',
-  'Em an�lise de admissibilidade da DRS': 'DRS',
-  'Em dilig�ncia com an�lise administrativa DRS': 'DRS',
-  'Em emiss�o parecer t�cnico DRS': 'DRS',
-  'Em an�lise t�cnica - DRS': 'DRS',
-  'Em an�lise administrativa - DRS': 'DRS',
-  'Em an�lise t�cnica da DRS': 'DRS',
-  'Manifesta��o T�cnica e Protocolo': 'DRS',
-  'Em dilig�ncia an�lise administrativa DRS': 'DRS',
-  'Aguardando emiss�o do parecer t�cnico - DRS': 'DRS',
-  'Dilig�ncia an�lise t�cnica - DRS': 'DRS',
-  'Aguardando an�lise t�cnica - DRS': 'DRS',
-  'Em An�lise T�cnica da Regional': 'DRS',
-  'Aguardando an�lise administrativa - DRS': 'DRS',
-  'Dilig�ncia an�lise t�cnica': 'DRS',
-  'Em dilig�ncia t�cnica DRS': 'DRS',
-  'Valida��o da Emenda Agregadora - LOA': 'DRS',
-  'Demanda Cancelada - Desist�ncia do Benefici�rio': 'Cancelada / Impedida',
-  '**Emenda Paga': 'Conclu�da',
-  'Conv�nio e/ou Repasse Fundo a Fundo - Conclu�do e recurso repassado': 'Conclu�da',
-  'Demanda Conclu�da': 'Conclu�da',
-  'Demanda parlamentar processada': 'Conclu�da',
-  'Transfer�ncia Volunt�ria processada': 'Conclu�da',
-  'Emenda Executada': 'Conclu�da',
+  'Em análise de admissibilidade da DRS': 'DRS',
+  'Em diligência com análise administrativa DRS': 'DRS',
+  'Em emissão parecer técnico DRS': 'DRS',
+  'Em análise técnica - DRS': 'DRS',
+  'Em análise administrativa - DRS': 'DRS',
+  'Em análise técnica da DRS': 'DRS',
+  'Manifestação Técnica e Protocolo': 'DRS',
+  'Em diligência análise administrativa DRS': 'DRS',
+  'Aguardando emissão do parecer técnico - DRS': 'DRS',
+  'Diligência análise técnica - DRS': 'DRS',
+  'Aguardando análise técnica - DRS': 'DRS',
+  'Em Análise Técnica da Regional': 'DRS',
+  'Aguardando análise administrativa - DRS': 'DRS',
+  'Diligência análise técnica': 'DRS',
+  'Em diligência técnica DRS': 'DRS',
+  'Validação da Emenda Agregadora - LOA': 'DRS',
+  'Demanda Cancelada - Desistência do Beneficiário': 'Cancelada / Impedida',
+  '**Emenda Paga': 'Concluída',
+  'Convênio e/ou Repasse Fundo a Fundo - Concluído e recurso repassado': 'Concluída',
+  'Demanda Concluída': 'Concluída',
+  'Demanda parlamentar processada': 'Concluída',
+  'Transferência Voluntária processada': 'Concluída',
+  'Emenda Executada': 'Concluída',
   'Anexar nota de empenho': 'Financeiro CGOF',
-  'Em formaliza��o da minuta - Transfer�ncia Volunt�ria - Parecer Referencial 03/2025': 'Financeiro CGOF',
-  'Execu��o e Libera��o de Pagamentos': 'Financeiro CGOF',
+  'Em formalização da minuta - Transferência Voluntária - Parecer Referencial 03/2025': 'Financeiro CGOF',
+  'Execução e Liberação de Pagamentos': 'Financeiro CGOF',
   'Abrir Processo': 'Financeiro CGOF',
   'Nota de Empenho': 'Financeiro CGOF',
-  'AGUARDA LIBERA��O DE RECURSOS': 'Or�amento CGOF',
+  'AGUARDA LIBERAÇÃO DE RECURSOS': 'Orçamento CGOF',
   'Em processo SIAFEM': 'Financeiro CGOF',
-  'Aguardando cr�dito da demanda (Fazenda)(GCO)': 'Or�amento CGOF',
-  'Aguardar Finaliza��o': 'Impedimento Eleitoral',
+  'Aguardando crédito da demanda (Fazenda)(GCO)': 'Orçamento CGOF',
+  'Aguardar Finalização': 'Impedimento Eleitoral',
   'Aguardando Termino do Impedimento Eleitoral': 'Impedimento Eleitoral',
-  'Revis�o do �rg�o Processador - Em an�lise administrativa - GGCON': 'GGCON CGOF',
-  'Aguardando formaliza��o': 'GGCON CGOF',
-  'Em formaliza��o da minuta - Transfer�ncia Volunt�ria - Parecer Referencial 03/2024': 'GGCON CGOF',
-  'Em formaliza��o da minuta - LOA - Parecer Referencial  01/2024': 'GGCON CGOF',
-  'Formaliza��o Prefeitura Obras � LOA � Parecer Referencial 01/2024': 'GGCON CGOF',
-  'Em formaliza��o da minuta - LOA - Parecer Referencial 01/2024': 'GGCON CGOF',
-  'Em formaliza��o da minuta - LOA - Parecer Referencial 03/2022': 'GGCON CGOF',
-  'Aguardando associa��o de portf�lio para a demanda parlamentar': 'GGCON CGOF',
-  'Aguardando associa��o de portf�lio para a Transfer�ncia Volunt�ria': 'GGCON CGOF',
-  'Em anexo da Resolu��o do Di�rio Oficial': 'GGCON CGOF',
-  'Em emiss�o  do parecer referencial': 'GGCON CGOF',
-  'Em emiss�o da minuta - GGCON - LOA - Parecer Referencial 50/2021': 'GGCON CGOF',
+  'Revisão do Órgão Processador - Em análise administrativa - GGCON': 'GGCON CGOF',
+  'Aguardando formalização': 'GGCON CGOF',
+  'Em formalização da minuta - Transferência Voluntária - Parecer Referencial 03/2024': 'GGCON CGOF',
+  'Em formalização da minuta - LOA - Parecer Referencial  01/2024': 'GGCON CGOF',
+  'Formalização Prefeitura Obras – LOA – Parecer Referencial 01/2024': 'GGCON CGOF',
+  'Em formalização da minuta - LOA - Parecer Referencial 01/2024': 'GGCON CGOF',
+  'Em formalização da minuta - LOA - Parecer Referencial 03/2022': 'GGCON CGOF',
+  'Aguardando associação de portfólio para a demanda parlamentar': 'GGCON CGOF',
+  'Aguardando associação de portfólio para a Transferência Voluntária': 'GGCON CGOF',
+  'Em anexo da Resolução do Diário Oficial': 'GGCON CGOF',
+  'Em emissão  do parecer referencial': 'GGCON CGOF',
+  'Em emissão da minuta - GGCON - LOA - Parecer Referencial 50/2021': 'GGCON CGOF',
   'Aguardando processamento da secretaria': 'GGCON CGOF',
-  'Aguardando an�lise administrativa - GGCON': 'GGCON CGOF',
-  'Em Analise T�cnica da Secretaria': 'GGCON CGOF',
-  'Em an�lise t�cnica da secretaria': 'GGCON CGOF',
-  'Em emiss�o da minuta GGCON - Demandas': 'GGCON CGOF',
-  'Em emiss�o da minuta - GGCON - LOA': 'GGCON CGOF',
-  'Em emiss�o da minuta - Parecer Referencial 32/21': 'GGCON CGOF',
-  'Em formaliza��o da minuta - Parecer Referencial 04/2022': 'GGCON CGOF',
-  'Em emiss�o da minuta - GGCON - LOA - Parecer Referencial 03/2022': 'GGCON CGOF',
-  'Em formaliza��o de minuta - LOA - Parecer Referencial 03/2022': 'GGCON CGOF',
-  'Em emiss�o da minuta - Parecer Referencial 47/2021': 'GGCON CGOF',
-  'Em emiss�o da minuta - GGCON - LOA - Parecer Referencial 39/2022': 'GGCON CGOF',
-  'Em emiss�o da minuta - GGCON - LOA - Parecer Referencial 47': 'GGCON CGOF',
-  'Em formaliza��o da minuta - LOA - Parecer Referencial  39/2022': 'GGCON CGOF',
-  'Formaliza��o Prefeitura Obras � LOA � Parecer Referencial 39/2022': 'GGCON CGOF',
-  'Em Instru��o Processual - Secretaria': 'GGCON CGOF',
-  'Aguardando Emiss�o da Minuta': 'GGCON CGOF',
-  'Aprova��o, Assinaturas e Publica��o do Conv�nio': 'GGCON CGOF',
-  'Aguardando parecer t�cnico da coordenadoria': 'GGCON CGOF',
-  'Em an�lise parecer t�cnico da coordenadoria': 'GGCON CGOF',
-  'Em emiss�o da minuta - Parecer Referencial 04/2022': 'GGCON CGOF',
-  'Em emiss�o do parecer referencial': 'GGCON CGOF',
-  'Em formaliza��o da minuta - Transfer�ncia Volunt�ria - Parecer Referencial 41/2022': 'GGCON CGOF',
-  'Processo SIAFEM': 'Conclu�da',
-  'Em dilig�ncia an�lise administrativa GGCON': 'GGCON CGOF',
-  'Formaliza��o do Conv�nio': 'GGCON CGOF',
-  'An�lise GGCON, Or�amento e Reserva Financeira': 'GGCON CGOF',
-  'Em emiss�o do extrato': 'GGCON CGOF',
-  'Em an�lise administrativa - GGCON': 'GGCON CGOF',
-  'Aguardando publica��o no DOE': 'GGCON CGOF',
-  'Formaliza��o Prefeitura Obras � LOA � Parecer Referencial 03/2022': 'GGCON CGOF',
-  'Em formaliza��o da minuta - LOA - Parecer Referencial 21/2025': 'GGCON CGOF',
-  'Em An�lise de Admissibilidade do �rg�o/Entidade - Remanejada': 'GGCON CGOF',
-  'Aguardando libera��o de assinatura': 'GGCON CGOF',
-  'Aguardando libera��o para assinaturas': 'GGCON CGOF',
-  'Em emiss�o da minuta - GGCON': 'GGCON CGOF',
-  'Em An�lise de Admissibilidade do �rg�o/Entidade - Primeiro Remanejamento': 'GGCON CGOF',
-  'Credito dispon�vel para o benefici�rio': 'GGCON CGOF',
-  'Em formaliza��o da minuta - LOA - Parecer Referencial 01/2025': 'GGCON CGOF',
-  'Em An�lise de Admissibilidade do �rg�o/Entidade - Segundo Remanejamento': 'Repasse fundo a fundo',
-  'Resolu��o para Repasse Fundo a Fundo - DOE': 'Repasse fundo a fundo',
-  'Formaliza��o Prefeitura Obras - Reforma e Custeio - LOA - Parecer Referencial 21/2025': 'Comit� Gestor',
-  'Aguardando aprova��o do comit�': 'Consultoria Jur�dica',
-  'Aguardando an�lise jur�dica': 'Consultoria Jur�dica',
-  'Em an�lise jur�dica': 'Cancelada / Impedida',
+  'Aguardando análise administrativa - GGCON': 'GGCON CGOF',
+  'Em Analise Técnica da Secretaria': 'GGCON CGOF',
+  'Em análise técnica da secretaria': 'GGCON CGOF',
+  'Em emissão da minuta GGCON - Demandas': 'GGCON CGOF',
+  'Em emissão da minuta - GGCON - LOA': 'GGCON CGOF',
+  'Em emissão da minuta - Parecer Referencial 32/21': 'GGCON CGOF',
+  'Em formalização da minuta - Parecer Referencial 04/2022': 'GGCON CGOF',
+  'Em emissão da minuta - GGCON - LOA - Parecer Referencial 03/2022': 'GGCON CGOF',
+  'Em formalização de minuta - LOA - Parecer Referencial 03/2022': 'GGCON CGOF',
+  'Em emissão da minuta - Parecer Referencial 47/2021': 'GGCON CGOF',
+  'Em emissão da minuta - GGCON - LOA - Parecer Referencial 39/2022': 'GGCON CGOF',
+  'Em emissão da minuta - GGCON - LOA - Parecer Referencial 47': 'GGCON CGOF',
+  'Em formalização da minuta - LOA - Parecer Referencial  39/2022': 'GGCON CGOF',
+  'Formalização Prefeitura Obras – LOA – Parecer Referencial 39/2022': 'GGCON CGOF',
+  'Em Instrução Processual - Secretaria': 'GGCON CGOF',
+  'Aguardando Emissão da Minuta': 'GGCON CGOF',
+  'Aprovação, Assinaturas e Publicação do Convênio': 'GGCON CGOF',
+  'Aguardando parecer técnico da coordenadoria': 'GGCON CGOF',
+  'Em análise parecer técnico da coordenadoria': 'GGCON CGOF',
+  'Em emissão da minuta - Parecer Referencial 04/2022': 'GGCON CGOF',
+  'Em emissão do parecer referencial': 'GGCON CGOF',
+  'Em formalização da minuta - Transferência Voluntária - Parecer Referencial 41/2022': 'GGCON CGOF',
+  'Processo SIAFEM': 'Concluída',
+  'Em diligência análise administrativa GGCON': 'GGCON CGOF',
+  'Formalização do Convênio': 'GGCON CGOF',
+  'Análise GGCON, Orçamento e Reserva Financeira': 'GGCON CGOF',
+  'Em emissão do extrato': 'GGCON CGOF',
+  'Em análise administrativa - GGCON': 'GGCON CGOF',
+  'Aguardando publicação no DOE': 'GGCON CGOF',
+  'Formalização Prefeitura Obras – LOA – Parecer Referencial 03/2022': 'GGCON CGOF',
+  'Em formalização da minuta - LOA - Parecer Referencial 21/2025': 'GGCON CGOF',
+  'Em Análise de Admissibilidade do Órgão/Entidade - Remanejada': 'GGCON CGOF',
+  'Aguardando liberação de assinatura': 'GGCON CGOF',
+  'Aguardando liberação para assinaturas': 'GGCON CGOF',
+  'Em emissão da minuta - GGCON': 'GGCON CGOF',
+  'Em Análise de Admissibilidade do Órgão/Entidade - Primeiro Remanejamento': 'GGCON CGOF',
+  'Credito disponível para o beneficiário': 'GGCON CGOF',
+  'Em formalização da minuta - LOA - Parecer Referencial 01/2025': 'GGCON CGOF',
+  'Em Análise de Admissibilidade do Órgão/Entidade - Segundo Remanejamento': 'Repasse fundo a fundo',
+  'Resolução para Repasse Fundo a Fundo - DOE': 'Repasse fundo a fundo',
+  'Formalização Prefeitura Obras - Reforma e Custeio - LOA - Parecer Referencial 21/2025': 'Comitê Gestor',
+  'Aguardando aprovação do comitê': 'Consultoria Jurídica',
+  'Aguardando análise jurídica': 'Consultoria Jurídica',
+  'Em análise jurídica': 'Cancelada / Impedida',
   'Contabilizar em impedidas tecnicamente': 'Cancelada / Impedida',
-  'Transfer�ncia Volunt�ria contabilizada como impeditiva': 'Cancelada / Impedida',
+  'Transferência Voluntária contabilizada como impeditiva': 'Cancelada / Impedida',
   'Impedida Tecnicamente': 'Cancelada / Impedida',
-  'Exclu�da': 'Cancelada / Impedida',
+  'Excluída': 'Cancelada / Impedida',
   'Demanda parlamentar contabilizada como impeditiva': 'Cancelada / Impedida',
-  'Demanda contabilizada como impeditiva': 'Or�amento CGOF',
-  'Em an�lise or�ament�ria - CGOF': 'Or�amento CGOF',
-  'Em An�lise Or�ament�ria GCO': 'Or�amento CGOF',
-  'Aguardando an�lise or�ament�ria - CGOF': 'Or�amento CGOF',
-  'Repasse': 'Secret�rio',
-  'Demanda reprovada': 'Secret�rio',
-  'Classifica��o das Emendas  - CGCSS': 'CGCSS',
-  'Classifica��o das Emendas - CGCSS': 'CGCSS',
-  'Unidade (Benefici�rio)': 'CGCSS/CSS',
-  'Aguardando aprova��o do Secretario de Estado da Sa�de': 'Secret�rio',
-  'Aguardando an�lise administrativa inicial - CDSA': 'Sa�de Animal',
-  'Aguardando an�lise administrativa - CDSA': 'Sa�de Animal',
-  'Em an�lise administrativa - CDSA': 'Sa�de Animal',
-  'Em an�lise administrativa inicial - CDSA': 'Sa�de Animal',
-  'Aguardando an�lise t�cnica - CDSA': 'Sa�de Animal',
-  'Aguardando an�lise or�ament�ria - CDSA': 'Sa�de Animal',
-  'Em an�lise t�cnica or�ament�ria coordenador - CDSA': 'Sa�de Animal',
-  'Em an�lise t�cnica - CDSA': 'Sa�de Animal',
-  'Em emiss�o parecer t�cnico coordenador - CDSA': 'Remanejamento',
-  'Remanejamento': 'Em Inclus�o da Transfer�ncia Volunt�ria',
-  'Em Inclus�o da Transfer�ncia Volunt�ria': 'GGCON CGOF',
+  'Demanda contabilizada como impeditiva': 'Orçamento CGOF',
+  'Em análise orçamentária - CGOF': 'Orçamento CGOF',
+  'Em Análise Orçamentária GCO': 'Orçamento CGOF',
+  'Aguardando análise orçamentária - CGOF': 'Orçamento CGOF',
+  'Repasse': 'Secretário',
+  'Demanda reprovada': 'Secretário',
+  'Classificação das Emendas  - CGCSS': 'CGCSS',
+  'Classificação das Emendas - CGCSS': 'CGCSS',
+  'Unidade (Beneficiário)': 'CGCSS/CSS',
+  'Aguardando aprovação do Secretario de Estado da Saúde': 'Secretário',
+  'Aguardando análise administrativa inicial - CDSA': 'Saúde Animal',
+  'Aguardando análise administrativa - CDSA': 'Saúde Animal',
+  'Em análise administrativa - CDSA': 'Saúde Animal',
+  'Em análise administrativa inicial - CDSA': 'Saúde Animal',
+  'Aguardando análise técnica - CDSA': 'Saúde Animal',
+  'Aguardando análise orçamentária - CDSA': 'Saúde Animal',
+  'Em análise técnica orçamentária coordenador - CDSA': 'Saúde Animal',
+  'Em análise técnica - CDSA': 'Saúde Animal',
+  'Em emissão parecer técnico coordenador - CDSA': 'Remanejamento',
+  'Remanejamento': 'Em Inclusão da Transferência Voluntária',
+  'Em Inclusão da Transferência Voluntária': 'GGCON CGOF',
 };
 
-/** Deriva �rea-est�gio a partir de situacao_demandas_sempapel.
- *  Tenta correspond�ncia exata ? depois padr�es sem�nticos. */
+/** Deriva área-estágio a partir de situacao_demandas_sempapel.
+ *  Tenta correspondência exata → depois padrões semânticos. */
 function getAreaEstagio(r: FormalizacaoRow): string {
   const sempapel = (r.situacao_demandas_sempapel ?? '').trim();
-  if (!sempapel) return '(n�o informado)';
+  if (!sempapel) return '(não informado)';
   const exact = SEMPAPEL_AREA_MAP[sempapel];
   if (exact) return exact;
-  // Padr�es sem�nticos para valores n�o mapeados / novos
+  // Padrões semânticos para valores não mapeados / novos
   const l = sempapel.toLowerCase();
-  if (l.includes('formaliza��o da entidade'))                                    return 'Benefici�rio';
-  if (l.startsWith('documentos benefici�rio') || l.startsWith('documento benefici�rio')) return 'Benefici�rio';
-  if (l.includes('benefici�rio') || l.includes('beneficiario'))                  return 'Benefici�rio';
-  if (l.includes('cancelad') || l.includes('finaliz') || l.includes('exclu�d') || l.includes('excluida')) return 'Cancelada / Impedida';
+  if (l.includes('formalização da entidade'))                                    return 'Beneficiário';
+  if (l.startsWith('documentos beneficiário') || l.startsWith('documento beneficiário')) return 'Beneficiário';
+  if (l.includes('beneficiário') || l.includes('beneficiario'))                  return 'Beneficiário';
+  if (l.includes('cancelad') || l.includes('finaliz') || l.includes('excluíd') || l.includes('excluida')) return 'Cancelada / Impedida';
   if (l.includes('impedid'))                                                     return 'Cancelada / Impedida';
   if (l.includes('em assinatura') || l.includes('aguardando assinatura'))        return 'Aguardando assinaturas';
-  if ((l.includes('formaliza��o') || l.includes('emiss�o da minuta') || l.includes('emiss�o do parecer') || l.includes('instru��o processual')) && !l.includes('drs') && !l.includes('crs')) return 'GGCON CGOF';
+  if ((l.includes('formalização') || l.includes('emissão da minuta') || l.includes('emissão do parecer') || l.includes('instrução processual')) && !l.includes('drs') && !l.includes('crs')) return 'GGCON CGOF';
   if (l.includes('crs'))                                                         return 'CRS';
   if (l.includes('drs'))                                                         return 'DRS';
   if (l.includes('casa civil'))                                                  return 'Casa Civil';
   if (l.includes('secretaria de governo') || l.includes('sgri'))                 return 'Secretaria de Governo';
-  if (l.includes('siafem')) return l.startsWith('em processo') ? 'Financeiro CGOF' : 'Conclu�da';
-  if (l.includes('or�amento') || l.includes('cgof') || l.includes('fazenda') || l.includes('gco')) return 'Or�amento CGOF';
+  if (l.includes('siafem')) return l.startsWith('em processo') ? 'Financeiro CGOF' : 'Concluída';
+  if (l.includes('orçamento') || l.includes('cgof') || l.includes('fazenda') || l.includes('gco')) return 'Orçamento CGOF';
   if (l.includes('empenho') || l.includes('pagamento') || l.includes('financ'))  return 'Financeiro CGOF';
   if (l.includes('fundo a fundo'))                                               return 'Repasse fundo a fundo';
-  if (l.includes('cdsa'))                                                        return 'Sa�de Animal';
+  if (l.includes('cdsa'))                                                        return 'Saúde Animal';
   if (l.includes('cgcss'))                                                       return 'CSS';
   return sempapel;
 }
 
-/** Paleta de cor por �rea para o demonstrativo */
+/** Paleta de cor por área para o demonstrativo */
 function getAreaPalette(area: string): { bg: string; dot: string; bar: string; border: string; num: string } {
   const a = area.toLowerCase();
-  if (a === 'benefici�rio')             return { bg: 'bg-blue-50',    dot: 'bg-blue-500',    bar: 'bg-blue-500',    border: 'border-blue-200',    num: 'text-blue-700' };
+  if (a === 'beneficiário')             return { bg: 'bg-blue-50',    dot: 'bg-blue-500',    bar: 'bg-blue-500',    border: 'border-blue-200',    num: 'text-blue-700' };
   if (a === 'ggcon cgof')                    return { bg: 'bg-violet-50',  dot: 'bg-violet-500',  bar: 'bg-violet-500',  border: 'border-violet-200',  num: 'text-violet-700' };
   if (a === 'drs' || a === 'drs ou fundo a fundo') return { bg: 'bg-teal-50', dot: 'bg-teal-500', bar: 'bg-teal-500', border: 'border-teal-200', num: 'text-teal-700' };
   if (a === 'crs')                      return { bg: 'bg-cyan-50',    dot: 'bg-cyan-500',    bar: 'bg-cyan-500',    border: 'border-cyan-200',    num: 'text-cyan-700' };
   if (a === 'cancelada / impedida')     return { bg: 'bg-red-50',     dot: 'bg-red-500',     bar: 'bg-red-500',     border: 'border-red-200',     num: 'text-red-700' };
-  if (a === 'or�amento cgof')                return { bg: 'bg-yellow-50',  dot: 'bg-yellow-500',  bar: 'bg-yellow-500',  border: 'border-yellow-200',  num: 'text-yellow-700' };
+  if (a === 'orçamento cgof')                return { bg: 'bg-yellow-50',  dot: 'bg-yellow-500',  bar: 'bg-yellow-500',  border: 'border-yellow-200',  num: 'text-yellow-700' };
   if (a === 'financeiro cgof')               return { bg: 'bg-green-50',   dot: 'bg-green-500',   bar: 'bg-green-500',   border: 'border-green-200',   num: 'text-green-700' };
   if (a === 'aguardando assinaturas')   return { bg: 'bg-sky-50',     dot: 'bg-sky-500',     bar: 'bg-sky-500',     border: 'border-sky-200',     num: 'text-sky-700' };
   if (a === 'casa civil')               return { bg: 'bg-amber-50',   dot: 'bg-amber-500',   bar: 'bg-amber-500',   border: 'border-amber-200',   num: 'text-amber-700' };
   if (a === 'secretaria de governo')    return { bg: 'bg-pink-50',    dot: 'bg-pink-500',    bar: 'bg-pink-500',    border: 'border-pink-200',    num: 'text-pink-700' };
   if (a === 'repasse fundo a fundo')    return { bg: 'bg-indigo-50',  dot: 'bg-indigo-400',  bar: 'bg-indigo-400',  border: 'border-indigo-200',  num: 'text-indigo-700' };
-  if (a === 'repasse pr�prio benefici�rio') return { bg: 'bg-indigo-50', dot: 'bg-indigo-500', bar: 'bg-indigo-500', border: 'border-indigo-200', num: 'text-indigo-700' };
-  if (a === 'sa�de animal')             return { bg: 'bg-lime-50',    dot: 'bg-lime-500',    bar: 'bg-lime-500',    border: 'border-lime-200',    num: 'text-lime-700' };
-  if (a === 'conclu�da')               return { bg: 'bg-emerald-50', dot: 'bg-emerald-500', bar: 'bg-emerald-500', border: 'border-emerald-200', num: 'text-emerald-700' };
+  if (a === 'repasse próprio beneficiário') return { bg: 'bg-indigo-50', dot: 'bg-indigo-500', bar: 'bg-indigo-500', border: 'border-indigo-200', num: 'text-indigo-700' };
+  if (a === 'saúde animal')             return { bg: 'bg-lime-50',    dot: 'bg-lime-500',    bar: 'bg-lime-500',    border: 'border-lime-200',    num: 'text-lime-700' };
+  if (a === 'concluída')               return { bg: 'bg-emerald-50', dot: 'bg-emerald-500', bar: 'bg-emerald-500', border: 'border-emerald-200', num: 'text-emerald-700' };
   if (a === 'cgcss')                    return { bg: 'bg-orange-50',  dot: 'bg-orange-500',  bar: 'bg-orange-500',  border: 'border-orange-200',  num: 'text-orange-700' };
   if (a === 'cgcss/css')                return { bg: 'bg-orange-50',  dot: 'bg-orange-400',  bar: 'bg-orange-400',  border: 'border-orange-200',  num: 'text-orange-600' };
   if (a === 'css')                      return { bg: 'bg-orange-50',  dot: 'bg-orange-500',  bar: 'bg-orange-500',  border: 'border-orange-200',  num: 'text-orange-700' };
   if (a === 'coordenador cgof')         return { bg: 'bg-fuchsia-50', dot: 'bg-fuchsia-500', bar: 'bg-fuchsia-500', border: 'border-fuchsia-200', num: 'text-fuchsia-700' };
   if (a === 'chefia de gabinete')       return { bg: 'bg-rose-50',    dot: 'bg-rose-400',    bar: 'bg-rose-400',    border: 'border-rose-200',    num: 'text-rose-700' };
-  if (a === 'secret�rio')               return { bg: 'bg-purple-50',  dot: 'bg-purple-400',  bar: 'bg-purple-400',  border: 'border-purple-200',  num: 'text-purple-700' };
+  if (a === 'secretário')               return { bg: 'bg-purple-50',  dot: 'bg-purple-400',  bar: 'bg-purple-400',  border: 'border-purple-200',  num: 'text-purple-700' };
   return                                  { bg: 'bg-slate-50',   dot: 'bg-slate-400',   bar: 'bg-slate-400',   border: 'border-slate-200',   num: 'text-slate-700' };
 }
 
-// --- Situa��o color mapping -----------------------------------------------
+// ─── Situação color mapping ───────────────────────────────────────────────
 function getSituacaoStyle(label: string): { bar: string; badge: string; border: string } {
   const u = label.toUpperCase();
   if (u.includes('CANCELAD'))       return { bar: 'from-red-500 to-red-700',         badge: 'bg-red-600',     border: 'border-red-300' };
-  if (u.includes('EXCLU�D') || u.includes('EXCLUIDA') || u.includes('EXCLU�DO'))
+  if (u.includes('EXCLUÍD') || u.includes('EXCLUIDA') || u.includes('EXCLUÍDO'))
                                     return { bar: 'from-rose-700 to-red-900',         badge: 'bg-rose-700',    border: 'border-rose-300' };
   if (u.includes('IMPEDID') || u.includes('IMPEDIMENTO') || u.includes('BLOQUEADA'))
                                     return { bar: 'from-orange-600 to-red-600',       badge: 'bg-orange-600',  border: 'border-orange-300' };
-  if (u.includes('DEVOLVID') || u.includes('DEVOLU��O'))
+  if (u.includes('DEVOLVID') || u.includes('DEVOLUÇÃO'))
                                     return { bar: 'from-orange-400 to-orange-600',   badge: 'bg-orange-500',  border: 'border-orange-200' };
   if (u.includes('SUSPENS') || u.includes('PARALISAD'))
                                     return { bar: 'from-amber-500 to-amber-700',      badge: 'bg-amber-600',   border: 'border-amber-300' };
   if (u.includes('ARQUIVAD') || u.includes('INAPTA') || u.includes('INAPTO'))
                                     return { bar: 'from-gray-500 to-gray-700',        badge: 'bg-gray-600',    border: 'border-gray-300' };
-  if (u.includes('CONCLU�D') || u.includes('CONCLUIDA') || u.includes('CONCLU�DO'))
+  if (u.includes('CONCLUÍD') || u.includes('CONCLUIDA') || u.includes('CONCLUÍDO'))
                                     return { bar: 'from-emerald-500 to-emerald-700',  badge: 'bg-emerald-600', border: 'border-emerald-300' };
   if (u.includes('APROVAD') || u.includes('REGULAR'))
                                     return { bar: 'from-blue-500 to-blue-700',        badge: 'bg-blue-600',    border: 'border-blue-300' };
-  if (u.includes('DILIG�NCIA') || u.includes('DILIGENCIA'))
+  if (u.includes('DILIGÊNCIA') || u.includes('DILIGENCIA'))
                                     return { bar: 'from-amber-600 to-orange-600',     badge: 'bg-amber-700',   border: 'border-amber-300' };
-  if (u.includes('AN�LISE') || u.includes('ANALISE'))
+  if (u.includes('ANÁLISE') || u.includes('ANALISE'))
                                     return { bar: 'from-indigo-500 to-indigo-700',    badge: 'bg-indigo-600',  border: 'border-indigo-300' };
-  if (u.includes('PEND�NCIA') || u.includes('PENDENCIA') || u.includes('AGUARDAND'))
+  if (u.includes('PENDÊNCIA') || u.includes('PENDENCIA') || u.includes('AGUARDAND'))
                                     return { bar: 'from-amber-400 to-amber-600',      badge: 'bg-amber-500',   border: 'border-amber-200' };
   if (u.includes('FORMALIZ'))       return { bar: 'from-cyan-500 to-cyan-700',        badge: 'bg-cyan-600',    border: 'border-cyan-300' };
-  if (u.includes('CONFER�N') || u.includes('CONFERENCIA'))
+  if (u.includes('CONFERÊN') || u.includes('CONFERENCIA'))
                                     return { bar: 'from-sky-500 to-sky-700',          badge: 'bg-sky-600',     border: 'border-sky-300' };
   if (u.includes('ASSINATURA'))     return { bar: 'from-teal-500 to-teal-700',        badge: 'bg-teal-600',    border: 'border-teal-300' };
   return                              { bar: 'from-slate-500 to-slate-700',        badge: 'bg-slate-600',   border: 'border-slate-300' };
 }
 
-// Stages that count toward Total GGCON (Dilig�ncia excluded) � usa nomes can�nicos (stgNorm)
+// Stages that count toward Total GGCON (Diligência excluded) — usa nomes canônicos (stgNorm)
 const GGCON_STAGES = new Set([
-  'DEMANDA COM O T�CNICO',
-  'EM AN�LISE DA DOCUMENTA��O',
-  'EM AN�LISE DO PLANO DE TRABALHO',
-  'AGUARDANDO DOCUMENTA��O',
-  'EM FORMALIZA��O',
-  'EM CONFER�NCIA',
-  'CONF / PEND�NCIA',
+  'DEMANDA COM O TÉCNICO',
+  'EM ANÁLISE DA DOCUMENTAÇÃO',
+  'EM ANÁLISE DO PLANO DE TRABALHO',
+  'AGUARDANDO DOCUMENTAÇÃO',
+  'EM FORMALIZAÇÃO',
+  'EM CONFERÊNCIA',
+  'CONF / PENDÊNCIA',
   'EM ASSINATURA',
   'LAUDAS + PUBLI DOE',
   'COMITE GESTOR',
-  'OUTRAS PEND�NCIAS',
+  'OUTRAS PENDÊNCIAS',
 ]);
 
 function computeColValues(rows: FormalizacaoRow[]): Record<ColKey, number> {
-  // Registros ativos (n�o conclu�dos) s�o usados para os est�gios � conclu�dos contam apenas na coluna pr�pria
+  // Registros ativos (não concluídos) são usados para os estágios — concluídos contam apenas na coluna própria
   const active = rows.filter(r => !(r.concluida_em ?? '').trim());
-  const cTecnico        = active.filter(r => stgNorm(r) === 'DEMANDA COM O T�CNICO').length;
-  const emAnalise       = active.filter(r => stgNorm(r) === 'EM AN�LISE DA DOCUMENTA��O' || stgNorm(r) === 'EM AN�LISE DO PLANO DE TRABALHO').length;
-  const agDoc           = active.filter(r => stgNorm(r) === 'AGUARDANDO DOCUMENTA��O').length;
-  const diligencia      = active.filter(r => stgNorm(r).startsWith('DEMANDA EM DILIG�NCIA')).length;
-  const formalizacao    = active.filter(r => stgNorm(r) === 'EM FORMALIZA��O').length;
-  const emConferencia   = active.filter(r => stgNorm(r) === 'EM CONFER�NCIA').length;
-  const confPendencia   = active.filter(r => stgNorm(r) === 'CONF / PEND�NCIA').length;
+  const cTecnico        = active.filter(r => stgNorm(r) === 'DEMANDA COM O TÉCNICO').length;
+  const emAnalise       = active.filter(r => stgNorm(r) === 'EM ANÁLISE DA DOCUMENTAÇÃO' || stgNorm(r) === 'EM ANÁLISE DO PLANO DE TRABALHO').length;
+  const agDoc           = active.filter(r => stgNorm(r) === 'AGUARDANDO DOCUMENTAÇÃO').length;
+  const diligencia      = active.filter(r => stgNorm(r).startsWith('DEMANDA EM DILIGÊNCIA')).length;
+  const formalizacao    = active.filter(r => stgNorm(r) === 'EM FORMALIZAÇÃO').length;
+  const emConferencia   = active.filter(r => stgNorm(r) === 'EM CONFERÊNCIA').length;
+  const confPendencia   = active.filter(r => stgNorm(r) === 'CONF / PENDÊNCIA').length;
   const emAssinatura    = active.filter(r => stgNorm(r) === 'EM ASSINATURA').length;
   const laudas          = active.filter(r => stgNorm(r) === 'LAUDAS + PUBLI DOE').length;
   const comite          = active.filter(r => stgNorm(r) === 'COMITE GESTOR').length;
-  const outras          = active.filter(r => stgNorm(r) === 'OUTRAS PEND�NCIAS').length;
-  // Total GGCON = soma dos est�gios GGCON_STAGES (Dilig�ncia NOT included), apenas ativos
+  const outras          = active.filter(r => stgNorm(r) === 'OUTRAS PENDÊNCIAS').length;
+  // Total GGCON = soma dos estágios GGCON_STAGES (Diligência NOT included), apenas ativos
   const totalGgcon      = active.filter(r => GGCON_STAGES.has(stgNorm(r))).length;
-  // Conclu�da = tem data preenchida em concluida_em (conta do total de rows)
+  // Concluída = tem data preenchida em concluida_em (conta do total de rows)
   const concluida       = rows.filter(r => !!(r.concluida_em ?? '').trim()).length;
   const transfVol       = rows.filter(r => cls(r).includes('TRANSFER')).length;
   const emendaLoa       = rows.filter(r => cls(r).includes('LOA') || cls(r).includes('EMENDA LOA')).length;
@@ -425,17 +425,17 @@ function getColRows(colKey: ColKey, rows: FormalizacaoRow[]): FormalizacaoRow[] 
   const active = rows.filter(r => !(r.concluida_em ?? '').trim());
   switch (colKey) {
     case 'demandas_recebidas': return rows;
-    case 'c_tecnico':      return active.filter(r => stgNorm(r) === 'DEMANDA COM O T�CNICO');
-    case 'em_analise':     return active.filter(r => stgNorm(r) === 'EM AN�LISE DA DOCUMENTA��O' || stgNorm(r) === 'EM AN�LISE DO PLANO DE TRABALHO');
-    case 'ag_doc':         return active.filter(r => stgNorm(r) === 'AGUARDANDO DOCUMENTA��O');
-    case 'diligencia':     return active.filter(r => stgNorm(r).startsWith('DEMANDA EM DILIG�NCIA'));
-    case 'formalizacao':   return active.filter(r => stgNorm(r) === 'EM FORMALIZA��O');
-    case 'em_conferencia': return active.filter(r => stgNorm(r) === 'EM CONFER�NCIA');
-    case 'conf_pendencia': return active.filter(r => stgNorm(r) === 'CONF / PEND�NCIA');
+    case 'c_tecnico':      return active.filter(r => stgNorm(r) === 'DEMANDA COM O TÉCNICO');
+    case 'em_analise':     return active.filter(r => stgNorm(r) === 'EM ANÁLISE DA DOCUMENTAÇÃO' || stgNorm(r) === 'EM ANÁLISE DO PLANO DE TRABALHO');
+    case 'ag_doc':         return active.filter(r => stgNorm(r) === 'AGUARDANDO DOCUMENTAÇÃO');
+    case 'diligencia':     return active.filter(r => stgNorm(r).startsWith('DEMANDA EM DILIGÊNCIA'));
+    case 'formalizacao':   return active.filter(r => stgNorm(r) === 'EM FORMALIZAÇÃO');
+    case 'em_conferencia': return active.filter(r => stgNorm(r) === 'EM CONFERÊNCIA');
+    case 'conf_pendencia': return active.filter(r => stgNorm(r) === 'CONF / PENDÊNCIA');
     case 'em_assinatura':  return active.filter(r => stgNorm(r) === 'EM ASSINATURA');
     case 'laudas':         return active.filter(r => stgNorm(r) === 'LAUDAS + PUBLI DOE');
     case 'comite':         return active.filter(r => stgNorm(r) === 'COMITE GESTOR');
-    case 'outras':         return active.filter(r => stgNorm(r) === 'OUTRAS PEND�NCIAS');
+    case 'outras':         return active.filter(r => stgNorm(r) === 'OUTRAS PENDÊNCIAS');
     case 'total_ggcon':    return active.filter(r => GGCON_STAGES.has(stgNorm(r)));
     case 'concluida':      return rows.filter(r => !!(r.concluida_em ?? '').trim());
     case 'transf_vol':     return rows.filter(r => cls(r).includes('TRANSFER'));
@@ -444,7 +444,7 @@ function getColRows(colKey: ColKey, rows: FormalizacaoRow[]): FormalizacaoRow[] 
   }
 }
 
-// --- Helpers -----------------------------------------------------------------
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function fmtCurrency(n: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n);
 }
@@ -454,12 +454,12 @@ function fmtCompact(n: number) {
   return String(n);
 }
 function fmtDate(s?: string) {
-  if (!s) return '�';
+  if (!s) return '—';
   const d = new Date(s + 'T00:00:00');
   return isNaN(d.getTime()) ? s : d.toLocaleDateString('pt-BR');
 }
 
-// --- MultiCheckFilter --------------------------------------------------------
+// ─── MultiCheckFilter ────────────────────────────────────────────────────────
 function MultiCheckFilter({
   label, options, selected, onChange, placeholder = 'Buscar...'
 }: {
@@ -531,7 +531,7 @@ function MultiCheckFilter({
                 <span className="truncate max-w-[160px]" title={opt}>{opt}</span>
               </label>
             ))}
-            {visible.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">Nenhuma op��o</p>}
+            {visible.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">Nenhuma opção</p>}
           </div>
           <div className="border-t border-gray-100 p-2">
             <button onClick={() => setOpen(false)}
@@ -545,7 +545,7 @@ function MultiCheckFilter({
   );
 }
 
-// --- KPI Card ----------------------------------------------------------------
+// ─── KPI Card ────────────────────────────────────────────────────────────────
 function KpiCard({ label, value, sub, dotColor = 'bg-slate-400', valueColor = 'text-slate-800' }: {
   label: string; value: string; sub?: string; dotColor?: string; valueColor?: string;
 }) {
@@ -561,7 +561,7 @@ function KpiCard({ label, value, sub, dotColor = 'bg-slate-400', valueColor = 't
   );
 }
 
-// --- Drilldown Modal ---------------------------------------------------------
+// ─── Drilldown Modal ─────────────────────────────────────────────────────────
 const PAGE_SIZE = 100;
 function DrilldownModal({
   title, rows, onClose
@@ -630,25 +630,25 @@ function DrilldownModal({
   const cols: { key: keyof FormalizacaoRow | '_demanda'; label: string; width?: number }[] = [
     { key: '_demanda',                        label: 'Demanda',          width: 130 },
     { key: 'ano',                             label: 'Ano',              width: 70  },
-    { key: 'tecnico',                         label: 'T�cnico',          width: 110 },
+    { key: 'tecnico',                         label: 'Técnico',          width: 110 },
     { key: 'conferencista',                   label: 'Conferencista',    width: 110 },
-    { key: 'classificacao_emenda_demanda',    label: 'Classifica��o',    width: 120 },
-    { key: 'municipio',                       label: 'Munic�pio',        width: 150 },
+    { key: 'classificacao_emenda_demanda',    label: 'Classificação',    width: 120 },
+    { key: 'municipio',                       label: 'Município',        width: 150 },
     { key: 'regional',                        label: 'Regional',         width: 130 },
     { key: 'conveniado',                      label: 'Conveniado',       width: 180 },
-    { key: 'area_estagio_situacao_demanda',   label: '�rea / Situa��o',  width: 180 },
-    { key: 'situacao_analise_demanda',        label: 'Situa��o An�lise', width: 180 },
+    { key: 'area_estagio_situacao_demanda',   label: 'Área / Situação',  width: 180 },
+    { key: 'situacao_analise_demanda',        label: 'Situação Análise', width: 180 },
     { key: 'falta_assinatura',                label: 'Falta Assinatura', width: 150 },
 
     { key: 'situacao_demandas_sempapel',      label: 'SemPapel',         width: 200 },
     { key: 'data_liberacao',                  label: 'Dt. Lib.',         width: 90 },
     { key: 'data_recebimento_demanda',        label: 'Dt. Receb.',       width: 90 },
-    { key: 'publicacao',                      label: 'Publica��o',       width: 90 },
+    { key: 'publicacao',                      label: 'Publicação',       width: 90 },
   ];
 
   const getCellValue = (r: FormalizacaoRow, key: string): string => {
-    if (key === '_demanda') return r.demandas_formalizacao || r.demanda || r.emenda || String(r.id ?? '') || '�';
-    return String((r as any)[key] ?? '�') || '�';
+    if (key === '_demanda') return r.demandas_formalizacao || r.demanda || r.emenda || String(r.id ?? '') || '—';
+    return String((r as any)[key] ?? '—') || '—';
   };
 
   // Export XLSX
@@ -732,7 +732,7 @@ function DrilldownModal({
                     return (
                       <td key={col.key} className={`px-3 py-1.5 text-slate-700 max-w-[220px] truncate${col.key === 'tecnico' || col.key === 'conferencista' ? ' font-bold' : ''}`}
                         title={val}>
-                        {isDate ? fmtDate(val === '�' ? '' : val) : val}
+                        {isDate ? fmtDate(val === '—' ? '' : val) : val}
                       </td>
                     );
                   })}
@@ -748,18 +748,18 @@ function DrilldownModal({
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100 bg-slate-50 flex-shrink-0">
             <span className="text-[11px] text-slate-500">
-              {(page * PAGE_SIZE + 1)}�{Math.min((page + 1) * PAGE_SIZE, sorted.length)} de {sorted.length}
+              {(page * PAGE_SIZE + 1)}–{Math.min((page + 1) * PAGE_SIZE, sorted.length)} de {sorted.length}
             </span>
             <div className="flex items-center gap-1">
               <button disabled={page === 0} onClick={() => { setPage(0); tableRef.current?.scrollTo(0, 0); }}
-                className="px-2 py-1 text-[11px] font-bold rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition-colors">��</button>
+                className="px-2 py-1 text-[11px] font-bold rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition-colors">««</button>
               <button disabled={page === 0} onClick={() => { setPage(p => p - 1); tableRef.current?.scrollTo(0, 0); }}
-                className="px-2 py-1 text-[11px] font-bold rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition-colors">�</button>
+                className="px-2 py-1 text-[11px] font-bold rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition-colors">‹</button>
               <span className="text-[11px] font-bold text-slate-700 px-2">{page + 1} / {totalPages}</span>
               <button disabled={page >= totalPages - 1} onClick={() => { setPage(p => p + 1); tableRef.current?.scrollTo(0, 0); }}
-                className="px-2 py-1 text-[11px] font-bold rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition-colors">�</button>
+                className="px-2 py-1 text-[11px] font-bold rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition-colors">›</button>
               <button disabled={page >= totalPages - 1} onClick={() => { setPage(totalPages - 1); tableRef.current?.scrollTo(0, 0); }}
-                className="px-2 py-1 text-[11px] font-bold rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition-colors">��</button>
+                className="px-2 py-1 text-[11px] font-bold rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition-colors">»»</button>
             </div>
           </div>
         )}
@@ -768,35 +768,21 @@ function DrilldownModal({
   );
 }
 
-// --- Timeline helpers & constants ------------------------------------------
+// ─── Timeline helpers & constants ──────────────────────────────────────────
 // Ordered stages of a demand's lifecycle (last = concluded, excluded from pending view)
 const TIMELINE_STAGES = [
-  { key: 'data_liberacao'                          as keyof FormalizacaoRow, label: 'Libera��o',                  short: 'Libera��o',      dot: 'bg-blue-600'    },
-  { key: 'data_analise_demanda'                    as keyof FormalizacaoRow, label: 'An�lise T�cnica',             short: 'An�l. T�cnica',  dot: 'bg-indigo-500'  },
+  { key: 'data_liberacao'                          as keyof FormalizacaoRow, label: 'Liberação',                  short: 'Liberação',      dot: 'bg-blue-600'    },
+  { key: 'data_analise_demanda'                    as keyof FormalizacaoRow, label: 'Análise Técnica',             short: 'Anál. Técnica',  dot: 'bg-indigo-500'  },
   { key: 'data_recebimento_demanda'                as keyof FormalizacaoRow, label: 'Atrib. Conferencista',        short: 'Atrib. Conf.',   dot: 'bg-violet-500'  },
-  { key: 'data_liberacao_assinatura_conferencista' as keyof FormalizacaoRow, label: 'Confer�ncia Conclu�da',       short: 'Conf. Concl.',   dot: 'bg-purple-500'  },
+  { key: 'data_liberacao_assinatura_conferencista' as keyof FormalizacaoRow, label: 'Conferência Concluída',       short: 'Conf. Concl.',   dot: 'bg-purple-500'  },
   { key: 'data_liberacao_assinatura'               as keyof FormalizacaoRow, label: 'Lib. para Assinatura',        short: 'Lib. Assin.',    dot: 'bg-orange-500'  },
   { key: 'assinatura'                              as keyof FormalizacaoRow, label: 'Assinado',                    short: 'Assinado',       dot: 'bg-amber-500'   },
   { key: 'publicacao'                              as keyof FormalizacaoRow, label: 'Publicado no DOE',             short: 'Publicado',      dot: 'bg-teal-500'    },
-  { key: 'concluida_em'                            as keyof FormalizacaoRow, label: 'Conclu�do',                   short: 'Conclu�do',      dot: 'bg-emerald-500' },
+  { key: 'concluida_em'                            as keyof FormalizacaoRow, label: 'Concluído',                   short: 'Concluído',      dot: 'bg-emerald-500' },
 ] as const;
 
-// Stages shown in the pending view (all except 'Conclu�do')
+// Stages shown in the pending view (all except 'Concluído')
 const ACTIVE_STAGES = TIMELINE_STAGES.slice(0, -1);
-
-// --- Stage flow intervals (for avg-days-per-stage calculation) ---------------
-const FLOW_INTERVALS = [
-  { key: 'c_tecnico',  label: 'Dem. c/ t�cnico',   fromKey: 'data_liberacao'                          as keyof FormalizacaoRow, toKey: 'data_analise_demanda'                    as keyof FormalizacaoRow, tlIdx: 0, cls: 'bg-blue-50 border-blue-200 text-blue-800' },
-  { key: 'em_analise', label: 'An�lise / ag. doc',  fromKey: 'data_analise_demanda'                    as keyof FormalizacaoRow, toKey: 'data_recebimento_demanda'                 as keyof FormalizacaoRow, tlIdx: 1, cls: 'bg-indigo-50 border-indigo-200 text-indigo-800' },
-  { key: 'em_conf',    label: 'Em confer�ncia',     fromKey: 'data_recebimento_demanda'                as keyof FormalizacaoRow, toKey: 'data_liberacao_assinatura_conferencista'  as keyof FormalizacaoRow, tlIdx: 2, cls: 'bg-violet-50 border-violet-200 text-violet-800' },
-  { key: 'ag_assina',  label: 'Conf / pend�ncia',   fromKey: 'data_liberacao_assinatura_conferencista' as keyof FormalizacaoRow, toKey: 'data_liberacao_assinatura'               as keyof FormalizacaoRow, tlIdx: 3, cls: 'bg-purple-50 border-purple-200 text-purple-800' },
-  { key: 'em_assina',  label: 'Em assinatura',      fromKey: 'data_liberacao_assinatura'               as keyof FormalizacaoRow, toKey: 'assinatura'                               as keyof FormalizacaoRow, tlIdx: 4, cls: 'bg-orange-50 border-orange-200 text-orange-800' },
-  { key: 'publi',      label: 'Laudas + publi DOE', fromKey: 'assinatura'                              as keyof FormalizacaoRow, toKey: 'publicacao'                               as keyof FormalizacaoRow, tlIdx: 5, cls: 'bg-teal-50 border-teal-200 text-teal-800' },
-  { key: 'conclusao',  label: 'Comit� / conclus�o', fromKey: 'publicacao'                              as keyof FormalizacaoRow, toKey: 'concluida_em'                             as keyof FormalizacaoRow, tlIdx: 6, cls: 'bg-emerald-50 border-emerald-200 text-emerald-800' },
-] as const;
-
-// Short display labels for FLOW_INTERVALS (same order as above):
-const STAGE_SHORT = ['c/T�c', 'An�l', 'Conf', 'Ag.Ass', 'Assin', 'DOE', 'Conc'];
 
 function parseDateTL(s?: string | null): Date | null {
   if (!s?.trim()) return null;
@@ -809,7 +795,7 @@ function daysSinceTL(s?: string | null): number {
   return Math.max(0, Math.round((Date.now() - d.getTime()) / 86400000));
 }
 
-// --- Timeline Section component ----------------------------------------------
+// ─── Timeline Section component ──────────────────────────────────────────────
 function TimelineSection({
   filtered, personField, openDrilldown, viewMode,
 }: {
@@ -819,14 +805,15 @@ function TimelineSection({
   viewMode: 'tecnico' | 'conferencista';
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [sortBy, setSortBy] = useState<'urgency' | 'count'>('urgency');
-  const [allExpanded, setAllExpanded] = useState(false);
 
+  // Only include demands that are NOT yet concluded
   const pending = useMemo(
     () => filtered.filter(r => !(r.concluida_em ?? '').trim()),
     [filtered]
   );
 
+  // Determine which ACTIVE_STAGES index is the current stage for a demand
+  // = last ACTIVE stage that has a date filled
   const getCurrentStageIdx = (r: FormalizacaoRow): number => {
     for (let i = ACTIVE_STAGES.length - 1; i >= 0; i--) {
       if ((r[ACTIVE_STAGES[i].key] as string)?.trim()) return i;
@@ -834,273 +821,307 @@ function TimelineSection({
     return -1;
   };
 
-  // Build full stage-journey history for a demand row
-  const getDemandHistory = (r: FormalizacaoRow) =>
-    FLOW_INTERVALS.map((interval, hi) => {
-      const from = parseDateTL(r[interval.fromKey] as string);
-      const to   = parseDateTL(r[interval.toKey]   as string);
-      const short = STAGE_SHORT[hi];
-      const cls   = interval.cls;
-      if (!from) return { key: interval.key, short, cls, state: 'future' as const, days: 0 };
-      if (!to)   return { key: interval.key, short, cls, state: 'active' as const, days: daysSinceTL(r[interval.fromKey] as string) };
-      return { key: interval.key, short, cls, state: 'done' as const, days: Math.max(0, Math.round((to.getTime() - from.getTime()) / 86400000)) };
-    });
-
-  // Count pending demands in each stage
-  const stageSummary = useMemo(() =>
-    ACTIVE_STAGES.map((s, i) => ({
-      ...s, i,
-      count: pending.filter(r => getCurrentStageIdx(r) === i).length,
-    })),
-  [pending]);
-
-  // Group by person and sort
-  const grouped = useMemo(() => {
+  // Matrix data: one row per person, count per stage
+  const personMatrix = useMemo(() => {
     const map = new Map<string, FormalizacaoRow[]>();
     for (const r of pending) {
-      const p = String(r[personField] ?? '').trim() || '(n�o atribu�do)';
+      const p = String(r[personField] ?? '').trim() || '(não atribuído)';
       if (!map.has(p)) map.set(p, []);
       map.get(p)!.push(r);
     }
-    return Array.from(map.entries()).sort((a, b) =>
-      sortBy === 'count'
-        ? b[1].length - a[1].length
-        : Math.max(0, ...b[1].map(r => daysSinceTL(r.data_liberacao as string))) -
-          Math.max(0, ...a[1].map(r => daysSinceTL(r.data_liberacao as string)))
-    );
-  }, [pending, personField, sortBy]);
+    return Array.from(map.entries())
+      .map(([person, rows]) => ({
+        person,
+        rows,
+        stageCounts: ACTIVE_STAGES.map((s, i) => rows.filter(r => getCurrentStageIdx(r) === i)),
+        maxDays: Math.max(0, ...rows.map(r => daysSinceTL(r.data_liberacao))),
+      }))
+      .sort((a, b) => b.rows.length - a.rows.length);
+  }, [pending, personField]);
 
-  const handleToggleAll = () => {
-    if (allExpanded) {
-      setExpanded(new Set()); setAllExpanded(false);
-    } else {
-      setExpanded(new Set(grouped.map(([p]) => p))); setAllExpanded(true);
-    }
+  // Per-stage totals
+  const stageTotals = useMemo(
+    () => ACTIVE_STAGES.map((_, i) => pending.filter(r => getCurrentStageIdx(r) === i).length),
+    [pending]
+  );
+
+  // XLSX export
+  const exportXLSX = () => {
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: matrix summary
+    const shortLabels = ACTIVE_STAGES.map((s, i) => `${i + 1}. ${s.short}`);
+    const header1 = [viewMode === 'tecnico' ? 'Técnico' : 'Conferencista', ...shortLabels, 'Total', 'Demanda mais antiga (dias)'];
+    const rows1 = personMatrix.map(pd => [
+      pd.person,
+      ...pd.stageCounts.map(sc => sc.length),
+      pd.rows.length,
+      pd.maxDays,
+    ]);
+    rows1.push(['TOTAL', ...stageTotals, pending.length, '']);
+    const ws1 = XLSX.utils.aoa_to_sheet([header1, ...rows1]);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Linha do Tempo');
+
+    // Sheet 2: demand detail
+    const det = pending.map(r => {
+      const si = getCurrentStageIdx(r);
+      const stage = si >= 0 ? ACTIVE_STAGES[si] : null;
+      return {
+        'Técnico': String(r.usuario_atribuido ?? ''),
+        'Conferencista': String(r.usuario_atribuido_conferencista ?? ''),
+        'Demanda': String(r.demandas_formalizacao ?? r.demanda ?? ''),
+        'Etapa Atual': stage ? stage.label : '(sem etapa)',
+        'Nº Etapa': si >= 0 ? si + 1 : 0,
+        'Dias na Etapa Atual': stage ? daysSinceTL(r[stage.key] as string) : '',
+        'Dias desde Liberação': daysSinceTL(r.data_liberacao),
+      };
+    });
+    const ws2 = XLSX.utils.json_to_sheet(det);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Demandas Detalhadas');
+
+    XLSX.writeFile(wb, 'linha-do-tempo.xlsx');
   };
 
   if (pending.length === 0) return (
     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center">
       <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-      <p className="text-emerald-700 font-bold text-sm">Todas as demandas est�o conclu�das!</p>
+      <p className="text-emerald-700 font-bold text-sm">Todas as demandas estão concluídas!</p>
     </div>
   );
 
-  const personLabel = viewMode === 'tecnico' ? 't�cnico' : 'conferencista';
+  const personLabel = viewMode === 'tecnico' ? 'Técnico' : 'Conferencista';
 
   return (
-    <div className="space-y-3">
-
-      {/* -- Summary + controls ----------------------------------- */}
-      <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
-        <div className="flex items-center gap-2 mb-2.5 flex-wrap">
-          <span className="text-[11px] font-bold text-slate-700">
-            {pending.length} demandas aguardando � {grouped.length} {viewMode === 'tecnico' ? 't�cnico(s)' : 'conferencista(s)'}
-          </span>
-          <div className="ml-auto flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] text-slate-400">Ordenar:</span>
-            <button
-              onClick={() => setSortBy('urgency')}
-              className={`text-[10px] px-2 py-0.5 rounded font-bold border transition-colors ${sortBy === 'urgency' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-600 border-slate-300 hover:border-red-300'}`}
-            >Urg�ncia</button>
-            <button
-              onClick={() => setSortBy('count')}
-              className={`text-[10px] px-2 py-0.5 rounded font-bold border transition-colors ${sortBy === 'count' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'}`}
-            >Qtd</button>
-            <button
-              onClick={handleToggleAll}
-              className="text-[10px] px-2 py-0.5 rounded font-bold border border-blue-300 bg-white text-blue-600 hover:bg-blue-50 transition-colors ml-1"
-            >{allExpanded ? 'Recolher tudo' : 'Expandir tudo'}</button>
-          </div>
+    <div>
+      {/* ── Header ─────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-4 mb-3 flex-wrap">
+        <div>
+          <p className="text-[11px] text-slate-400">
+            {pending.length.toLocaleString('pt-BR')} demandas pendentes · por {personLabel.toLowerCase()} · clique nos números para detalhar
+          </p>
         </div>
-        {/* Stage distribution */}
-        <div className="flex flex-wrap gap-1.5">
-          {stageSummary.filter(s => s.count > 0).map(s => (
-            <div key={String(s.key)} className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-white text-[11px] font-bold ${s.dot}`}>
-              <span className="opacity-70 text-[9px]">{s.i + 1}.</span>
-              <span>{s.short}</span>
-              <span className="bg-black/20 px-1.5 rounded-full text-[10px] font-black">{s.count}</span>
-            </div>
-          ))}
-        </div>
+        <button
+          onClick={exportXLSX}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors flex-shrink-0"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Baixar XLSX
+        </button>
       </div>
 
-      {/* -- Journey legend --------------------------------------- */}
-      <div className="flex items-center gap-1.5 flex-wrap text-[10px] px-1">
-        <span className="font-bold text-slate-500">Jornada:</span>
-        {FLOW_INTERVALS.map((f, i) => (
-          <span key={f.key} className={`px-1.5 py-0.5 rounded border font-semibold ${f.cls}`}>
-            {STAGE_SHORT[i]} = {f.label}
-          </span>
-        ))}
-      </div>
-
-      {/* -- Person cards ----------------------------------------- */}
-      <div className="space-y-2">
-        {grouped.map(([person, rows]) => {
-          const isOpen = expanded.has(person);
-          const maxDays = Math.max(0, ...rows.map(r => daysSinceTL(r.data_liberacao as string)));
-
-          // Avg days in stage 0 (c/t�cnico) across this person's demands
-          const tecDays = rows
-            .map(r => getDemandHistory(r)[0])
-            .filter(h => h.state !== 'future')
-            .map(h => h.days);
-          const avgTecDays = tecDays.length > 0 ? Math.round(tecDays.reduce((a, b) => a + b, 0) / tecDays.length) : null;
-
-          const stageCounts = ACTIVE_STAGES.map((s, i) => ({
-            ...s, idx: i,
-            count: rows.filter(r => getCurrentStageIdx(r) === i).length,
-          })).filter(sc => sc.count > 0);
-
-          return (
-            <div key={person} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-
-              {/* Accordion header */}
-              <button
-                onClick={() => {
-                  const n = new Set(expanded);
-                  n.has(person) ? n.delete(person) : n.add(person);
-                  setExpanded(n);
-                }}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
-              >
-                {isOpen
-                  ? <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                  : <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                    <span className="text-sm font-bold text-slate-800">{person}</span>
-                    <span className="text-xs text-slate-400">{rows.length} pendente{rows.length !== 1 ? 's' : ''}</span>
-                    {avgTecDays !== null && (
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${avgTecDays > 30 ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
-                        ? {avgTecDays}d c/ {personLabel}
-                      </span>
-                    )}
-                    {maxDays > 60 && (
-                      <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
-                        ? mais antiga h� {maxDays}d
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {stageCounts.map(sc => (
-                      <div key={String(sc.key)} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold text-white ${sc.dot}`}>
-                        {sc.count} em {sc.short}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </button>
-
-              {/* Expanded detail */}
-              <AnimatePresence initial={false}>
-                {isOpen && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
+      {/* ── Matrix table ───────────────────────────────────── */}
+      <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-10 bg-slate-800 text-white text-left px-3 py-2.5 font-bold text-[11px] whitespace-nowrap min-w-[140px]">
+                {personLabel}
+              </th>
+              {ACTIVE_STAGES.map((s, i) => (
+                <th
+                  key={String(s.key)}
+                  className={`${s.dot} text-white px-2 py-2.5 font-bold text-[10px] text-center whitespace-nowrap min-w-[70px]`}
+                  title={s.label}
+                >
+                  <div className="opacity-60 text-[8px] font-black">{i + 1}</div>
+                  {s.short}
+                </th>
+              ))}
+              <th className="bg-slate-700 text-white px-3 py-2.5 font-bold text-[11px] text-center whitespace-nowrap">
+                Total
+              </th>
+              <th className="bg-slate-600 text-white px-3 py-2.5 font-bold text-[11px] text-center whitespace-nowrap">
+                Mais antiga
+              </th>
+              <th className="bg-slate-600 text-white px-3 py-2.5 font-bold text-[11px] text-center whitespace-nowrap">
+                Detalhe
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {personMatrix.map((pd, pi) => {
+              const isOpen = expanded.has(pd.person);
+              return (
+                <>
+                  <tr
+                    key={pd.person}
+                    className={`border-b border-slate-100 ${pi % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-blue-50/40 transition-colors`}
                   >
-                    <div className="border-t border-slate-100">
-                      {/* Column headers */}
-                      <div className="flex items-center gap-3 px-4 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wide border-b border-slate-100">
-                        <span className="flex-1">Demanda � Etapa atual � Jornada completa</span>
-                        <span className="w-20 text-right">Total</span>
-                      </div>
+                    {/* Person name — clickable to expand */}
+                    <td className={`sticky left-0 z-10 px-3 py-2.5 font-bold text-slate-800 whitespace-nowrap border-r border-slate-200 ${pi % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
+                      <button
+                        onClick={() => {
+                          const n = new Set(expanded);
+                          n.has(pd.person) ? n.delete(pd.person) : n.add(pd.person);
+                          setExpanded(n);
+                        }}
+                        className="flex items-center gap-1.5 text-left w-full hover:text-[#1351B4] transition-colors"
+                      >
+                        {isOpen
+                          ? <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                          : <ChevronRight className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />}
+                        <span className="text-[12px] truncate max-w-[120px]" title={pd.person}>{pd.person}</span>
+                      </button>
+                    </td>
 
-                      {[...rows]
-                        .sort((a, b) => daysSinceTL(b.data_liberacao as string) - daysSinceTL(a.data_liberacao as string))
-                        .slice(0, 60)
-                        .map((r, idx) => {
-                          const history = getDemandHistory(r);
-                          const si = getCurrentStageIdx(r);
-                          const stage = si >= 0 ? ACTIVE_STAGES[si] : null;
-                          const daysAtStage = stage ? daysSinceTL(r[stage.key] as string) : 0;
-                          const daysTotal = daysSinceTL(r.data_liberacao as string);
-                          const tecEntry = history[0]; // c_tecnico interval
-                          const demandaLabel = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`);
+                    {/* Stage counts — each clickable */}
+                    {pd.stageCounts.map((stageRows, ci) => (
+                      <td key={ci} className="px-2 py-2.5 text-center">
+                        {stageRows.length > 0 ? (
+                          <button
+                            onClick={() => openDrilldown(
+                              `${pd.person} — ${ACTIVE_STAGES[ci].label} (${stageRows.length})`,
+                              stageRows
+                            )}
+                            className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-white font-black text-[11px] ${ACTIVE_STAGES[ci].dot} hover:opacity-80 transition-opacity shadow-sm`}
+                          >
+                            {stageRows.length}
+                          </button>
+                        ) : (
+                          <span className="text-slate-300 text-[11px]">—</span>
+                        )}
+                      </td>
+                    ))}
 
-                          return (
-                            <div
-                              key={r.id ?? idx}
-                              className={`px-4 py-3 border-b border-slate-50 last:border-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}
+                    {/* Total */}
+                    <td className="px-3 py-2.5 text-center">
+                      <button
+                        onClick={() => openDrilldown(`${pd.person} — Todas as pendências (${pd.rows.length})`, pd.rows)}
+                        className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-slate-700 text-white font-black text-[11px] hover:bg-slate-600 transition-colors"
+                      >
+                        {pd.rows.length}
+                      </button>
+                    </td>
+
+                    {/* Oldest demand */}
+                    <td className="px-3 py-2.5 text-center">
+                      <span className={`font-bold text-[11px] ${
+                        pd.maxDays > 90 ? 'text-red-600'
+                        : pd.maxDays > 30 ? 'text-amber-600'
+                        : 'text-slate-500'
+                      }`}>
+                        {pd.maxDays > 0 ? `${pd.maxDays}d` : '—'}
+                      </span>
+                    </td>
+
+                    {/* Open drilldown all */}
+                    <td className="px-3 py-2.5 text-center">
+                      <button
+                        onClick={() => openDrilldown(`${pd.person} — Todas as pendências`, pd.rows)}
+                        className="text-[#1351B4] hover:text-blue-800 transition-colors"
+                        title="Ver todas as demandas"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+
+                  {/* ── Expanded demand rows ─────────────────────── */}
+                  {isOpen && [...pd.rows]
+                    .sort((a, b) => daysSinceTL(b.data_liberacao) - daysSinceTL(a.data_liberacao))
+                    .slice(0, 30)
+                    .map((r, ri) => {
+                      const si = getCurrentStageIdx(r);
+                      const stage = si >= 0 ? ACTIVE_STAGES[si] : null;
+                      const daysAtStage = stage ? daysSinceTL(r[stage.key] as string) : 0;
+                      const daysTotal = daysSinceTL(r.data_liberacao);
+                      const demandaLabel = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`);
+                      return (
+                        <tr key={ri} className="border-b border-slate-50 bg-blue-50/30">
+                          {/* Name cell — indented */}
+                          <td className="sticky left-0 z-10 bg-blue-50/60 px-3 py-2 border-r border-slate-100">
+                            <button
+                              onClick={() => openDrilldown(`${demandaLabel}`, [r])}
+                              className="text-[11px] text-[#1351B4] hover:underline text-left truncate max-w-[130px] block pl-4"
+                              title={demandaLabel}
                             >
-                              {/* Line 1: name + current stage badge + "c/ t�cnico" alert + total */}
-                              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                <button
-                                  onClick={() => openDrilldown(`${demandaLabel} � ${person}`, [r])}
-                                  className="text-[13px] font-bold text-slate-800 hover:text-[#1351B4] transition-colors"
-                                >
-                                  {demandaLabel}
-                                </button>
-                                {stage ? (
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-[10px] font-bold ${stage.dot}`}>
-                                    {si + 1}. {stage.short} � {daysAtStage}d
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] text-slate-400 italic">sem etapa registrada</span>
-                                )}
-                                {tecEntry.state === 'active' && (
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${tecEntry.days > 30 ? 'bg-orange-50 text-orange-700 border-orange-300' : 'bg-yellow-50 text-yellow-800 border-yellow-300'}`}>
-                                    c/ {personLabel} h� {tecEntry.days}d
-                                  </span>
-                                )}
-                                <span className={`ml-auto text-[12px] font-extrabold whitespace-nowrap ${daysTotal > 90 ? 'text-red-600' : daysTotal > 30 ? 'text-amber-600' : 'text-slate-500'}`}>
-                                  {daysTotal > 0 ? `${daysTotal}d` : '�'}
-                                </span>
-                              </div>
+                              {demandaLabel}
+                            </button>
+                          </td>
 
-                              {/* Line 2: full stage journey chips */}
-                              <div className="flex items-center gap-0.5 flex-wrap">
-                                {history.map((h, hi) => {
-                                  const dotCls = hi < ACTIVE_STAGES.length ? ACTIVE_STAGES[hi].dot : 'bg-emerald-600';
-                                  return (
-                                    <React.Fragment key={h.key}>
-                                      {hi > 0 && <span className="text-slate-300 text-[8px] mx-0.5">?</span>}
-                                      {h.state === 'future' ? (
-                                        <span className="text-[9px] text-slate-300 px-1.5 py-0.5 rounded border border-slate-200 font-medium">
-                                          {h.short}
-                                        </span>
-                                      ) : h.state === 'done' ? (
-                                        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${h.cls}`}>
-                                          {h.short} {h.days}d
-                                        </span>
-                                      ) : (
-                                        // active � current stage highlighted
-                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full text-white ${dotCls} shadow-sm`}>
-                                          ? {h.short} {h.days}d
-                                        </span>
-                                      )}
-                                    </React.Fragment>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
+                          {/* Stage cells — highlight current */}
+                          {ACTIVE_STAGES.map((s, ci) => (
+                            <td key={ci} className="px-2 py-2 text-center">
+                              {ci === si ? (
+                                <div className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-white text-[9px] font-bold ${s.dot}`}>
+                                  {daysAtStage > 0 ? `${daysAtStage}d` : '●'}
+                                </div>
+                              ) : ci < si ? (
+                                <span className="text-emerald-400 text-[10px]">✓</span>
+                              ) : (
+                                <span className="text-slate-200 text-[10px]">·</span>
+                              )}
+                            </td>
+                          ))}
 
-                      {rows.length > 60 && (
+                          {/* Total days */}
+                          <td className="px-3 py-2 text-center">
+                            <span className={`text-[11px] font-bold ${
+                              daysTotal > 90 ? 'text-red-600' : daysTotal > 30 ? 'text-amber-600' : 'text-slate-500'
+                            }`}>
+                              {daysTotal > 0 ? `${daysTotal}d` : '—'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-center text-slate-300 text-[10px]">—</td>
+                          <td className="px-3 py-2 text-center">
+                            <button onClick={() => openDrilldown(demandaLabel, [r])} className="text-[#1351B4] hover:text-blue-800">
+                              <Eye className="w-3 h-3" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  }
+                  {isOpen && pd.rows.length > 30 && (
+                    <tr key="more" className="bg-blue-50/30 border-b border-slate-100">
+                      <td colSpan={ACTIVE_STAGES.length + 4} className="px-6 py-2 text-center">
                         <button
-                          onClick={() => openDrilldown(`${person} � Todas as pend�ncias (${rows.length})`, rows)}
-                          className="w-full py-2.5 text-xs font-bold text-[#1351B4] hover:bg-blue-50 transition-colors border-t border-slate-100"
+                          onClick={() => openDrilldown(`${pd.person} — Todas (${pd.rows.length})`, pd.rows)}
+                          className="text-xs font-bold text-[#1351B4] hover:underline"
                         >
-                          + Ver todas as {rows.length} demandas ?
+                          + Ver todas as {pd.rows.length} demandas →
                         </button>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
+
+            {/* ── Totals row ──────────────────────────────────── */}
+            <tr className="bg-slate-800 text-white font-bold">
+              <td className="sticky left-0 z-10 bg-slate-800 px-3 py-2.5 text-[11px] uppercase tracking-wide">
+                TOTAL
+              </td>
+              {stageTotals.map((t, i) => (
+                <td key={i} className="px-2 py-2.5 text-center">
+                  {t > 0 ? (
+                    <button
+                      onClick={() => openDrilldown(
+                        `${ACTIVE_STAGES[i].label} — Todos (${t})`,
+                        pending.filter(r => getCurrentStageIdx(r) === i)
                       )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          );
-        })}
+                      className="text-[11px] font-black text-white underline-offset-2 hover:underline"
+                    >
+                      {t}
+                    </button>
+                  ) : (
+                    <span className="text-slate-500 text-[11px]">—</span>
+                  )}
+                </td>
+              ))}
+              <td className="px-3 py-2.5 text-center text-[12px] font-black">{pending.length}</td>
+              <td className="px-3 py-2.5 text-center text-slate-400 text-[11px]">—</td>
+              <td className="px-3 py-2.5 text-center text-slate-400 text-[11px]">—</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
 
-// --- Collapsible Section -----------------------------------------------------
+// ─── Collapsible Section ─────────────────────────────────────────────────────
 function CollapsibleSection({ title, icon: Icon, count, headerBg = 'bg-slate-800', collapsed, onToggle, children }: {
   title: string; icon?: React.ElementType; count?: number;
   headerBg?: string; collapsed: boolean; onToggle: () => void; children?: React.ReactNode;
@@ -1129,7 +1150,7 @@ function CollapsibleSection({ title, icon: Icon, count, headerBg = 'bg-slate-800
   );
 }
 
-// --- Helpers -----------------------------------------------------------------
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 const MESES_PT_PROD = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const fmtMesProd = (m: string) => { const p = m.split('-'); return p.length >= 2 ? `${MESES_PT_PROD[parseInt(p[1]) - 1]}/${p[0].substring(2)}` : m; };
 
@@ -1164,19 +1185,17 @@ function perfScore(taxa: number, medG: number | null) {
   if (taxa >= 80 && (medG === null || medG <= 30)) return { label: 'A', ring: 'ring-2 ring-emerald-400', bg: 'bg-emerald-500', text: 'Excelente' };
   if (taxa >= 60 && (medG === null || medG <= 60)) return { label: 'B', ring: 'ring-2 ring-blue-400',    bg: 'bg-blue-500',    text: 'Bom' };
   if (taxa >= 40 && (medG === null || medG <= 90)) return { label: 'C', ring: 'ring-2 ring-amber-400',   bg: 'bg-amber-500',   text: 'Regular' };
-  return                                                 { label: 'D', ring: 'ring-2 ring-red-400',     bg: 'bg-red-500',     text: 'Cr�tico' };
+  return                                                 { label: 'D', ring: 'ring-2 ring-red-400',     bg: 'bg-red-500',     text: 'Crítico' };
 }
 
-// --- Professional Productivity Analysis Component ----------------------------
-function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, openDrilldown, viewMode, personField }: {
+// ─── Professional Productivity Analysis Component ────────────────────────────
+function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, openDrilldown }: {
   pessoas: PessoaProd[];
   label: string;
   allMeses: string[];
   filtered: FormalizacaoRow[];
   dateField: keyof FormalizacaoRow;
   openDrilldown: (title: string, rows: FormalizacaoRow[]) => void;
-  viewMode: 'tecnico' | 'conferencista';
-  personField: keyof FormalizacaoRow;
 }) {
   const [anoSel, setAnoSel]   = useState<string>('all');
   const [mesSel, setMesSel]   = useState<string>('all'); // 'all' | '01'..'12'
@@ -1244,50 +1263,6 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
   const toggleExpand = (nome: string) =>
     setExpanded(s => { const ns = new Set(s); if (ns.has(nome)) ns.delete(nome); else ns.add(nome); return ns; });
 
-  // -- Stage flow: avg days per stage for completed demands ------------------
-  const fluxoStats = useMemo(() => {
-    let data = filtered;
-    if (anoSel !== 'all' || mesSel !== 'all') {
-      data = filtered.filter(r => {
-        const d = parseDateProd((r[dateField] as string) ?? '');
-        if (!d) return false;
-        const mes = toMes(d);
-        const [y, m] = mes.split('-');
-        if (anoSel !== 'all' && y !== anoSel) return false;
-        if (mesSel !== 'all' && m !== mesSel) return false;
-        return true;
-      });
-    }
-    const completed = data.filter(r => (r.concluida_em ?? '').trim());
-    const pending   = data.filter(r => !(r.concluida_em ?? '').trim());
-    const getIdx = (r: FormalizacaoRow): number => {
-      for (let i = ACTIVE_STAGES.length - 1; i >= 0; i--) {
-        if ((r[ACTIVE_STAGES[i].key] as string)?.trim()) return i;
-      }
-      return -1;
-    };
-    const totalDurations = completed.map(r => {
-      const from = parseDateProd((r.data_liberacao as string) ?? '');
-      const to   = parseDateProd((r.concluida_em   as string) ?? '');
-      if (!from || !to) return null;
-      const d = Math.round((to.getTime() - from.getTime()) / 86400000);
-      return d >= 0 ? d : null;
-    }).filter((d): d is number => d !== null);
-    const avgTotal = totalDurations.length > 0 ? Math.round(totalDurations.reduce((s, d) => s + d, 0) / totalDurations.length) : null;
-    const intervals = FLOW_INTERVALS.map(interval => {
-      const durations = completed.map(r => {
-        const from = parseDateProd((r[interval.fromKey] as string) ?? '');
-        const to   = parseDateProd((r[interval.toKey]   as string) ?? '');
-        if (!from || !to) return null;
-        const d = Math.round((to.getTime() - from.getTime()) / 86400000);
-        return d >= 0 ? d : null;
-      }).filter((d): d is number => d !== null);
-      const avgDays = durations.length > 0 ? Math.round(durations.reduce((s, d) => s + d, 0) / durations.length) : null;
-      return { ...interval, avgDays, sampleCount: durations.length, pendingCount: pending.filter(r => getIdx(r) === interval.tlIdx).length };
-    });
-    return { intervals, totalCompleted: completed.length, totalPending: pending.length, avgTotal };
-  }, [filtered, anoSel, mesSel, dateField]);
-
   // Returns raw rows for a given person, optionally filtered to a specific month
   const getRows = (nome: string, mes?: string): FormalizacaoRow[] => {
     const personKey = dateField === 'data_liberacao' ? 'tecnico' : 'conferencista';
@@ -1300,25 +1275,19 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
   };
 
   if (pessoas.length === 0)
-    return <p className="text-slate-400 text-center py-10 text-sm">Sem dados de libera��o para o per�odo. Verifique se <code className="bg-slate-100 px-1 rounded">data_liberacao</code> est� preenchido.</p>;
+    return <p className="text-slate-400 text-center py-10 text-sm">Sem dados de liberação para o período. Verifique se <code className="bg-slate-100 px-1 rounded">data_liberacao</code> está preenchido.</p>;
 
   const exportXLSX = () => {
-    // Sheet 1: Tempo por etapa
-    const fluxoHeader = ['Etapa', 'M�dia Dias (conclu�das)', 'Qtd Conclu�das', 'Pendentes agora'];
-    const fluxoRows = fluxoStats.intervals.map(f => [f.label, f.avgDays ?? '�', f.sampleCount, f.pendingCount]);
-    const wsFluxo = XLSX.utils.aoa_to_sheet([fluxoHeader, ...fluxoRows]);
-    wsFluxo['!cols'] = [{ wch: 26 }, { wch: 22 }, { wch: 18 }, { wch: 16 }];
-
-    // Sheet 2: Resumo por pessoa
-    const resumoHeader = ['Posi��o', label, 'Lib.', 'Pub.', 'Conc.', 'Pend.', 'Dilig.', 'Taxa %'];
+    // Sheet 1: Resumo por pessoa
+    const resumoHeader = ['Posição', label, 'Lib.', 'Pub.', 'Conc.', 'Pend.', 'Dilig.', 'Taxa %'];
     const resumoRows = sorted.map((p, i) => [
       i + 1, p.nome, p.totLib, p.totPub, p.totConc, p.totNaoConcl, p.totDilig, p.taxa,
     ]);
     const wsResumo = XLSX.utils.aoa_to_sheet([resumoHeader, ...resumoRows]);
     wsResumo['!cols'] = [{ wch: 6 }, { wch: 32 }, ...Array(6).fill({ wch: 10 })];
 
-    // Sheet 3: M�s a m�s
-    const mesHeader = [label, 'M�s', 'Lib.', 'Pub.', 'Conc.', 'Pend.', 'Dilig.', 'Taxa %'];
+    // Sheet 2: Mês a mês
+    const mesHeader = [label, 'Mês', 'Lib.', 'Pub.', 'Conc.', 'Pend.', 'Dilig.', 'Taxa %'];
     const mesRows: (string | number)[][] = [];
     sorted.forEach(p => {
       p.rows.forEach(r => {
@@ -1330,20 +1299,19 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
     wsMes['!cols'] = [{ wch: 32 }, { wch: 12 }, ...Array(6).fill({ wch: 10 })];
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, wsFluxo, 'Tempo por Etapa');
-    XLSX.utils.book_append_sheet(wb, wsResumo, 'Produtividade');
-    XLSX.utils.book_append_sheet(wb, wsMes, 'M�s a M�s');
+    XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo');
+    XLSX.utils.book_append_sheet(wb, wsMes, 'Mês a Mês');
     const periodoLabel = [
       mesSel !== 'all' ? MESES_PT_PROD[parseInt(mesSel) - 1] : '',
       anoSel !== 'all' ? anoSel : '',
     ].filter(Boolean).join('-') || 'todos';
-    XLSX.writeFile(wb, `produtividade_fluxo_${label.toLowerCase()}_${periodoLabel}.xlsx`);
+    XLSX.writeFile(wb, `produtividade_${label.toLowerCase()}_${periodoLabel}.xlsx`);
   };
 
   return (
     <div className="space-y-4">
 
-      {/* -- Toolbar --------------------------------------------- */}
+      {/* ── Toolbar ───────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
         <Calendar className="w-4 h-4 text-teal-600 flex-shrink-0" />
         {/* Year selector */}
@@ -1386,21 +1354,21 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
         <button
           onClick={exportXLSX}
           className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-all flex-shrink-0"
-          title="Exportar XLSX completo (fluxo + produtividade + m�s a m�s)">
+          title="Exportar produtividade como XLSX">
           <Download className="w-3.5 h-3.5" /> XLSX
         </button>
       </div>
 
-      {/* -- KPI Summary Strip ---------------------------------- */}
+      {/* ── KPI Summary Strip ────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
         {[
           { lbl: 'Liberadas',  val: kpis.totLib,  cls: 'bg-blue-50 text-blue-700 border-blue-200' },
           { lbl: 'Publicadas', val: kpis.totPub,  cls: 'bg-violet-50 text-violet-700 border-violet-200' },
-          { lbl: 'Conclu�das', val: kpis.totConc, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+          { lbl: 'Concluídas', val: kpis.totConc, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
           { lbl: 'Pendentes',  val: kpis.totNaoConcl, cls: kpis.totNaoConcl === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-orange-50 text-orange-700 border-orange-200' },
-          { lbl: 'Dilig�ncia', val: kpis.totDilig, cls: kpis.totDilig === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-amber-50 text-amber-700 border-amber-200' },
+          { lbl: 'Diligência', val: kpis.totDilig, cls: kpis.totDilig === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-amber-50 text-amber-700 border-amber-200' },
           { lbl: 'Taxa Geral', val: `${kpis.taxa}%`, cls: kpis.taxa >= 70 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : kpis.taxa >= 40 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200' },
-          { lbl: 'M�dia Dias', val: kpis.medG !== null ? `${kpis.medG}d` : '�', cls: kpis.medG === null ? 'bg-slate-50 text-slate-400 border-slate-200' : kpis.medG <= 30 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : kpis.medG <= 60 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200' },
+          { lbl: 'Média Dias', val: kpis.medG !== null ? `${kpis.medG}d` : '—', cls: kpis.medG === null ? 'bg-slate-50 text-slate-400 border-slate-200' : kpis.medG <= 30 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : kpis.medG <= 60 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200' },
           { lbl: label,        val: `${sorted.length}`,  cls: 'bg-slate-50 text-slate-700 border-slate-200' },
         ].map(k => (
           <div key={k.lbl} className={`border rounded-xl px-3 py-2.5 flex flex-col items-center ${k.cls}`}>
@@ -1410,30 +1378,7 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
         ))}
       </div>
 
-      {/* -- Tempo M�dio por Etapa ------------------------------- */}
-      <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
-        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-          <Activity className="w-3.5 h-3.5" />
-          Tempo M�dio por Etapa � {fluxoStats.totalCompleted} dem. conclu�das
-          {fluxoStats.avgTotal !== null && (
-            <span className="ml-2 text-[10px] bg-slate-700 text-white px-2 py-0.5 rounded-full font-bold">Total: ? {fluxoStats.avgTotal}d</span>
-          )}
-          <span className="text-[10px] text-slate-400 ml-1">({fluxoStats.totalPending} em andamento)</span>
-        </h4>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-          {fluxoStats.intervals.map(f => (
-            <div key={f.key} className={`border rounded-xl p-3 ${f.cls}`}>
-              <div className="text-2xl font-extrabold leading-tight">{f.avgDays !== null ? `${f.avgDays}d` : '�'}</div>
-              <div className="text-[11px] font-semibold mt-1 opacity-90 leading-tight">{f.label}</div>
-              <div className="text-[9px] opacity-60 mt-1">
-                {f.sampleCount} conc.{f.pendingCount > 0 ? ` � ${f.pendingCount} pend.` : ''}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* -- Person Cards --------------------------------------- */}
+      {/* ── Person Cards ─────────────────────────────────────── */}
       <div className="space-y-2">
         {sorted.map((p, pi) => {
           const score    = perfScore(p.taxa, p.medG);
@@ -1444,7 +1389,7 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
           return (
             <div key={p.nome} className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
 
-              {/* Card header � left side toggles expand, right side opens drilldown */}
+              {/* Card header — left side toggles expand, right side opens drilldown */}
               <div className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50/70 transition-colors">
 
                 {/* Rank */}
@@ -1459,7 +1404,7 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleExpand(p.nome)}>
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <button
-                      onClick={e => { e.stopPropagation(); const rows = getRows(p.nome); openDrilldown(`${p.nome} � todas as demandas (${rows.length})`, rows); }}
+                      onClick={e => { e.stopPropagation(); const rows = getRows(p.nome); openDrilldown(`${p.nome} — todas as demandas (${rows.length})`, rows); }}
                       className="text-sm font-bold text-slate-800 truncate hover:text-teal-700 hover:underline text-left transition-colors"
                     >{p.nome}</button>
                     <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
@@ -1470,7 +1415,7 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
                       {p.totDilig > 0 && <span className="text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">{p.totDilig} dilig.</span>}
                       {p.medG !== null && (
                         <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${p.medG <= 30 ? 'bg-emerald-100 text-emerald-700' : p.medG <= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                          ? {p.medG}d
+                          ⌀ {p.medG}d
                         </span>
                       )}
                       <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${p.taxa >= 70 ? 'bg-emerald-100 text-emerald-700' : p.taxa >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
@@ -1504,7 +1449,7 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="bg-teal-800 text-white">
-                            <th className="text-left px-3 py-2 font-bold whitespace-nowrap">M�s</th>
+                            <th className="text-left px-3 py-2 font-bold whitespace-nowrap">Mês</th>
                             <th className="text-center px-3 py-2 font-bold">Lib.</th>
                             <th className="text-center px-3 py-2 font-bold">Pub.</th>
                             <th className="text-center px-3 py-2 font-bold">Conc.</th>
@@ -1522,7 +1467,7 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
                               <tr key={ri} className={`border-b border-slate-100 ${ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
                                 <td className="px-3 py-1.5 font-semibold text-slate-700 whitespace-nowrap">
                                   <button
-                                    onClick={() => openDrilldown(`${p.nome} � ${fmtMesProd(r.mes)} (${mesRows.length})`, mesRows)}
+                                    onClick={() => openDrilldown(`${p.nome} — ${fmtMesProd(r.mes)} (${mesRows.length})`, mesRows)}
                                     className="hover:text-teal-700 hover:underline transition-colors text-left"
                                   >{fmtMesProd(r.mes)}</button>
                                 </td>
@@ -1532,22 +1477,22 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
                                 <td className="px-3 py-1.5 text-center">
                                   {r.pub > 0
                                     ? <span className="inline-flex items-center justify-center w-7 bg-violet-100 text-violet-700 rounded font-bold">{r.pub}</span>
-                                    : <span className="text-slate-300">�</span>}
+                                    : <span className="text-slate-300">—</span>}
                                 </td>
                                 <td className="px-3 py-1.5 text-center">
                                   {r.conc > 0
                                     ? <span className="inline-flex items-center justify-center w-7 bg-emerald-100 text-emerald-700 rounded font-bold">{r.conc}</span>
-                                    : <span className="text-slate-300">�</span>}
+                                    : <span className="text-slate-300">—</span>}
                                 </td>
                                 <td className="px-3 py-1.5 text-center">
                                   {r.naoConcl > 0
-                                    ? <button onClick={() => { const rws = getRows(p.nome, r.mes).filter(x => !(x.concluida_em ?? '').trim()); openDrilldown(`${p.nome} � Pend. ${fmtMesProd(r.mes)} (${rws.length})`, rws); }} className="inline-flex items-center justify-center w-7 bg-orange-100 text-orange-700 rounded font-bold hover:bg-orange-200 transition-colors">{r.naoConcl}</button>
-                                    : <span className="text-slate-300">�</span>}
+                                    ? <button onClick={() => { const rws = getRows(p.nome, r.mes).filter(x => !(x.concluida_em ?? '').trim()); openDrilldown(`${p.nome} — Pend. ${fmtMesProd(r.mes)} (${rws.length})`, rws); }} className="inline-flex items-center justify-center w-7 bg-orange-100 text-orange-700 rounded font-bold hover:bg-orange-200 transition-colors">{r.naoConcl}</button>
+                                    : <span className="text-slate-300">—</span>}
                                 </td>
                                 <td className="px-3 py-1.5 text-center">
                                   {r.dilig > 0
-                                    ? <button onClick={() => { const rws = getRows(p.nome, r.mes).filter(x => (x.area_estagio_situacao_demanda ?? '').trim().toUpperCase().startsWith('DEMANDA EM DILIG�NCIA')); openDrilldown(`${p.nome} � Dilig. ${fmtMesProd(r.mes)} (${rws.length})`, rws); }} className="inline-flex items-center justify-center w-7 bg-amber-100 text-amber-700 rounded font-bold hover:bg-amber-200 transition-colors border border-amber-300">{r.dilig}</button>
-                                    : <span className="text-slate-300">�</span>}
+                                    ? <button onClick={() => { const rws = getRows(p.nome, r.mes).filter(x => (x.area_estagio_situacao_demanda ?? '').trim().toUpperCase().startsWith('DEMANDA EM DILIGÊNCIA')); openDrilldown(`${p.nome} — Dilig. ${fmtMesProd(r.mes)} (${rws.length})`, rws); }} className="inline-flex items-center justify-center w-7 bg-amber-100 text-amber-700 rounded font-bold hover:bg-amber-200 transition-colors border border-amber-300">{r.dilig}</button>
+                                    : <span className="text-slate-300">—</span>}
                                 </td>
                                 <td className="px-3 py-1.5 text-center">
                                   <span className={`inline-block px-2 py-0.5 rounded font-bold ${t >= 70 ? 'bg-emerald-100 text-emerald-700' : t >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{t}%</span>
@@ -1565,12 +1510,12 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
                         </tbody>
                         <tfoot>
                           <tr className="bg-teal-800 text-white font-bold text-xs">
-                            <td className="px-3 py-2 whitespace-nowrap">Total / M�dia</td>
+                            <td className="px-3 py-2 whitespace-nowrap">Total / Média</td>
                             <td className="px-3 py-2 text-center">{p.totLib}</td>
                             <td className="px-3 py-2 text-center">{p.totPub}</td>
                             <td className="px-3 py-2 text-center">{p.totConc}</td>
-                            <td className="px-3 py-2 text-center">{p.totNaoConcl > 0 ? p.totNaoConcl : '�'}</td>
-                            <td className="px-3 py-2 text-center">{p.totDilig > 0 ? p.totDilig : '�'}</td>
+                            <td className="px-3 py-2 text-center">{p.totNaoConcl > 0 ? p.totNaoConcl : '—'}</td>
+                            <td className="px-3 py-2 text-center">{p.totDilig > 0 ? p.totDilig : '—'}</td>
                             <td className="px-3 py-2 text-center">{p.taxa}%</td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-1">
@@ -1593,21 +1538,21 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
           <p className="text-center text-sm text-slate-400 py-8">
             Nenhum dado para {anoSel !== 'all' || mesSel !== 'all'
               ? [mesSel !== 'all' ? MESES_PT_PROD[parseInt(mesSel) - 1] : '', anoSel !== 'all' ? anoSel : ''].filter(Boolean).join('/')
-              : 'o per�odo selecionado'}.
+              : 'o período selecionado'}.
           </p>
         )}
       </div>
 
-      {/* -- Legend --------------------------------------------- */}
+      {/* ── Legend ───────────────────────────────────────────── */}
       <div className="flex items-center gap-3 text-xs text-slate-400 pt-3 border-t border-slate-100">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-400 inline-block" /> barra azul = volume de libera��es</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-400 inline-block" /> barra azul = volume de liberações</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-emerald-400 inline-block" /> barra colorida = % publicadas</span>
       </div>
     </div>
   );
 }
 
-// --- Main Dashboard ----------------------------------------------------------
+// ─── Main Dashboard ──────────────────────────────────────────────────────────
 export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRow[] } = {}) {
   const { token } = useAuth();
 
@@ -1621,7 +1566,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
   // Compact mode
   const [compact, setCompact] = useState(false);
   // Section collapse states (true = collapsed)
-  const [sec, setSec] = useState({ matrix: true, areaEstagio: true, criticas: true, topEstagio: true, atrasadas: true, timeline: true, fluxoProdutividade: true });
+  const [sec, setSec] = useState({ matrix: true, areaEstagio: true, criticas: true, topEstagio: true, atrasadas: true, timeline: true, produtividade: true });
   const toggleSec = (k: keyof typeof sec) => setSec(p => ({ ...p, [k]: !p[k] }));
   // Filter panel collapsed
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -1754,7 +1699,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
     if (filtroClassificacao.length) data = data.filter(r => filtroClassificacao.includes(String(r.classificacao_emenda_demanda ?? '').trim()));
     if (filtroDataDe) data = data.filter(r => (String(r[filtroDataCampo] ?? '')) >= filtroDataDe);
     if (filtroDataAte) data = data.filter(r => (String(r[filtroDataCampo] ?? '')) <= filtroDataAte);
-    // Quick filter: Fundo a Fundo � filtra pelo campo �rea/Est�gio da Situa��o da Demanda
+    // Quick filter: Fundo a Fundo — filtra pelo campo Área/Estágio da Situação da Demanda
     if (filtroTipoRapido === 'fundo_a_fundo')
       data = data.filter(r => (r.area_estagio_situacao_demanda ?? '').toUpperCase().includes('FUNDO A FUNDO'));
     return data;
@@ -1767,7 +1712,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
   const matrixData = useMemo(() => {
     const personMap = new Map<string, FormalizacaoRow[]>();
     for (const row of filtered) {
-      const person = String(row[personField] ?? '').trim() || '(n�o atribu�do)';
+      const person = String(row[personField] ?? '').trim() || '(não atribuído)';
       if (!personMap.has(person)) personMap.set(person, []);
       personMap.get(person)!.push(row);
     }
@@ -1787,7 +1732,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
     filtroConferencista.length || filtroParlamentar.length || filtroTipo.length ||
     filtroSituacao.length || filtroClassificacao.length || filtroDataDe || filtroDataAte || filtroTipoRapido;
 
-  // Produtividade m�s a m�s (data_liberacao ? publicacao) por t�cnico e conferencista
+  // Produtividade mês a mês (data_liberacao → publicacao) por técnico e conferencista
   const produtividadeData = useMemo(() => {
     type MR = { lib: number; pub: number; conc: number; dilig: number; td: number; cd: number };
 
@@ -1812,8 +1757,8 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
 
     // personField = 'tecnico' | 'conferencista'
     // dateField   = the "start" date for that role:
-    //   t�cnico       ? data_liberacao
-    //   conferencista ? data_recebimento_demanda
+    //   técnico       → data_liberacao
+    //   conferencista → data_recebimento_demanda
     const buildMap = (personField: keyof FormalizacaoRow, dateField: keyof FormalizacaoRow) => {
       const personMap = new Map<string, Map<string, MR>>();
       filtered.forEach(r => {
@@ -1825,9 +1770,9 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
         if (!mm.has(mes)) mm.set(mes, { lib: 0, pub: 0, conc: 0, dilig: 0, td: 0, cd: 0 });
         const row = mm.get(mes)!;
         row.lib++;
-        // dilig�ncia
+        // diligência
         const estagioUp = (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
-        if (estagioUp.startsWith('DEMANDA EM DILIG�NCIA')) row.dilig++;
+        if (estagioUp.startsWith('DEMANDA EM DILIGÊNCIA')) row.dilig++;
         const dp = parseDateProd((r.publicacao as string) ?? '');
         if (dp) {
           row.pub++;
@@ -1857,7 +1802,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
       }).filter(p => p.totLib > 0);
     };
     return {
-      tecnicos:       buildMap('tecnico',       'data_liberacao'),           // t�cnico: libera��o
+      tecnicos:       buildMap('tecnico',       'data_liberacao'),           // técnico: liberação
       conferencistas: buildMap('conferencista', 'data_recebimento_demanda'), // conferencista: recebimento
       allMeses,
     };
@@ -1872,7 +1817,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
 
   // Export matrix XLSX
   const exportMatrix = () => {
-    const colHeaders = ['T�cnico/Conferencista', ...FIXED_COLS.map(c => `${c.line1}${c.line2 ? ' ' + c.line2 : ''}`)];
+    const colHeaders = ['Técnico/Conferencista', ...FIXED_COLS.map(c => `${c.line1}${c.line2 ? ' ' + c.line2 : ''}`)];
     const dataRows = matrixData.rows.map(r =>
       [r.person, ...FIXED_COLS.map(c => r.cols[c.key] || 0)]
     );
@@ -1880,7 +1825,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
     const ws = XLSX.utils.aoa_to_sheet([colHeaders, ...dataRows, totalRow]);
     ws['!cols'] = [{ wch: 28 }, ...FIXED_COLS.map(() => ({ wch: 12 }))];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, viewMode === 'tecnico' ? 'T�cnicos' : 'Conferencistas');
+    XLSX.utils.book_append_sheet(wb, ws, viewMode === 'tecnico' ? 'Técnicos' : 'Conferencistas');
     XLSX.writeFile(wb, `demonstrativo_${viewMode}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
@@ -1891,27 +1836,27 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
 
   return (
     <div className="space-y-4">
-      {/* -- Drilldown modal ------------------------------------------- */}
+      {/* ── Drilldown modal ─────────────────────────────────────────── */}
       <AnimatePresence>
         {drilldown && (
           <DrilldownModal title={drilldown.title} rows={drilldown.rows} onClose={() => setDrilldown(null)} />
         )}
       </AnimatePresence>
 
-      {/* -- Header --------------------------------------------------- */}
+      {/* ── Header ─────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
           <BarChart3 className="w-4 h-4 text-[#1351B4] flex-shrink-0" />
           <h2 className="text-sm font-bold text-slate-700 truncate">Demonstrativo</h2>
           {lastUpdated && (
             <span className="text-[10px] text-slate-400 hidden md:inline flex-shrink-0">
-              {rawData.length.toLocaleString('pt-BR')} registros � {lastUpdated.toLocaleTimeString('pt-BR')}
+              {rawData.length.toLocaleString('pt-BR')} registros · {lastUpdated.toLocaleTimeString('pt-BR')}
             </span>
           )}
         </div>
       </div>
 
-      {/* -- Filters --------------------------------------------------- */}
+      {/* ── Filters ─────────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">
         <button
           onClick={() => setFiltersOpen(v => !v)}
@@ -1932,7 +1877,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-white text-[11px] font-semibold" onClick={e => e.stopPropagation()}>
               <button onClick={() => setViewMode('tecnico')}
                 className={`px-3 py-1.5 flex items-center gap-1 transition-all ${viewMode === 'tecnico' ? 'bg-[#1351B4] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-                <User className="w-3 h-3" /> T�cnico
+                <User className="w-3 h-3" /> Técnico
               </button>
               <button onClick={() => setViewMode('conferencista')}
                 className={`px-3 py-1.5 flex items-center gap-1 transition-all ${viewMode === 'conferencista' ? 'bg-[#1351B4] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
@@ -1970,25 +1915,25 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 mt-2.5">
               <MultiCheckFilter label="Ano" options={anoOptions} selected={filtroAno} onChange={setFiltroAno} />
               <MultiCheckFilter label="Regional" options={regionalOptions} selected={filtroRegional} onChange={setFiltroRegional} />
-              <MultiCheckFilter label="T�cnico" options={tecnicoOptions} selected={filtroTecnico} onChange={setFiltroTecnico} />
+              <MultiCheckFilter label="Técnico" options={tecnicoOptions} selected={filtroTecnico} onChange={setFiltroTecnico} />
               <MultiCheckFilter label="Conferencista" options={conferencistaOptions} selected={filtroConferencista} onChange={setFiltroConferencista} />
               <MultiCheckFilter label="Parlamentar" options={parlamentarOptions} selected={filtroParlamentar} onChange={setFiltroParlamentar} />
               <MultiCheckFilter label="Tipo Form." options={tipoOptions} selected={filtroTipo} onChange={setFiltroTipo} />
-              <MultiCheckFilter label="Situa��o/Est�gio" options={situacaoOptions} selected={filtroSituacao} onChange={setFiltroSituacao} />
-              <MultiCheckFilter label="Classifica��o" options={classificacaoOptions.length ? classificacaoOptions : ['Emenda LOA', 'Transfer�ncia Volunt�ria']} selected={filtroClassificacao} onChange={setFiltroClassificacao} />
+              <MultiCheckFilter label="Situação/Estágio" options={situacaoOptions} selected={filtroSituacao} onChange={setFiltroSituacao} />
+              <MultiCheckFilter label="Classificação" options={classificacaoOptions.length ? classificacaoOptions : ['Emenda LOA', 'Transferência Voluntária']} selected={filtroClassificacao} onChange={setFiltroClassificacao} />
             </div>
             <div className="grid grid-cols-3 gap-2 mt-2">
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Campo Data</label>
                 <select value={filtroDataCampo} onChange={e => setFiltroDataCampo(e.target.value as any)}
                   className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg bg-white text-gray-700 focus:border-[#1351B4] outline-none">
-                  <option value="data_liberacao">Data Libera��o</option>
-                  <option value="data_analise_demanda">Data An�lise</option>
+                  <option value="data_liberacao">Data Liberação</option>
+                  <option value="data_analise_demanda">Data Análise</option>
                   <option value="data_recebimento_demanda">Data Recebimento</option>
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Data In�cio</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">Data Início</label>
                 <input type="date" value={filtroDataDe} onChange={e => setFiltroDataDe(e.target.value)}
                   className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:border-[#1351B4] outline-none bg-white text-gray-900" />
               </div>
@@ -2002,7 +1947,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
         )}
       </div>
 
-      {/* -- Loading ----------------------------------------------------- */}
+      {/* ── Loading ───────────────────────────────────────────────────── */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <div className="relative">
@@ -2026,15 +1971,15 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
 
       {!loading && rawData.length > 0 && (
         <>
-          {/* -- KPI Cards --------------------------------------------- */}
+          {/* ── KPI Cards ───────────────────────────────────────────── */}
           <div className="grid grid-cols-3 gap-2">
             <KpiCard label="Total de Demandas"
               value={filtered.length.toLocaleString('pt-BR')}
               sub={hasActiveFilters ? `de ${rawData.length.toLocaleString('pt-BR')} total` : undefined}
               dotColor="bg-[#1351B4]" valueColor="text-slate-800" />
-            <KpiCard label="Conclu�das"
+            <KpiCard label="Concluídas"
               value={`${totalConcluidas.toLocaleString('pt-BR')} (${pctConcluidas}%)`}
-              sub="com data de conclus�o"
+              sub="com data de conclusão"
               dotColor="bg-emerald-500" valueColor="text-emerald-700" />
             <KpiCard label="Em Andamento (GGCON)"
               value={totalEmAndamento.toLocaleString('pt-BR')}
@@ -2042,7 +1987,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               dotColor="bg-amber-500" valueColor="text-amber-700" />
           </div>
 
-          {/* -- Matrix Table ------------------------------------------- */}
+          {/* ── Matrix Table ─────────────────────────────────────────── */}
           <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
             {/* Table header bar - click to collapse/expand */}
             <div className="flex items-center bg-slate-700">
@@ -2050,17 +1995,17 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               <button onClick={() => toggleSec('matrix')} className="flex-1 px-4 py-2.5 flex items-center justify-between hover:bg-slate-600 transition-colors text-left">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <Users className="w-4 h-4 flex-shrink-0" />
-                  {viewMode === 'tecnico' ? 'Demonstrativo por T�cnico' : 'Demonstrativo por Conferencista'}
-                  <span className="text-[11px] text-slate-400 font-normal hidden sm:inline">� clique num n�mero para ver detalhes</span>
+                  {viewMode === 'tecnico' ? 'Demonstrativo por Técnico' : 'Demonstrativo por Conferencista'}
+                  <span className="text-[11px] text-slate-400 font-normal hidden sm:inline">— clique num número para ver detalhes</span>
                 </h3>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className="text-[11px] text-slate-400">
-                    {matrixData.rows.length} {viewMode === 'tecnico' ? 't�cnico(s)' : 'conferencista(s)'}
+                    {matrixData.rows.length} {viewMode === 'tecnico' ? 'técnico(s)' : 'conferencista(s)'}
                   </span>
                   {sec.matrix ? <ChevronRight className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                 </div>
               </button>
-              {/* A��es separadas � XLSX e Atualizar isolados para evitar clique acidental */}
+              {/* Ações separadas — XLSX e Atualizar isolados para evitar clique acidental */}
               <div className="flex items-center gap-1.5 px-3 py-2 border-l border-slate-600 flex-shrink-0">
                 <button
                   onClick={exportMatrix}
@@ -2100,7 +2045,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                   <tr>
                     <th className="sticky left-0 z-30 bg-slate-700 border-r border-slate-500 px-3 py-2 text-left text-white font-bold align-middle"
                       style={{ minWidth: 180, maxWidth: 220 }}>
-                      <span className="text-sm">{viewMode === 'tecnico' ? 'T�cnico' : 'Conferencista'}</span>
+                      <span className="text-sm">{viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}</span>
                     </th>
                     {FIXED_COLS.map(col => (
                       <th key={col.key}
@@ -2122,7 +2067,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                         <td className={`sticky left-0 z-10 ${bg} group-hover:bg-blue-50 px-3 py-1 border-r border-slate-200 transition-colors`}
                           style={{ minWidth: 180, maxWidth: 220 }}>
                           <button
-                            onClick={() => openDrilldown(`${row.person} � Todas (${row.cols.demandas_recebidas})`, row.rows)}
+                            onClick={() => openDrilldown(`${row.person} — Todas (${row.cols.demandas_recebidas})`, row.rows)}
                             className="font-semibold text-slate-800 text-left hover:text-[#1351B4] transition-colors w-full truncate text-[13px]"
                             title={row.person}>
                             {row.person}
@@ -2150,12 +2095,12 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                             <td key={col.key} className={`py-1 px-0.5 text-center border-l border-slate-100 ${isGgcon ? 'bg-blue-50/60' : isDiligencia ? 'bg-amber-50/50' : isConcluida || isTransf || isEmenda ? 'bg-emerald-50/30' : ''}`}>
                               {count > 0 ? (
                                 <button
-                                  onClick={() => openDrilldown(`${row.person} � ${colLabel} (${count})`, getColRows(col.key, row.rows))}
+                                  onClick={() => openDrilldown(`${row.person} — ${colLabel} (${count})`, getColRows(col.key, row.rows))}
                                   className={`inline-flex items-center justify-center ${badgeClass} text-white font-bold rounded text-[13px] px-2 py-0.5 min-w-[30px] active:scale-95 transition-all shadow-sm`}>
                                   {count}
                                 </button>
                               ) : (
-                                <span className="text-slate-200 text-[9px] select-none">�</span>
+                                <span className="text-slate-200 text-[9px] select-none">·</span>
                               )}
                             </td>
                           );
@@ -2183,11 +2128,11 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                       return (
                         <td key={col.key} className={`py-1.5 px-0.5 text-center border-l border-slate-700 ${col.bgTotal}`}>
                           {t > 0 ? (
-                            <button onClick={() => openDrilldown(`Total � ${colLabel} (${t})`, getColRows(col.key, filtered))}
+                            <button onClick={() => openDrilldown(`Total — ${colLabel} (${t})`, getColRows(col.key, filtered))}
                               className={`font-black ${textClass} hover:underline text-[13px] transition-colors`}>
                               {t.toLocaleString('pt-BR')}
                             </button>
-                          ) : <span className="text-slate-600 text-[9px]">�</span>}
+                          ) : <span className="text-slate-600 text-[9px]">·</span>}
                         </td>
                       );
                     })}
@@ -2200,8 +2145,8 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             </AnimatePresence>
           </div>
 
-          {/* -- Distribui��o por �rea - Est�gio ----------------------- */}
-          <CollapsibleSection title="Distribui��o por �rea (Sem Papel)" icon={MapPin} headerBg="bg-slate-600 hover:bg-slate-500" collapsed={sec.areaEstagio} onToggle={() => toggleSec('areaEstagio')}>
+          {/* ── Distribuição por Área - Estágio ─────────────────────── */}
+          <CollapsibleSection title="Distribuição por Área (Sem Papel)" icon={MapPin} headerBg="bg-slate-600 hover:bg-slate-500" collapsed={sec.areaEstagio} onToggle={() => toggleSec('areaEstagio')}>
           {(() => {
             const activeRows = filtered.filter(r => !(r.concluida_em ?? '').trim());
             const areaMap = new Map<string, FormalizacaoRow[]>();
@@ -2226,7 +2171,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                   <div className="w-px bg-slate-200" />
                   <div className="flex-1 text-center">
                     <div className="text-2xl font-extrabold text-slate-700">{areas.length}</div>
-                    <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mt-0.5">�reas</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mt-0.5">Áreas</div>
                   </div>
                   <div className="w-px bg-slate-200" />
                   <div className="flex-1 text-center flex flex-col justify-center">
@@ -2235,7 +2180,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                     <div className="text-xs text-slate-400">{areas[0] ? Math.round(areas[0].count / activeRows.length * 100) : 0}%</div>
                   </div>
                 </div>
-                {/* Grid de �reas */}
+                {/* Grid de áreas */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {areas.map((a, idx) => {
                     const pct = activeRows.length > 0 ? (a.count / activeRows.length * 100) : 0;
@@ -2247,10 +2192,10 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.025 }}
                         whileHover={{ scale: 1.015, y: -1 }}
-                        onClick={() => openDrilldown(`${a.label} � ${a.count} emendas`, a.rows)}
+                        onClick={() => openDrilldown(`${a.label} — ${a.count} emendas`, a.rows)}
                         className={`flex items-center gap-3 p-3 rounded-xl border ${pal.border} ${pal.bg} shadow-sm hover:shadow-md text-left transition-all group`}
                       >
-                        {/* Posi��o */}
+                        {/* Posição */}
                         <div className={`w-7 h-7 rounded-lg ${pal.dot} flex items-center justify-center flex-shrink-0 shadow-sm`}>
                           <span className="text-[11px] font-bold text-white">{idx + 1}</span>
                         </div>
@@ -2275,14 +2220,14 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                     );
                   })}
                 </div>
-                <p className="text-[10px] text-slate-400 text-center">Conclu�das n�o inclu�das � Clique em qualquer �rea para ver o detalhamento</p>
+                <p className="text-[10px] text-slate-400 text-center">Concluídas não incluídas · Clique em qualquer área para ver o detalhamento</p>
               </div>
             );
           })()}
           </CollapsibleSection>
 
-          {/* -- Demonstrativo de Situa��es Cr�ticas -------------------- */}
-          <CollapsibleSection title="Situa��es Cr�ticas" icon={AlertCircle} headerBg="bg-slate-600 hover:bg-slate-500" collapsed={sec.criticas} onToggle={() => toggleSec('criticas')}>
+          {/* ── Demonstrativo de Situações Críticas ──────────────────── */}
+          <CollapsibleSection title="Situações Críticas" icon={AlertCircle} headerBg="bg-slate-600 hover:bg-slate-500" collapsed={sec.criticas} onToggle={() => toggleSec('criticas')}>
           {(() => {
             const isMatch = (r: FormalizacaoRow, keyword: string) => {
               const u = keyword.toUpperCase();
@@ -2292,7 +2237,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             const grupos = [
               { label: 'Canceladas',  keyword: 'CANCELAD', sty: getSituacaoStyle('CANCELADA') },
               { label: 'Impedidas',   keyword: 'IMPEDID',  sty: getSituacaoStyle('IMPEDIDA')  },
-              { label: 'Exclu�das',   keyword: 'EXCLU�D',  sty: getSituacaoStyle('EXCLU�DA')  },
+              { label: 'Excluídas',   keyword: 'EXCLUÍD',  sty: getSituacaoStyle('EXCLUÍDA')  },
             ].map(g => ({ ...g, rows: filtered.filter(r => isMatch(r, g.keyword)) }))
              .filter(g => g.rows.length > 0);
             if (grupos.length === 0) return null;
@@ -2300,8 +2245,8 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
               <div>
                 <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-red-500" />
-                  Demonstrativo de Situa��es Cr�ticas
-                  <span className="text-[10px] text-slate-400 font-normal">(Canceladas � Impedidas � Exclu�das)</span>
+                  Demonstrativo de Situações Críticas
+                  <span className="text-[10px] text-slate-400 font-normal">(Canceladas · Impedidas · Excluídas)</span>
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {grupos.map(g => {
@@ -2331,7 +2276,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                             className={`h-full bg-gradient-to-r ${g.sty.bar} rounded-full`}
                           />
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1.5 group-hover:text-[#1351B4] transition-colors">{pct}% do total � clique para detalhar</p>
+                        <p className="text-[11px] text-slate-400 mt-1.5 group-hover:text-[#1351B4] transition-colors">{pct}% do total · clique para detalhar</p>
                       </motion.button>
                     );
                   })}
@@ -2341,8 +2286,8 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
           })()}
           </CollapsibleSection>
 
-          {/* -- Top 5 per column --------------------------------------- */}
-          <CollapsibleSection title={`Top ${viewMode === 'tecnico' ? 'T�cnicos' : 'Conferencistas'} por Est�gio`} icon={TrendingUp} headerBg="bg-slate-600 hover:bg-slate-500" collapsed={sec.topEstagio} onToggle={() => toggleSec('topEstagio')}>
+          {/* ── Top 5 per column ─────────────────────────────────────── */}
+          <CollapsibleSection title={`Top ${viewMode === 'tecnico' ? 'Técnicos' : 'Conferencistas'} por Estágio`} icon={TrendingUp} headerBg="bg-slate-600 hover:bg-slate-500" collapsed={sec.topEstagio} onToggle={() => toggleSec('topEstagio')}>
             <div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {FIXED_COLS.filter(col => matrixData.totalCols[col.key] > 0 && col.key !== 'demandas_recebidas').map(col => {
@@ -2366,7 +2311,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                           <div key={r.person}>
                             <div className="flex items-center justify-between gap-2 mb-0.5">
                               <button
-                                onClick={() => openDrilldown(`${r.person} � ${colLabel} (${r.cols[col.key]})`, getColRows(col.key, r.rows))}
+                                onClick={() => openDrilldown(`${r.person} — ${colLabel} (${r.cols[col.key]})`, getColRows(col.key, r.rows))}
                                 className="text-xs font-semibold text-slate-700 truncate flex-1 text-left hover:text-[#1351B4] transition-colors">
                                 {r.person}
                               </button>
@@ -2389,23 +2334,23 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             </div>
           </CollapsibleSection>
 
-          {/* -- Demandas Mais Atrasadas por T�cnico ------------------- */}
-          <CollapsibleSection title={`Demandas Mais Atrasadas � por ${viewMode === 'tecnico' ? 'T�cnico' : 'Conferencista'}`} icon={Flame} headerBg="bg-slate-600 hover:bg-slate-500" collapsed={sec.atrasadas} onToggle={() => toggleSec('atrasadas')}>
+          {/* ── Demandas Mais Atrasadas por Técnico ─────────────────── */}
+          <CollapsibleSection title={`Demandas Mais Atrasadas — por ${viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}`} icon={Flame} headerBg="bg-slate-600 hover:bg-slate-500" collapsed={sec.atrasadas} onToggle={() => toggleSec('atrasadas')}>
           {(() => {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            // Only non-completed demands with a libera��o date
+            // Only non-completed demands with a liberação date
             const pending = filtered.filter(r => !(r.concluida_em ?? '').trim() && (r.data_liberacao ?? '').trim());
-            // Compute days since libera��o for each
+            // Compute days since liberação for each
             const withDays = pending.map(r => {
               const d = new Date(r.data_liberacao + 'T00:00:00');
               const dias = isNaN(d.getTime()) ? 0 : Math.floor((today.getTime() - d.getTime()) / 86400000);
               return { ...r, dias_atraso: Math.max(0, dias) };
             }).filter(r => r.dias_atraso > 0);
-            // Group by t�cnico
+            // Group by técnico
             const byTecnico = new Map<string, { total: number; soma_dias: number; max_dias: number; count_critico: number; rows: FormalizacaoRow[] }>();
             for (const r of withDays) {
-              const tec = String(r[personField] ?? '').trim() || '(n�o atribu�do)';
+              const tec = String(r[personField] ?? '').trim() || '(não atribuído)';
               if (!byTecnico.has(tec)) byTecnico.set(tec, { total: 0, soma_dias: 0, max_dias: 0, count_critico: 0, rows: [] });
               const g = byTecnico.get(tec)!;
               g.total++; g.soma_dias += r.dias_atraso; g.max_dias = Math.max(g.max_dias, r.dias_atraso);
@@ -2419,10 +2364,10 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             const maxMedia = ranked[0]?.media || 1;
             // Global aging buckets
             const faixas = [
-              { label: '0�30 dias', min: 0, max: 30, color: 'bg-emerald-500' },
-              { label: '31�60 dias', min: 31, max: 60, color: 'bg-yellow-500' },
-              { label: '61�90 dias', min: 61, max: 90, color: 'bg-orange-500' },
-              { label: '91�180 dias', min: 91, max: 180, color: 'bg-red-500' },
+              { label: '0–30 dias', min: 0, max: 30, color: 'bg-emerald-500' },
+              { label: '31–60 dias', min: 31, max: 60, color: 'bg-yellow-500' },
+              { label: '61–90 dias', min: 61, max: 90, color: 'bg-orange-500' },
+              { label: '91–180 dias', min: 91, max: 180, color: 'bg-red-500' },
               { label: '180+ dias', min: 181, max: 99999, color: 'bg-red-800' },
             ];
             const faixaCounts = faixas.map(f => ({
@@ -2435,13 +2380,13 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             <div>
               <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
                 <Flame className="w-4 h-4 text-red-500" />
-                Demandas Mais Atrasadas � por {viewMode === 'tecnico' ? 'T�cnico' : 'Conferencista'}
+                Demandas Mais Atrasadas — por {viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}
                 <span className="text-[10px] text-slate-400 font-normal">({withDays.length.toLocaleString('pt-BR')} demandas pendentes)</span>
               </h3>
 
               {/* Aging distribution bar */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
-                <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">Distribui��o por Tempo de Espera (dias desde libera��o)</h4>
+                <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">Distribuição por Tempo de Espera (dias desde liberação)</h4>
                 <div className="grid grid-cols-5 gap-3">
                   {faixaCounts.map(f => (
                     <div key={f.label} className="text-center">
@@ -2465,7 +2410,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                 <div className="px-4 py-2.5 bg-gradient-to-r from-red-700 to-red-900 flex items-center justify-between">
                   <h4 className="text-xs font-bold text-white flex items-center gap-2">
                     <Clock className="w-3.5 h-3.5" />
-                    Ranking � M�dia de Dias Pendentes
+                    Ranking — Média de Dias Pendentes
                   </h4>
                   <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full font-bold">
                     Top {ranked.length}
@@ -2474,7 +2419,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                 <div className="divide-y divide-slate-100">
                   {ranked.map((r, i) => (
                     <button key={r.name}
-                      onClick={() => openDrilldown(`${r.name} � Pendentes (${r.total})`, r.rows)}
+                      onClick={() => openDrilldown(`${r.name} — Pendentes (${r.total})`, r.rows)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 transition-colors text-left group">
                       <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white ${i < 3 ? 'bg-red-600' : 'bg-slate-400'}`}>
                         {i + 1}
@@ -2485,10 +2430,10 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                           <div className="flex items-center gap-3 flex-shrink-0 text-[11px]">
                             <span className="text-slate-400">{r.total} demandas</span>
                             {r.count_critico > 0 && (
-                              <span className="text-red-600 font-bold">{r.count_critico} cr�ticas (&gt;90d)</span>
+                              <span className="text-red-600 font-bold">{r.count_critico} críticas (&gt;90d)</span>
                             )}
                             <span className="font-black text-red-700">{r.media} dias</span>
-                            <span className="text-slate-400">m�x {r.max_dias}d</span>
+                            <span className="text-slate-400">máx {r.max_dias}d</span>
                           </div>
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
@@ -2502,7 +2447,7 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                       </div>
                     </button>
                   ))}
-                  {ranked.length === 0 && <p className="text-xs text-slate-400 text-center py-6">Nenhuma demanda pendente com data de libera��o</p>}
+                  {ranked.length === 0 && <p className="text-xs text-slate-400 text-center py-6">Nenhuma demanda pendente com data de liberação</p>}
                 </div>
               </div>
             </div>
@@ -2510,14 +2455,8 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
           })()}
           </CollapsibleSection>
 
-          {/* -- Linha do Tempo das Demandas ----------------------------- */}
-          <CollapsibleSection
-            title={`Linha do Tempo -- Demandas em Andamento`}
-            icon={Calendar}
-            headerBg="bg-slate-600 hover:bg-slate-500"
-            collapsed={sec.timeline}
-            onToggle={() => toggleSec('timeline')}
-          >
+          {/* ── Linha do Tempo das Demandas ──────────────────────────── */}
+          <CollapsibleSection title="Linha do Tempo — Demandas em Andamento" icon={Calendar} headerBg="bg-slate-600 hover:bg-slate-500" collapsed={sec.timeline} onToggle={() => toggleSec('timeline')}>
             <TimelineSection
               filtered={filtered}
               personField={personField}
@@ -2526,23 +2465,21 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
             />
           </CollapsibleSection>
 
-          {/* -- Produtividade & Fluxo ----------------------------------- */}
+          {/* ── Produtividade Mês a Mês ──────────────────────────────── */}
           <CollapsibleSection
-            title={`Produtividade & Fluxo \u2014 ${viewMode === 'tecnico' ? 'T\u00e9cnicos' : 'Conferencistas'}`}
+            title={`Produtividade — por ${viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}`}
             icon={Activity}
             headerBg="bg-slate-600 hover:bg-slate-500"
-            collapsed={sec.fluxoProdutividade}
-            onToggle={() => toggleSec('fluxoProdutividade')}
+            collapsed={sec.produtividade}
+            onToggle={() => toggleSec('produtividade')}
           >
             <ProdutividadeAnalise
               pessoas={viewMode === 'tecnico' ? produtividadeData.tecnicos : produtividadeData.conferencistas}
-              label={viewMode === 'tecnico' ? 'T�cnicos' : 'Conferencistas'}
+              label={viewMode === 'tecnico' ? 'Técnicos' : 'Conferencistas'}
               allMeses={produtividadeData.allMeses}
               filtered={filtered}
               dateField={viewMode === 'tecnico' ? 'data_liberacao' : 'data_recebimento_demanda'}
               openDrilldown={openDrilldown}
-              viewMode={viewMode}
-              personField={personField}
             />
           </CollapsibleSection>
 
