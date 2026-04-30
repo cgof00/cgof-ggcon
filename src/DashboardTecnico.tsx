@@ -47,6 +47,20 @@ interface FormalizacaoRow {
   concluida_em?: string;
   falta_assinatura?: string;
   assinatura?: string;
+  // Histórico de atribuições anteriores (gerado por trigger no Supabase).
+  // Cada entrada representa uma atribuição substituída (ex: após diligência).
+  historico_atribuicoes?: {
+    tecnico?: string;
+    conferencista?: string;
+    data_liberacao?: string;
+    data_analise_demanda?: string;
+    data_recebimento_demanda?: string;
+    data_liberacao_assinatura_conferencista?: string;
+    data_liberacao_assinatura?: string;
+    assinatura?: string;
+    situacao_analise_demanda?: string;
+    gravado_em?: string;
+  }[];
 }
 
 // ─── Fixed column definitions ─────────────────────────────────────────────
@@ -1125,6 +1139,46 @@ function TimelineSection({
 // ─── Produção de Análise por Técnico ────────────────────────────────────────
 // Por cohort (mês de recebimento), mostra quantas demandas foram analisadas
 // (saíram de "c/Técnico" e "Em Análise") e quantas ainda estão presas.
+
+// Expande cada FormalizacaoRow nas suas múltiplas atribuições.
+// Se uma demanda passou por diligência e foi reatribuída, ela terá entradas
+// em historico_atribuicoes que são tratadas como linhas independentes —
+// cada atribuição conta separadamente na produtividade de cada técnico.
+function expandToAtribuicoes(rows: FormalizacaoRow[]): FormalizacaoRow[] {
+  const result: FormalizacaoRow[] = [];
+  for (const r of rows) {
+    // Atribuição atual (estado mais recente)
+    result.push(r);
+
+    // Atribuições históricas (do mais antigo ao mais recente, antes do atual)
+    for (const h of (r.historico_atribuicoes ?? [])) {
+      if (!(h.tecnico ?? '').trim() && !(h.data_liberacao ?? '').trim()) continue;
+      // Cria uma linha virtual com os dados da atribuição histórica.
+      // Os campos de conclusão (publicacao/concluida_em) são omitidos porque
+      // a demanda não estava concluída naquele momento — o classificador precisa
+      // enxergar apenas o que existia naquela atribuição.
+      result.push({
+        ...r,                                             // identidade da demanda (parlamentar, objeto, etc.)
+        tecnico:                                 h.tecnico,
+        conferencista:                           h.conferencista,
+        data_liberacao:                          h.data_liberacao,
+        data_analise_demanda:                    h.data_analise_demanda,
+        data_recebimento_demanda:                h.data_recebimento_demanda,
+        data_liberacao_assinatura_conferencista: h.data_liberacao_assinatura_conferencista,
+        data_liberacao_assinatura:               h.data_liberacao_assinatura,
+        assinatura:                              h.assinatura,
+        situacao_analise_demanda:                h.situacao_analise_demanda,
+        // A demanda não estava concluída durante esta atribuição
+        publicacao:    undefined,
+        concluida_em:  undefined,
+        // Não propaga o histórico para evitar dupla contagem
+        historico_atribuicoes: [],
+      });
+    }
+  }
+  return result;
+}
+
 function ProducaoAnaliseSection({ filtered, openDrilldown }: {
   filtered: FormalizacaoRow[];
   openDrilldown: (title: string, rows: FormalizacaoRow[]) => void;
@@ -1152,9 +1206,14 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
   type CellData = { total: FormalizacaoRow[]; anal: FormalizacaoRow[]; cTec: FormalizacaoRow[]; emAnal: FormalizacaoRow[]; conc: FormalizacaoRow[] };
 
   const { pessoas, allMeses } = useMemo(() => {
+    // Expande cada demanda nas suas múltiplas atribuições (atual + históricas).
+    // Isso garante que demandas reatribuídas após diligência aparecem
+    // corretamente na produtividade de CADA técnico que as tratou.
+    const allRows = expandToAtribuicoes(filtered);
+
     const MAP = new Map<string, Map<string, CellData>>();
 
-    for (const r of filtered) {
+    for (const r of allRows) {
       const tec  = String(r.tecnico ?? '').trim(); if (!tec) continue;
       const dLib = parseDateTL(r.data_liberacao as string); if (!dLib) continue;
       const mes  = toMes(dLib);
