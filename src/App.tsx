@@ -3108,28 +3108,15 @@ export default function App() {
                           </span>
                         )}
                       </button>
-                      {/* Limpar filtros de coluna — só aparece quando há filtros de coluna ativos */}
-                      {Object.keys(headerFilters).some(k => (headerFilters[k] || []).length > 0) && (
-                        <button
-                          onClick={() => setHeaderFilters({})}
-                          className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-blue-50 text-blue-600 border border-blue-300 hover:bg-blue-100 hover:border-blue-500"
-                          title="Limpar filtros das colunas da tabela"
-                        >
-                          <X className="w-4 h-4" />
-                          Limpar col.
-                        </button>
-                      )}
-                      {/* Limpar filtros gerais — só aparece quando há filtros ativos */}
-                      {(Object.values(filters).some(v => Array.isArray(v) && v.length > 0) || fundoAFundoFilter) && (
-                        <button
-                          onClick={() => clearAllFilters()}
-                          className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-red-50 text-red-600 border border-red-300 hover:bg-red-100 hover:border-red-500"
-                          title="Limpar todos os filtros"
-                        >
-                          <X className="w-4 h-4" />
-                          Limpar
-                        </button>
-                      )}
+                      {/* Limpar filtros — sempre visível */}
+                      <button
+                        onClick={() => { clearAllFilters(); setHeaderFilters({}); }}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 bg-red-50 text-red-600 border border-red-300 hover:bg-red-100 hover:border-red-500"
+                        title="Limpar todos os filtros (colunas, Fundo a Fundo e gerais)"
+                      >
+                        <X className="w-4 h-4" />
+                        Limpar filtros
+                      </button>
 
                       {/* Separator */}
                       <div className="h-6 w-px bg-gray-200 mx-1" />
@@ -3231,26 +3218,9 @@ export default function App() {
                 )}
             </div>
 
-            {/* Filtros Avançados de Formalização - Seção persistente colapsável */}
-            {activeTab === 'formalizacao' && (
-              <div className="bg-white border border-gray-200 rounded-2xl mb-4 shadow-sm overflow-hidden">
-                <button
-                  onClick={() => setIsFilterOpen(v => !v)}
-                  className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <SlidersHorizontal className="w-4 h-4 text-[#1351B4]" />
-                    <span className="text-sm font-bold text-gray-900">Filtros Avançados</span>
-                    {Object.values(filters).filter(v => Array.isArray(v) && v.length > 0).length > 0 && (
-                      <span className="text-[10px] bg-[#1351B4] text-white px-2 py-0.5 rounded-full font-bold">
-                        {Object.values(filters).filter(v => Array.isArray(v) && v.length > 0).length} ativo{Object.values(filters).filter(v => Array.isArray(v) && v.length > 0).length !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </div>
-                  {isFilterOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                </button>
-                {isFilterOpen && (
-                <div className="px-5 pb-5 border-t border-gray-100">
+            {/* Nenhum painel de filtros avançados — removido. Utilize o botão "Limpar filtros" na barra e os filtros de coluna na tabela. */}
+            {false && (
+              <div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-4">
                   {/* Ano - Multi-Select */}
                   <MultiSelectFilter
@@ -3510,8 +3480,6 @@ export default function App() {
                     onHideEmptyChange={(hide) => setHideEmptyFields({ ...hideEmptyFields, concluida_em: hide })}
                   />
                 </div>
-                </div>
-                )}
               </div>
             )}
 
