@@ -1192,21 +1192,20 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   // Classifica cada demanda do ponto de vista do técnico:
-  // - 'analisada'  = passou das etapas "c/Técnico" e "Em Análise" (tem data_recebimento_demanda ou além)
-  // - 'em_analise' = tem data_analise_demanda mas não tem data_recebimento_demanda
-  // - 'c_tecnico'  = tem data_liberacao mas não tem data_analise_demanda
+  // Classifica pelo campo area_estagio_situacao_demanda (situação atual real):
+  // - 'c_tecnico'  = "DEMANDA COM O TÉCNICO" ou variante Fundo a Fundo
+  // - 'em_analise' = qualquer "EM ANÁLISE ..." exceto "EM ANÁLISE ORÇAMENTÁRIA"
   // - 'concluida'  = tem publicacao ou concluida_em
+  // - 'analisada'  = tudo o mais (diligência, formalização, conferência etc.)
   const classify = (r: FormalizacaoRow): 'analisada' | 'em_analise' | 'c_tecnico' | 'concluida' => {
-    const conc     = !!(r.concluida_em ?? '').trim() || !!(r.publicacao ?? '').trim();
-    const hasConf  = !!(r.data_recebimento_demanda ?? '').trim();
-    const hasLater = !!(r.data_liberacao_assinatura_conferencista ?? '').trim()
-                  || !!(r.data_liberacao_assinatura ?? '').trim()
-                  || !!(r.assinatura ?? '').trim();
-    const hasAnal  = !!(r.data_analise_demanda ?? '').trim();
-    if (conc)                   return 'concluida';
-    if (hasConf || hasLater)    return 'analisada';
-    if (hasAnal)                return 'em_analise';
-    return 'c_tecnico';
+    if (!!(r.concluida_em ?? '').trim() || !!(r.publicacao ?? '').trim()) return 'concluida';
+    const sit = (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
+    // c/Técnico: estágio "DEMANDA COM O TÉCNICO" (com ou sem sufixo Fundo a Fundo)
+    if (sit === 'DEMANDA COM O TÉCNICO' || sit.startsWith('DEMANDA COM O TÉCNICO')) return 'c_tecnico';
+    // Em Análise: qualquer estágio que contenha "EM ANÁLISE", exceto orçamentária
+    if (sit.includes('EM ANÁLISE') && !sit.includes('ORÇAMENT')) return 'em_analise';
+    // Tudo o mais: diligência, formalização, conferência, laudas, etc. = analisada
+    return 'analisada';
   };
 
   type CellData = { total: FormalizacaoRow[]; anal: FormalizacaoRow[]; cTec: FormalizacaoRow[]; emAnal: FormalizacaoRow[]; conc: FormalizacaoRow[] };
