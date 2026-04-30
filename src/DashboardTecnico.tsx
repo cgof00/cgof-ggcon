@@ -1185,11 +1185,15 @@ function expandToAtribuicoes(rows: FormalizacaoRow[]): FormalizacaoRow[] {
   return result;
 }
 
-function ProducaoAnaliseSection({ filtered, openDrilldown }: {
+function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
   filtered: FormalizacaoRow[];
   openDrilldown: (title: string, rows: FormalizacaoRow[]) => void;
+  mode?: 'tecnico' | 'conferencista';
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const isConf    = mode === 'conferencista';
+  const personKey = isConf ? 'conferencista' as const : 'tecnico' as const;
+  const dateKey   = isConf ? 'data_recebimento_demanda' as const : 'data_liberacao' as const;
 
   // Classifica cada demanda do ponto de vista do técnico:
   // Classifica pelo campo area_estagio_situacao_demanda (situação atual real):
@@ -1199,6 +1203,11 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
   // - 'analisada'  = tudo o mais (diligência, formalização, conferência etc.)
   const classify = (r: FormalizacaoRow): 'analisada' | 'em_analise' | 'c_tecnico' | 'concluida' => {
     if (!!(r.concluida_em ?? '').trim() || !!(r.publicacao ?? '').trim()) return 'concluida';
+    if (isConf) {
+      // Conferencista: devolveu = tem data de liberação assinatura do conferencista
+      if (!!(r.data_liberacao_assinatura_conferencista ?? '').trim()) return 'analisada';
+      return 'c_tecnico'; // presa c/ conferencista
+    }
     const sit = (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
     // c/Técnico: estágio "DEMANDA COM O TÉCNICO" (com ou sem sufixo Fundo a Fundo)
     if (sit === 'DEMANDA COM O TÉCNICO' || sit.startsWith('DEMANDA COM O TÉCNICO')) return 'c_tecnico';
@@ -1214,14 +1223,14 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
     // Expande cada demanda nas suas múltiplas atribuições (atual + históricas).
     // Isso garante que demandas reatribuídas após diligência aparecem
     // corretamente na produtividade de CADA técnico que as tratou.
-    const allRows = expandToAtribuicoes(filtered);
+    const allRows = isConf ? filtered : expandToAtribuicoes(filtered);
 
     const MAP = new Map<string, Map<string, CellData>>();
 
     for (const r of allRows) {
-      const tec  = String(r.tecnico ?? '').trim(); if (!tec) continue;
-      const dLib = parseDateTL(r.data_liberacao as string);
-      // Se não há data_liberacao, agrupa em 'sem-data' para não excluir a demanda dos totais
+      const tec  = String(r[personKey] ?? '').trim(); if (!tec) continue;
+      const dLib = parseDateTL(r[dateKey] as string);
+      // Se não há data de referência, agrupa em 'sem-data' para não excluir a demanda dos totais
       const mes  = dLib ? toMes(dLib) : 'sem-data';
       if (!MAP.has(tec)) MAP.set(tec, new Map());
       const tm = MAP.get(tec)!;
@@ -1273,16 +1282,16 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
   const exportXLSX = () => {
     const wb = XLSX.utils.book_new();
 
-    // Aba 1: resumo por técnico
-    const h1 = ['Técnico', 'Recebidas', 'Analisadas', 'c/Técnico (preso)', 'Em Análise (preso)', 'Taxa %'];
+    // Aba 1: resumo por pessoa
+    const h1 = [isConf ? 'Conferencista' : 'Técnico', 'Recebidas', isConf ? 'Conferenciadas' : 'Analisadas', isConf ? 'Presa c/Conf.' : 'c/Técnico (preso)', 'Em Análise (preso)', 'Taxa %'];
     const d1 = pessoas.map(p => [p.nome, p.totalRec, p.totalAnal + p.totalConc, p.totalCTec, p.totalEmAnal, p.taxa]);
     d1.push(['TOTAL', kpis.totRec, kpis.totAnal, kpis.totCTec, kpis.totEmAnal, kpis.taxa]);
     const ws1 = XLSX.utils.aoa_to_sheet([h1, ...d1]);
     ws1['!cols'] = [{ wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 10 }];
-    XLSX.utils.book_append_sheet(wb, ws1, 'Resumo por Técnico');
+    XLSX.utils.book_append_sheet(wb, ws1, isConf ? 'Resumo por Conferencista' : 'Resumo por Técnico');
 
     // Aba 2: detalhe por cohort (mês de recebimento)
-    const h2 = ['Técnico', 'Mês de Recebimento', 'Total Recebidas', 'Analisadas', 'c/Técnico', 'Em Análise'];
+    const h2 = [isConf ? 'Conferencista' : 'Técnico', 'Mês de Recebimento', 'Total Recebidas', isConf ? 'Conferenciadas' : 'Analisadas', isConf ? 'Presa c/Conf.' : 'c/Técnico', 'Em Análise'];
     const d2: (string | number)[][] = [];
     pessoas.forEach(p => {
       allMeses.forEach(mes => {
@@ -1295,17 +1304,17 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
     XLSX.utils.book_append_sheet(wb, ws2, 'Por Cohort-Mês');
 
     // Aba 3: demandas presas (detalhe completo)
-    const h3 = ['Técnico', 'Demanda', 'Mês Recebimento', 'Situação', 'Dias aguardando'];
+    const h3 = [isConf ? 'Conferencista' : 'Técnico', 'Demanda', 'Mês Recebimento', 'Situação', 'Dias aguardando'];
     const d3: (string | number)[][] = [];
     pessoas.forEach(p => {
       p.stuck.forEach(r => {
-        const dLib = parseDateTL(r.data_liberacao as string);
+        const dRef = parseDateTL(r[dateKey] as string);
         d3.push([
           p.nome,
           String(r.demandas_formalizacao ?? r.demanda ?? ''),
-          dLib ? fmtMesProd(toMes(dLib)) : '',
-          classify(r) === 'c_tecnico' ? 'Preso: c/Técnico' : 'Preso: Em Análise',
-          daysSinceTL(r.data_liberacao as string),
+          dRef ? fmtMesProd(toMes(dRef)) : '',
+          isConf ? 'Presa c/Conferencista' : (classify(r) === 'c_tecnico' ? 'Preso: c/Técnico' : 'Preso: Em Análise'),
+          daysSinceTL(r[dateKey] as string),
         ]);
       });
     });
@@ -1314,11 +1323,11 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
     ws3['!cols'] = [{ wch: 32 }, { wch: 40 }, { wch: 18 }, { wch: 24 }, { wch: 16 }];
     XLSX.utils.book_append_sheet(wb, ws3, 'Presas (detalhe)');
 
-    XLSX.writeFile(wb, `producao_analise_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `${isConf ? 'conferencias' : 'producao_analise'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   if (pessoas.length === 0)
-    return <p className="text-slate-400 text-center py-8 text-sm">Sem dados. Verifique se <code className="bg-slate-100 px-1 rounded">data_liberacao</code> e <code className="bg-slate-100 px-1 rounded">tecnico</code> estão preenchidos.</p>;
+    return <p className="text-slate-400 text-center py-8 text-sm">Sem dados. Verifique se <code className="bg-slate-100 px-1 rounded">{isConf ? 'data_recebimento_demanda' : 'data_liberacao'}</code> e <code className="bg-slate-100 px-1 rounded">{isConf ? 'conferencista' : 'tecnico'}</code> estão preenchidos.</p>;
 
   return (
     <div>
@@ -1328,7 +1337,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
           {[
             { lbl: 'Recebidas',    val: kpis.totRec,    cls: 'bg-blue-50 text-blue-700 border-blue-200' },
             { lbl: 'Analisadas',   val: kpis.totAnal,   cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-            { lbl: 'Presas c/Téc', val: kpis.totCTec,   cls: kpis.totCTec   === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-red-50 text-red-700 border-red-200' },
+            { lbl: isConf ? 'Presas c/Conf.' : 'Presas c/Téc', val: kpis.totCTec,   cls: kpis.totCTec   === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-red-50 text-red-700 border-red-200' },
             { lbl: 'Em Análise',   val: kpis.totEmAnal, cls: kpis.totEmAnal === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-orange-50 text-orange-700 border-orange-200' },
             { lbl: 'Taxa',         val: `${kpis.taxa}%`,cls: kpis.taxa >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : kpis.taxa >= 50 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200' },
           ].map(k => (
@@ -1345,10 +1354,10 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
 
       {/* ── Legenda ───────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-3 mb-4 text-xs">
-        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-emerald-500 inline-block" /><span className="text-slate-600 font-medium">Analisada</span><span className="text-slate-400">= saiu de c/Técnico e Em Análise (foi para conferencista ou além)</span></div>
-        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-red-400 inline-block" /><span className="text-slate-600 font-medium">Presa c/Técnico</span><span className="text-slate-400">= recebida, sem início de análise</span></div>
-        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-orange-400 inline-block" /><span className="text-slate-600 font-medium">Em Análise</span><span className="text-slate-400">= análise iniciada mas não enviada ao conferencista</span></div>
-        <span className="text-slate-400 ml-auto">Agrupado por mês em que a demanda foi liberada para o técnico</span>
+        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-emerald-500 inline-block" /><span className="text-slate-600 font-medium">{isConf ? 'Conferenciada' : 'Analisada'}</span><span className="text-slate-400">{isConf ? '= devolvida pelo conferencista' : '= saiu de c/Técnico e Em Análise (foi para conferencista ou além)'}</span></div>
+        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-red-400 inline-block" /><span className="text-slate-600 font-medium">{isConf ? 'Presa c/Conferencista' : 'Presa c/Técnico'}</span><span className="text-slate-400">{isConf ? '= recebida mas sem Data de Retorno' : '= recebida, sem início de análise'}</span></div>
+        {!isConf && <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-orange-400 inline-block" /><span className="text-slate-600 font-medium">Em Análise</span><span className="text-slate-400">= análise iniciada mas não enviada ao conferencista</span></div>}
+        <span className="text-slate-400 ml-auto">{isConf ? 'Agrupado por mês de recebimento pela conferencista' : 'Agrupado por mês em que a demanda foi liberada para o técnico'}</span>
       </div>
 
       {/* ── Tabela-matriz ─────────────────────────────────────────── */}
@@ -1357,17 +1366,17 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
           <thead>
             <tr>
               <th className="sticky left-0 z-10 bg-slate-800 text-white text-left px-4 py-3 font-bold text-sm whitespace-nowrap min-w-[180px]">
-                Técnico
+                {isConf ? 'Conferencista' : 'Técnico'}
               </th>
               {allMeses.map(mes => (
                 <th key={mes} className={`text-white px-3 py-2.5 text-center whitespace-nowrap min-w-[80px] text-xs font-bold ${mes === 'sem-data' ? 'bg-slate-500' : 'bg-slate-700'}`}>
                   {mes === 'sem-data' ? 'Sem Data' : fmtMesProd(mes)}
-                  <div className="text-[10px] opacity-50 font-normal mt-0.5">{mes === 'sem-data' ? 'sem lib.' : 'analisadas'}</div>
+                  <div className="text-[10px] opacity-50 font-normal mt-0.5">{mes === 'sem-data' ? 'sem rec.' : (isConf ? 'conferenc.' : 'analisadas')}</div>
                 </th>
               ))}
               <th className="bg-blue-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Total<br/>Rec.</th>
-              <th className="bg-emerald-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Total<br/>Anal.</th>
-              <th className="bg-red-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Presas<br/>c/Téc</th>
+              <th className="bg-emerald-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">{isConf ? <>Total<br/>Conf.</> : <>Total<br/>Anal.</>}</th>
+              <th className="bg-red-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">{isConf ? <>Presas<br/>c/Conf.</> : <>Presas<br/>c/Téc</>}</th>
               <th className="bg-orange-700 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Em<br/>Análise</th>
               <th className="bg-slate-600 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Taxa</th>
             </tr>
@@ -1414,7 +1423,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
                               openDrilldown(`${p.nome} — ${mes === 'sem-data' ? 'Sem Data' : fmtMesProd(mes)} (${total} demandas)`, rows);
                             }}
                             className={`inline-flex flex-col items-center px-2.5 py-1.5 rounded-lg border text-center hover:opacity-80 transition-opacity ${cls}`}
-                            title={`${anal} analisadas de ${total} recebidas${cTec > 0 ? ` | ${cTec} presas c/Téc` : ''}${emAnal > 0 ? ` | ${emAnal} em análise` : ''}`}
+                            title={`${anal} ${isConf ? 'conferenciadas' : 'analisadas'} de ${total} recebidas${cTec > 0 ? ` | ${cTec} presas` : ''}${emAnal > 0 ? ` | ${emAnal} em análise` : ''}`}
                           >
                             <span className="text-base font-extrabold leading-none">{anal}</span>
                             <span className="text-[10px] font-medium opacity-70 leading-none mt-0.5">de {total}</span>
@@ -1437,7 +1446,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
                     <td className="px-3 py-3 text-center">
                       {p.totalCTec > 0 ? (
                         <button
-                          onClick={() => openDrilldown(`${p.nome} — Presas c/Técnico (${p.totalCTec})`, [...p.monthMap.values()].flatMap(c => c.cTec))}
+                          onClick={() => openDrilldown(`${p.nome} — ${isConf ? 'Presas c/Conferencista' : 'Presas c/Técnico'} (${p.totalCTec})`, [...p.monthMap.values()].flatMap(c => c.cTec))}
                           className="text-sm font-bold text-red-700 bg-red-50 px-2.5 py-1 rounded-full hover:bg-red-100 transition-colors border border-red-200"
                         >{p.totalCTec}</button>
                       ) : <span className="text-emerald-500 font-black text-base">✓</span>}
@@ -1472,14 +1481,14 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
                               <div>
                                 <div className="text-xs font-bold text-red-700 mb-2 flex items-center gap-2">
                                   <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
-                                  Presas em c/Técnico ({p.totalCTec}) — sem início de análise:
+                                  {isConf ? `Presas c/Conferencista (${p.totalCTec}) — sem Data de Retorno:` : `Presas em c/Técnico (${p.totalCTec}) — sem início de análise:`}
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
                                   {[...p.monthMap.values()].flatMap(c => c.cTec)
-                                    .sort((a, b) => daysSinceTL(b.data_liberacao as string) - daysSinceTL(a.data_liberacao as string))
+                                    .sort((a, b) => daysSinceTL(b[dateKey] as string) - daysSinceTL(a[dateKey] as string))
                                     .slice(0, 20)
                                     .map((r, ri) => {
-                                      const dias  = daysSinceTL(r.data_liberacao as string);
+                                      const dias  = daysSinceTL(r[dateKey] as string);
                                       const label = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`).substring(0, 40);
                                       return (
                                         <button key={ri} onClick={() => openDrilldown(label, [r])}
@@ -1489,7 +1498,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
                                         </button>
                                       );
                                     })}
-                                  {p.totalCTec > 20 && <button onClick={() => openDrilldown(`${p.nome} — Presas c/Técnico`, [...p.monthMap.values()].flatMap(c => c.cTec))} className="text-xs text-[#1351B4] hover:underline">+{p.totalCTec - 20} mais →</button>}
+                                  {p.totalCTec > 20 && <button onClick={() => openDrilldown(`${p.nome} — ${isConf ? 'Presas c/Conferencista' : 'Presas c/Técnico'}`, [...p.monthMap.values()].flatMap(c => c.cTec))} className="text-xs text-[#1351B4] hover:underline">+{p.totalCTec - 20} mais →</button>}
                                 </div>
                               </div>
                             )}
@@ -1502,10 +1511,10 @@ function ProducaoAnaliseSection({ filtered, openDrilldown }: {
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
                                   {[...p.monthMap.values()].flatMap(c => c.emAnal)
-                                    .sort((a, b) => daysSinceTL(b.data_liberacao as string) - daysSinceTL(a.data_liberacao as string))
+                                    .sort((a, b) => daysSinceTL(b[dateKey] as string) - daysSinceTL(a[dateKey] as string))
                                     .slice(0, 20)
                                     .map((r, ri) => {
-                                      const dias  = daysSinceTL(r.data_analise_demanda as string);
+                                      const dias  = daysSinceTL((isConf ? r.data_liberacao_assinatura_conferencista : r.data_analise_demanda) as string);
                                       const label = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`).substring(0, 40);
                                       return (
                                         <button key={ri} onClick={() => openDrilldown(label, [r])}
@@ -2882,21 +2891,20 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
           </CollapsibleSection>
 
 
-          {/* ── Produção de Análise por Técnico ─────────────────────── */}
-          {viewMode === 'tecnico' && (
-            <CollapsibleSection
-              title="Produção de Análise — Recebidas vs Analisadas por Técnico"
-              icon={ArrowUpDown}
-              headerBg="bg-slate-600 hover:bg-slate-500"
-              collapsed={sec.analise}
-              onToggle={() => toggleSec('analise')}
-            >
-              <ProducaoAnaliseSection
-                filtered={filtered}
-                openDrilldown={openDrilldown}
-              />
-            </CollapsibleSection>
-          )}
+          {/* ── Produção de Análise por Técnico / Conferencista ──────── */}
+          <CollapsibleSection
+            title={`Produção de Análise — Recebidas vs ${viewMode === 'conferencista' ? 'Conferenciadas por Conferencista' : 'Analisadas por Técnico'}`}
+            icon={ArrowUpDown}
+            headerBg="bg-slate-600 hover:bg-slate-500"
+            collapsed={sec.analise}
+            onToggle={() => toggleSec('analise')}
+          >
+            <ProducaoAnaliseSection
+              filtered={filtered}
+              openDrilldown={openDrilldown}
+              mode={viewMode}
+            />
+          </CollapsibleSection>
 
         </>
       )}
