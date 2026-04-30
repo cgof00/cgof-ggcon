@@ -800,7 +800,13 @@ const ACTIVE_STAGES = TIMELINE_STAGES.slice(0, -1);
 
 function parseDateTL(s?: string | null): Date | null {
   if (!s?.trim()) return null;
-  const d = new Date(s.includes('T') ? s : `${s}T00:00:00`);
+  let str = s.trim();
+  // Converte DD/MM/YYYY → YYYY-MM-DD (formato armazenado em alguns campos)
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+    const [dd, mm, yyyy] = str.split('/');
+    str = `${yyyy}-${mm}-${dd}`;
+  }
+  const d = new Date(str.includes('T') ? str : `${str}T00:00:00`);
   return isNaN(d.getTime()) ? null : d;
 }
 function daysSinceTL(s?: string | null): number {
