@@ -1122,11 +1122,6 @@ function TimelineSection({
   );
 }
 
-      </div>
-    </div>
-  );
-}
-
 // ─── Produção de Análise por Técnico ────────────────────────────────────────
 // Mostra por técnico e mês: demandas RECEBIDAS (data_liberacao) vs ANALISADAS
 // (data_analise_demanda). Demandas presas em "c/ técnico" sem análise = Backlog.
