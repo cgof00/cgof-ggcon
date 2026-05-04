@@ -2426,9 +2426,9 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
           </div>
 
           {/* ── Matrix Table ─────────────────────────────────────────── */}
-          <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
-            {/* Table header bar - click to collapse/expand */}
-            <div className="flex items-center bg-slate-700">
+          <div className="rounded-2xl shadow-md border border-slate-200 bg-white">
+            {/* Table header bar - sticky to page when scrolling */}
+            <div className={`flex items-center bg-slate-700 sticky top-12 z-30 ${sec.matrix ? 'rounded-2xl' : 'rounded-t-2xl'}`}>
               {/* Toggle area */}
               <button onClick={() => toggleSec('matrix')} className="flex-1 px-4 py-2.5 flex items-center justify-between hover:bg-slate-600 transition-colors text-left">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
