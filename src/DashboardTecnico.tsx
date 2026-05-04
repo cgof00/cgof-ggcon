@@ -2189,7 +2189,16 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
         if (done) break;
         offset += PARALLEL * batchSize;
       }
-      setRawData(all);
+      // Deduplica: se a mesma demanda (demandas_formalizacao) aparecer mais de uma vez,
+      // mantém apenas o registro com maior id (mais recente / atribuição atual)
+      const deduped = new Map<string, FormalizacaoRow>();
+      for (const r of all) {
+        const key = String(r.demandas_formalizacao ?? r.demanda ?? r.id ?? '').trim();
+        if (!key) { deduped.set(`__no_key_${r.id}`, r); continue; }
+        const existing = deduped.get(key);
+        if (!existing || (r.id ?? 0) > (existing.id ?? 0)) deduped.set(key, r);
+      }
+      setRawData(Array.from(deduped.values()));
       setLastUpdated(new Date());
     } catch (err) {
       console.error('Erro ao carregar dashboard:', err);
@@ -2198,10 +2207,22 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
     }
   }, [token]);
 
+  // Função auxiliar de deduplicação: mantém apenas o registro com maior id por demanda
+  const deduplicateRows = (rows: FormalizacaoRow[]): FormalizacaoRow[] => {
+    const map = new Map<string, FormalizacaoRow>();
+    for (const r of rows) {
+      const key = String(r.demandas_formalizacao ?? r.demanda ?? r.id ?? '').trim();
+      if (!key) { map.set(`__no_key_${r.id}`, r); continue; }
+      const existing = map.get(key);
+      if (!existing || (r.id ?? 0) > (existing.id ?? 0)) map.set(key, r);
+    }
+    return Array.from(map.values());
+  };
+
   // Use initialData from parent cache if available, or re-sync when refreshKey changes (after edits)
   useEffect(() => {
     if (initialData && initialData.length > 0) {
-      setRawData(initialData as FormalizacaoRow[]);
+      setRawData(deduplicateRows(initialData as FormalizacaoRow[]));
       setLastUpdated(new Date());
     } else if (!initialData || initialData.length === 0) {
       loadData();
