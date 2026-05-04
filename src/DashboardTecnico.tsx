@@ -2311,9 +2311,13 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
   const personField = viewMode === 'tecnico' ? 'tecnico' : 'conferencista';
 
   // Build matrix data using fixed columns
+  // _isHistorico rows are phantom rows from historico_atribuicoes; they belong to
+  // the ProducaoAnalise section only (classified as 'analisada'). The Demonstrativo
+  // must only show CURRENT assignments, so we exclude them here.
   const matrixData = useMemo(() => {
+    const matrixFiltered = filtered.filter(r => !(r as any)._isHistorico);
     const personMap = new Map<string, FormalizacaoRow[]>();
-    for (const row of filtered) {
+    for (const row of matrixFiltered) {
       const person = String(row[personField] ?? '').trim() || '(não atribuído)';
       if (!personMap.has(person)) personMap.set(person, []);
       personMap.get(person)!.push(row);
@@ -2321,7 +2325,7 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
     const rows = Array.from(personMap.entries()).map(([person, pRows]) => {
       return { person, cols: computeColValues(pRows), rows: pRows };
     }).sort((a, b) => b.cols.demandas_recebidas - a.cols.demandas_recebidas);
-    const totalCols = computeColValues(filtered);
+    const totalCols = computeColValues(matrixFiltered);
     return { rows, totalCols };
   }, [filtered, personField]);
 

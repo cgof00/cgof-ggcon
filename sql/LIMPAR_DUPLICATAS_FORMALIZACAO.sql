@@ -100,3 +100,46 @@ ORDER BY f.data_liberacao DESC;
 -- SELECT id, demanda, tecnico, data_liberacao
 -- FROM public.formalizacao
 -- WHERE demanda = '89537';
+
+
+-- ============================================================
+-- VERIFICAÇÃO ADICIONAL: 6 registros CINTIA identificados
+-- (89506, 89513, 89540, 90795, 92118, 92768)
+--
+-- IDs confirmados no banco: 24109, 24102, 26009, 26123, 23096, 26038
+-- Verificar se cada um tem um registro MAIS NOVO de outro técnico.
+-- Se sim → deletar o antigo. Se não → registros legítimos, não deletar.
+-- ============================================================
+
+-- E) Verificar duplicatas para os 6 registros CINTIA conhecidos
+SELECT
+  f.demanda,
+  f.id         AS id_cintia,
+  f.tecnico    AS tecnico_cintia,
+  f.data_liberacao AS data_cintia,
+  n.id         AS id_novo,
+  n.tecnico    AS tecnico_novo,
+  n.data_liberacao AS data_novo
+FROM public.formalizacao f
+LEFT JOIN public.formalizacao n
+  ON n.demanda = f.demanda
+  AND n.tecnico NOT ILIKE '%CINTIA%'
+  AND n.data_liberacao > f.data_liberacao
+WHERE f.id IN (24109, 24102, 26009, 26123, 23096, 26038)
+ORDER BY f.demanda;
+
+-- F) DELETAR os 6 registros CINTIA apenas se existir registro mais novo
+--    (a subconsulta garante que há outro registro mais recente para a mesma demanda)
+--    Descomente após conferir resultado acima.
+
+-- DELETE FROM public.formalizacao
+-- WHERE id IN (24109, 24102, 26009, 26123, 23096, 26038)
+--   AND EXISTS (
+--     SELECT 1 FROM public.formalizacao n
+--     WHERE n.demanda = formalizacao.demanda
+--       AND n.tecnico NOT ILIKE '%CINTIA%'
+--       AND n.id <> formalizacao.id
+--   );
+
+-- G) Verificação final: confirmar que CINTIA não tem mais registros
+-- SELECT COUNT(*) FROM public.formalizacao WHERE tecnico ILIKE '%CINTIA%';
