@@ -2646,9 +2646,9 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
                 onMouseUp={handleMatrixMouseUp}
                 onMouseLeave={handleMatrixMouseLeave}
                 className={`select-none ${isMatrixDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-                style={{ overflowX: 'auto', overflowY: 'clip', WebkitUserSelect: 'none', userSelect: 'none' }}>
+                style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 110px)', WebkitUserSelect: 'none', userSelect: 'none' }}>
               <table className="border-collapse text-[13px] w-max min-w-full">
-                <thead className="sticky z-20" style={{ top: '94px' }}>
+                <thead className="sticky top-0 z-20">
                   <tr>
                     <th className="sticky left-0 z-30 bg-slate-700 border-r border-slate-500 px-3 py-2 text-left text-white font-bold align-middle"
                       style={{ minWidth: 180, maxWidth: 220 }}>
