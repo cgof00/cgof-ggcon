@@ -1159,6 +1159,9 @@ function expandToAtribuicoes(rows: FormalizacaoRow[]): FormalizacaoRow[] {
     // Atribuições históricas (do mais antigo ao mais recente, antes do atual)
     for (const h of (r.historico_atribuicoes ?? [])) {
       if (!(h.tecnico ?? '').trim() && !(h.data_liberacao ?? '').trim()) continue;
+      // Pula entradas onde o técnico é o mesmo (apenas atualização de data, não reatribuição)
+      // Caso contrário a demanda apareceria duas vezes para o mesmo técnico com datas diferentes
+      if ((h.tecnico ?? '').trim() === (r.tecnico ?? '').trim()) continue;
       // Cria uma linha virtual com os dados da atribuição histórica.
       // Os campos de conclusão (publicacao/concluida_em) são omitidos porque
       // a demanda não estava concluída naquele momento — o classificador precisa
@@ -1337,7 +1340,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
           {[
             { lbl: 'Recebidas',    val: kpis.totRec,    cls: 'bg-blue-50 text-blue-700 border-blue-200' },
             { lbl: 'Analisadas',   val: kpis.totAnal,   cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-            { lbl: isConf ? 'Presas c/Conf.' : 'Presas c/Téc', val: kpis.totCTec,   cls: kpis.totCTec   === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-red-50 text-red-700 border-red-200' },
+            { lbl: isConf ? 'Presas c/Conf.' : 'Demandas c/Téc', val: kpis.totCTec,   cls: kpis.totCTec   === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-red-50 text-red-700 border-red-200' },
             { lbl: 'Em Análise',   val: kpis.totEmAnal, cls: kpis.totEmAnal === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-orange-50 text-orange-700 border-orange-200' },
             { lbl: 'Taxa',         val: `${kpis.taxa}%`,cls: kpis.taxa >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : kpis.taxa >= 50 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200' },
           ].map(k => (
@@ -1376,7 +1379,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
               ))}
               <th className="bg-blue-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Total<br/>Rec.</th>
               <th className="bg-emerald-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">{isConf ? <>Total<br/>Conf.</> : <>Total<br/>Anal.</>}</th>
-              <th className="bg-red-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">{isConf ? <>Presas<br/>c/Conf.</> : <>Presas<br/>c/Téc</>}</th>
+              <th className="bg-red-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">{isConf ? <>Presas<br/>c/Conf.</> : <>Demandas<br/>c/Téc</>}</th>
               <th className="bg-orange-700 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Em<br/>Análise</th>
               <th className="bg-slate-600 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Taxa</th>
             </tr>
@@ -1446,7 +1449,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                     <td className="px-3 py-3 text-center">
                       {p.totalCTec > 0 ? (
                         <button
-                          onClick={() => openDrilldown(`${p.nome} — ${isConf ? 'Presas c/Conferencista' : 'Presas c/Técnico'} (${p.totalCTec})`, [...p.monthMap.values()].flatMap(c => c.cTec))}
+                          onClick={() => openDrilldown(`${p.nome} — ${isConf ? 'Presas c/Conferencista' : 'Demandas c/Técnico'} (${p.totalCTec})`, [...p.monthMap.values()].flatMap(c => c.cTec))}
                           className="text-sm font-bold text-red-700 bg-red-50 px-2.5 py-1 rounded-full hover:bg-red-100 transition-colors border border-red-200"
                         >{p.totalCTec}</button>
                       ) : <span className="text-emerald-500 font-black text-base">✓</span>}
@@ -1498,7 +1501,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                                         </button>
                                       );
                                     })}
-                                  {p.totalCTec > 20 && <button onClick={() => openDrilldown(`${p.nome} — ${isConf ? 'Presas c/Conferencista' : 'Presas c/Técnico'}`, [...p.monthMap.values()].flatMap(c => c.cTec))} className="text-xs text-[#1351B4] hover:underline">+{p.totalCTec - 20} mais →</button>}
+                                  {p.totalCTec > 20 && <button onClick={() => openDrilldown(`${p.nome} — ${isConf ? 'Presas c/Conferencista' : 'Demandas c/Técnico'}`, [...p.monthMap.values()].flatMap(c => c.cTec))} className="text-xs text-[#1351B4] hover:underline">+{p.totalCTec - 20} mais →</button>}
                                 </div>
                               </div>
                             )}
