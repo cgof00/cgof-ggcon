@@ -1182,7 +1182,10 @@ function expandToAtribuicoes(rows: FormalizacaoRow[]): FormalizacaoRow[] {
         concluida_em:  undefined,
         // Não propaga o histórico para evitar dupla contagem
         historico_atribuicoes: [],
-      });
+        // Marca como histórico: essa atribuição já foi encerrada (reatribuída)
+        // O classificador deve retornar 'analisada' para não aparecer como presa
+        _isHistorico: true,
+      } as any);
     }
   }
   return result;
@@ -1205,6 +1208,8 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
   // - 'concluida'  = tem publicacao ou concluida_em
   // - 'analisada'  = tudo o mais (diligência, formalização, conferência etc.)
   const classify = (r: FormalizacaoRow): 'analisada' | 'em_analise' | 'c_tecnico' | 'concluida' => {
+    // Atribuição histórica (técnico anterior) = já foi encerrada, conta como analisada
+    if ((r as any)._isHistorico) return 'analisada';
     if (!!(r.concluida_em ?? '').trim() || !!(r.publicacao ?? '').trim()) return 'concluida';
     if (isConf) {
       // Conferencista: devolveu = tem data de liberação assinatura do conferencista
@@ -1358,6 +1363,76 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
     XLSX.writeFile(wb, `${isConf ? 'conferencias' : 'producao_analise'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  // Download dedicado apenas para demandas presas (c/Técnico + Em Análise) com dias de atraso
+  const exportStuckXLSX = () => {
+    const wb = XLSX.utils.book_new();
+    const h = [
+      isConf ? 'Conferencista' : 'Técnico',
+      'Ano', 'Mês', 'Mês/Ano',
+      'Demanda', 'Conveniado', 'Município', 'Classificação', 'Situação Demanda',
+      'Tipo',
+      'Dt. Liberação', 'Dt. Início Análise',
+      'Dias c/Técnico', 'Dias em Análise',
+    ];
+    const rows: (string | number)[][] = [];
+    pessoas.forEach(p => {
+      // c/Técnico
+      [...p.monthMap.values()].flatMap(c => c.cTec).forEach(r => {
+        const dLib = parseDateTL(r.data_liberacao as string);
+        const diasLib = daysSinceTL(r.data_liberacao as string);
+        rows.push([
+          p.nome,
+          dLib ? String(dLib.getFullYear()) : '',
+          dLib ? dLib.toLocaleString('pt-BR', { month: 'long' }) : '',
+          dLib ? fmtMesProd(toMes(dLib)) : 'Sem Data',
+          String(r.demandas_formalizacao ?? r.demanda ?? ''),
+          String(r.convenio_convenente ?? r.conveniado ?? ''),
+          String(r.municipio ?? ''),
+          String(r.classificacao ?? ''),
+          String(r.area_estagio_situacao_demanda ?? ''),
+          isConf ? 'Presa c/Conferencista' : 'c/Técnico',
+          r.data_liberacao ? String(r.data_liberacao).substring(0, 10) : '',
+          '',
+          diasLib,
+          '',
+        ]);
+      });
+      // Em Análise
+      [...p.monthMap.values()].flatMap(c => c.emAnal).forEach(r => {
+        const dLib = parseDateTL(r.data_liberacao as string);
+        const _dAnal = parseDateTL((isConf ? r.data_liberacao_assinatura_conferencista : r.data_analise_demanda) as string);
+        const _dLib2 = parseDateTL(r.data_liberacao as string);
+        const _dRef  = _dAnal && _dLib2 ? (_dAnal.getTime() > _dLib2.getTime() ? _dAnal : _dLib2) : _dAnal ?? _dLib2;
+        const diasAnal = _dRef ? Math.max(0, Math.round((Date.now() - _dRef.getTime()) / 86400000)) : 0;
+        rows.push([
+          p.nome,
+          dLib ? String(dLib.getFullYear()) : '',
+          dLib ? dLib.toLocaleString('pt-BR', { month: 'long' }) : '',
+          dLib ? fmtMesProd(toMes(dLib)) : 'Sem Data',
+          String(r.demandas_formalizacao ?? r.demanda ?? ''),
+          String(r.convenio_convenente ?? r.conveniado ?? ''),
+          String(r.municipio ?? ''),
+          String(r.classificacao ?? ''),
+          String(r.area_estagio_situacao_demanda ?? ''),
+          'Em Análise',
+          r.data_liberacao ? String(r.data_liberacao).substring(0, 10) : '',
+          r.data_analise_demanda ? String(r.data_analise_demanda).substring(0, 10) : '',
+          '',
+          diasAnal,
+        ]);
+      });
+    });
+    // Ordena: tipo asc, depois dias desc
+    rows.sort((a, b) => {
+      if (a[9] !== b[9]) return String(a[9]).localeCompare(String(b[9]));
+      return Number(b[12] || b[13] || 0) - Number(a[12] || a[13] || 0);
+    });
+    const ws = XLSX.utils.aoa_to_sheet([h, ...rows]);
+    ws['!cols'] = [{ wch: 32 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 36 }, { wch: 20 }, { wch: 22 }, { wch: 36 }, { wch: 16 }, { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Atrasos');
+    XLSX.writeFile(wb, `atrasos_${isConf ? 'conferencistas' : 'tecnicos'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   if (pessoas.length === 0)
     return <p className="text-slate-400 text-center py-8 text-sm">Sem dados. Verifique se <code className="bg-slate-100 px-1 rounded">{isConf ? 'data_recebimento_demanda' : 'data_liberacao'}</code> e <code className="bg-slate-100 px-1 rounded">{isConf ? 'conferencista' : 'tecnico'}</code> estão preenchidos.</p>;
 
@@ -1379,15 +1454,20 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
             </div>
           ))}
         </div>
-        <button onClick={exportXLSX} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors flex-shrink-0">
-          <Download className="w-4 h-4" /> Baixar XLSX completo
-        </button>
+        <div className="flex gap-2 flex-shrink-0">
+          <button onClick={exportStuckXLSX} className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition-colors">
+            <Download className="w-4 h-4" /> Atrasos (c/Téc + Em Análise)
+          </button>
+          <button onClick={exportXLSX} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors">
+            <Download className="w-4 h-4" /> XLSX completo
+          </button>
+        </div>
       </div>
 
       {/* ── Legenda ───────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-3 mb-4 text-xs">
         <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-emerald-500 inline-block" /><span className="text-slate-600 font-medium">{isConf ? 'Conferenciada' : 'Analisada'}</span><span className="text-slate-400">{isConf ? '= devolvida pelo conferencista' : '= saiu de c/Técnico e Em Análise (foi para conferencista ou além)'}</span></div>
-        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-red-400 inline-block" /><span className="text-slate-600 font-medium">{isConf ? 'Presa c/Conferencista' : 'Presa c/Técnico'}</span><span className="text-slate-400">{isConf ? '= recebida mas sem Data de Retorno' : '= recebida, sem início de análise'}</span></div>
+        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-red-400 inline-block" /><span className="text-slate-600 font-medium">{isConf ? 'Presa c/Conferencista' : 'Demanda c/Técnico'}</span><span className="text-slate-400">{isConf ? '= recebida mas sem Data de Retorno' : '= recebida, sem início de análise'}</span></div>
         {!isConf && <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-orange-400 inline-block" /><span className="text-slate-600 font-medium">Em Análise</span><span className="text-slate-400">= análise iniciada mas não enviada ao conferencista</span></div>}
         <span className="text-slate-400 ml-auto">{isConf ? 'Agrupado por mês de recebimento pela conferencista' : 'Agrupado por mês em que a demanda foi liberada para o técnico'}</span>
       </div>
@@ -1513,7 +1593,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                               <div>
                                 <div className="text-xs font-bold text-red-700 mb-2 flex items-center gap-2">
                                   <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
-                                  {isConf ? `Presas c/Conferencista (${p.totalCTec}) — sem Data de Retorno:` : `Presas em c/Técnico (${p.totalCTec}) — sem início de análise:`}
+                                  {isConf ? `Presas c/Conferencista (${p.totalCTec}) — sem Data de Retorno:` : `Demandas c/Técnico (${p.totalCTec}) — sem início de análise:`}
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
                                   {[...p.monthMap.values()].flatMap(c => c.cTec)
