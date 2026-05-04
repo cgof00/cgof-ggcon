@@ -1473,11 +1473,11 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
       </div>
 
       {/* ── Tabela-matriz ─────────────────────────────────────────── */}
-      <div className="rounded-xl border border-slate-200 shadow-sm" style={{ overflowX: 'auto', overflowY: 'clip' }}>
+      <div style={{ maxHeight: '72vh', overflowX: 'auto', overflowY: 'auto' }} className="rounded-xl border border-slate-200 shadow-sm">
         <table className="w-full text-sm border-collapse">
-          <thead className="sticky top-12 z-20">
+          <thead className="sticky top-0 z-20">
             <tr>
-              <th className="sticky left-0 z-10 bg-slate-800 text-white text-left px-4 py-3 font-bold text-sm whitespace-nowrap min-w-[180px]">
+              <th className="sticky left-0 z-30 bg-slate-800 text-white text-left px-4 py-3 font-bold text-sm whitespace-nowrap min-w-[180px]">
                 {isConf ? 'Conferencista' : 'Técnico'}
               </th>
               {allMeses.map(mes => (
