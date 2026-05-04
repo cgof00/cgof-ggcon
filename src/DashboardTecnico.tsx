@@ -593,6 +593,7 @@ function DrilldownModal({
     return rows.filter(r =>
       !s ||
       String(r.demandas_formalizacao ?? '').toLowerCase().includes(s) ||
+      String(r.emenda ?? '').toLowerCase().includes(s) ||
       String(r.conveniado ?? '').toLowerCase().includes(s) ||
       String(r.regional ?? '').toLowerCase().includes(s) ||
       String(r.classificacao_emenda_demanda ?? '').toLowerCase().includes(s) ||
@@ -643,6 +644,7 @@ function DrilldownModal({
 
   const cols: { key: keyof FormalizacaoRow | '_demanda'; label: string; width?: number }[] = [
     { key: '_demanda',                        label: 'Demanda',          width: 130 },
+    { key: 'emenda',                          label: 'Emenda',           width: 110 },
     { key: 'ano',                             label: 'Ano',              width: 70  },
     { key: 'tecnico',                         label: 'Técnico',          width: 110 },
     { key: 'conferencista',                   label: 'Conferencista',    width: 110 },
