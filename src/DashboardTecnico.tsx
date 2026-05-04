@@ -1364,7 +1364,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
       </div>
 
       {/* ── Tabela-matriz ─────────────────────────────────────────── */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+      <div className="rounded-xl border border-slate-200 shadow-sm" style={{ overflowX: 'auto', overflowY: 'clip' }}>
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-12 z-20">
             <tr>
@@ -1517,7 +1517,12 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                                     .sort((a, b) => daysSinceTL(b[dateKey] as string) - daysSinceTL(a[dateKey] as string))
                                     .slice(0, 20)
                                     .map((r, ri) => {
-                                      const dias  = daysSinceTL((isConf ? r.data_liberacao_assinatura_conferencista : (r.data_analise_demanda || r.data_liberacao)) as string);
+                                      // Usa a data MAIS RECENTE entre data_analise_demanda e data_liberacao
+                                      // Evita inconsistências onde data_analise_demanda é anterior à data_liberacao
+                                      const _dAnal = parseDateTL((isConf ? r.data_liberacao_assinatura_conferencista : r.data_analise_demanda) as string);
+                                      const _dLib  = parseDateTL(r.data_liberacao as string);
+                                      const _dRef  = _dAnal && _dLib ? (_dAnal.getTime() > _dLib.getTime() ? _dAnal : _dLib) : _dAnal ?? _dLib;
+                                      const dias   = _dRef ? Math.max(0, Math.round((Date.now() - _dRef.getTime()) / 86400000)) : 0;
                                       const label = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`).substring(0, 40);
                                       return (
                                         <button key={ri} onClick={() => openDrilldown(label, [r])}
@@ -2476,8 +2481,8 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                 onMouseMove={handleMatrixMouseMove}
                 onMouseUp={handleMatrixMouseUp}
                 onMouseLeave={handleMatrixMouseLeave}
-                className={`overflow-x-auto select-none ${isMatrixDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-                style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
+                className={`select-none ${isMatrixDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                style={{ overflowX: 'auto', overflowY: 'clip', WebkitUserSelect: 'none', userSelect: 'none' }}>
               <table className="border-collapse text-[13px] w-max min-w-full">
                 <thead className="sticky z-20" style={{ top: '94px' }}>
                   <tr>
