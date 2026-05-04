@@ -573,6 +573,13 @@ interface Formalizacao {
   encaminhado_em?: string;
   concluida_em?: string;
   usuario_atribuido_id?: number;
+  historico_situacao?: {
+    campo: string;
+    de: string;
+    para: string;
+    usuario: string;
+    em: string;
+  }[];
 }
 
 export default function App() {
@@ -4623,6 +4630,39 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         <option value="AGUARDANDO APROVAÇÃO DO SECRETARIO DE ESTADO DA SAÚDE – FUNDO A FUNDO">AGUARDANDO APROVAÇÃO DO SECRETARIO DE ESTADO DA SAÚDE – FUNDO A FUNDO</option>
                         <option value="AGUARDANDO RESOLUÇÃO PARA EMISSÃO RESOLUÇÃO PARA REPASSE FUNDO A FUNDO - DOE">AGUARDANDO RESOLUÇÃO PARA EMISSÃO RESOLUÇÃO PARA REPASSE FUNDO A FUNDO - DOE</option>
                       </select>
+
+                      {/* ── Histórico de alterações da situação ── */}
+                      {(() => {
+                        const hist = (editingFormalizacao?.historico_situacao ?? []).slice().reverse();
+                        if (hist.length === 0) return null;
+                        const campoLabel: Record<string, string> = {
+                          area_estagio_situacao_demanda: 'Área – Estágio',
+                          situacao_analise_demanda: 'Situação Análise',
+                        };
+                        return (
+                          <div className="mt-4 border border-slate-200 rounded-lg overflow-hidden">
+                            <div className="px-3 py-1.5 bg-slate-100 flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Histórico de Alterações</span>
+                              <span className="text-[10px] text-slate-400">{hist.length} registro{hist.length !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                              {hist.map((entry, i) => (
+                                <div key={i} className="px-3 py-2 bg-white text-[11px]">
+                                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                                    <span className="font-semibold text-slate-500">{campoLabel[entry.campo] ?? entry.campo}</span>
+                                    <span className="text-slate-400 whitespace-nowrap">{entry.em} · {entry.usuario}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="bg-red-50 text-red-700 border border-red-200 px-1.5 py-0.5 rounded text-[10px] max-w-[200px] truncate" title={entry.de || '(vazio)'}>{entry.de || '(vazio)'}</span>
+                                    <span className="text-slate-400">→</span>
+                                    <span className="bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded text-[10px] max-w-[200px] truncate" title={entry.para || '(vazio)'}>{entry.para || '(vazio)'}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                   );

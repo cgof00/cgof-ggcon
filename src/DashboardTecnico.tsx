@@ -61,6 +61,13 @@ interface FormalizacaoRow {
     situacao_analise_demanda?: string;
     gravado_em?: string;
   }[];
+  historico_situacao?: {
+    campo: string;
+    de: string;
+    para: string;
+    usuario: string;
+    em: string;
+  }[];
 }
 
 // ─── Fixed column definitions ─────────────────────────────────────────────
@@ -1260,18 +1267,40 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
     for (const r of rowsParaMapear) {
       const tec  = String(r[personKey] ?? '').trim(); if (!tec) continue;
       const dLib = parseDateTL(r[dateKey] as string);
-      // Se não há data de referência, agrupa em 'sem-data' para não excluir a demanda dos totais
-      const mes  = dLib ? toMes(dLib) : 'sem-data';
+      // Mês de recebimento (data_liberacao para técnico, data_recebimento_demanda para conf)
+      const mesRecebido = dLib ? toMes(dLib) : 'sem-data';
       if (!MAP.has(tec)) MAP.set(tec, new Map());
       const tm = MAP.get(tec)!;
-      if (!tm.has(mes)) tm.set(mes, { total: [], anal: [], cTec: [], emAnal: [], conc: [] });
-      const cell   = tm.get(mes)!;
+      const ensureCell = (m: string) => {
+        if (!tm.has(m)) tm.set(m, { total: [], anal: [], cTec: [], emAnal: [], conc: [] });
+        return tm.get(m)!;
+      };
       const status = classify(r);
-      cell.total.push(r);
-      if (status === 'analisada')  cell.anal.push(r);
-      else if (status === 'em_analise') cell.emAnal.push(r);
-      else if (status === 'c_tecnico') cell.cTec.push(r);
-      else cell.conc.push(r);
+
+      // Total: sempre agrupado pelo mês de recebimento
+      ensureCell(mesRecebido).total.push(r);
+
+      // Status: agrupado pelo mês em que o EVENTO ocorreu (produtividade real).
+      // Ex: demanda recebida em janeiro e analisada em abril → aparece em abril
+      // na coluna "Analisadas", não em janeiro.
+      let mesStatus: string;
+      if (status === 'analisada') {
+        // Data em que o técnico/conf efetivamente devolveu/encaminhou a demanda
+        const dAnal = isConf
+          ? parseDateTL(r.data_liberacao_assinatura_conferencista as string)
+          : parseDateTL(r.data_analise_demanda as string);
+        mesStatus = dAnal ? toMes(dAnal) : mesRecebido;
+      } else if (status === 'concluida') {
+        const dConc = parseDateTL(r.concluida_em as string) || parseDateTL(r.publicacao as string);
+        mesStatus = dConc ? toMes(dConc) : mesRecebido;
+      } else {
+        // c_tecnico ou em_analise: demanda ainda ativa — usa mês de recebimento
+        mesStatus = mesRecebido;
+      }
+      if (status === 'analisada')       ensureCell(mesStatus).anal.push(r);
+      else if (status === 'em_analise') ensureCell(mesStatus).emAnal.push(r);
+      else if (status === 'c_tecnico')  ensureCell(mesStatus).cTec.push(r);
+      else                              ensureCell(mesStatus).conc.push(r);
     }
 
     const allMesesSet = new Set<string>();
@@ -1542,25 +1571,29 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                       const anal   = (c?.anal.length ?? 0) + (c?.conc.length ?? 0);
                       const cTec   = c?.cTec.length   ?? 0;
                       const emAnal = c?.emAnal.length ?? 0;
-                      if (total === 0) return <td key={mes} className="px-2 py-3 text-center"><span className="text-slate-200 text-xs">—</span></td>;
+                      // Oculta apenas células sem nenhuma atividade
+                      if (total === 0 && anal === 0 && cTec === 0 && emAnal === 0) return <td key={mes} className="px-2 py-3 text-center"><span className="text-slate-200 text-xs">—</span></td>;
 
-                      const allOk  = anal === total;
+                      // Cor baseia-se em produtividade real do mês: analisou algo?
+                      // Nota: anal e total podem estar em meses diferentes (produtividade por evento)
+                      const allOk  = anal > 0 && total === 0; // só analisadas de meses anteriores — verde
                       const noneOk = anal === 0;
-                      const cls    = allOk  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                   : noneOk ? 'bg-red-100 text-red-800 border-red-300'
-                                            : 'bg-amber-100 text-amber-800 border-amber-300';
+                      const cls    = (anal > 0)   ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                   : (total > 0)  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                                  : 'bg-slate-100 text-slate-500 border-slate-200';
+                      void allOk; // não usada diretamente mas mantida para lógica acima
                       return (
                         <td key={mes} className="px-2 py-3 text-center">
                           <button
                             onClick={() => {
                               const rows = c ? [...c.anal, ...c.conc, ...c.cTec, ...c.emAnal] : [];
-                              openDrilldown(`${p.nome} — ${mes === 'sem-data' ? 'Sem Data' : fmtMesProd(mes)} (${total} demandas)`, rows);
+                              openDrilldown(`${p.nome} — ${mes === 'sem-data' ? 'Sem Data' : fmtMesProd(mes)} (${anal} ${isConf ? 'conf.' : 'anal.'} | ${total} rec.)`, rows);
                             }}
                             className={`inline-flex flex-col items-center px-2.5 py-1.5 rounded-lg border text-center hover:opacity-80 transition-opacity ${cls}`}
-                            title={`${anal} ${isConf ? 'conferenciadas' : 'analisadas'} de ${total} recebidas${cTec > 0 ? ` | ${cTec} presas` : ''}${emAnal > 0 ? ` | ${emAnal} em análise` : ''}`}
+                            title={`${anal} ${isConf ? 'conferenciadas' : 'analisadas'} neste mês | ${total} recebidas neste mês${cTec > 0 ? ` | ${cTec} presas c/técnico` : ''}${emAnal > 0 ? ` | ${emAnal} em análise` : ''}`}
                           >
                             <span className="text-base font-extrabold leading-none">{anal}</span>
-                            <span className="text-[10px] font-medium opacity-70 leading-none mt-0.5">de {total}</span>
+                            <span className="text-[10px] font-medium opacity-70 leading-none mt-0.5">rec {total}</span>
                           </button>
                         </td>
                       );
