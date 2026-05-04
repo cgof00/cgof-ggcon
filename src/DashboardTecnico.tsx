@@ -211,6 +211,7 @@ const SEMPAPEL_AREA_MAP: Record<string, string> = {
   'Demanda parlamentar processada': 'Concluída',
   'Transferência Voluntária processada': 'Concluída',
   'Emenda Executada': 'Concluída',
+  'Anexar nota de reserva - GCF': 'Financeiro CGOF',
   'Anexar nota de empenho': 'Financeiro CGOF',
   'Em formalização da minuta - Transferência Voluntária - Parecer Referencial 03/2025': 'Financeiro CGOF',
   'Execução e Liberação de Pagamentos': 'Financeiro CGOF',

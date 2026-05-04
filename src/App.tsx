@@ -2734,7 +2734,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-white text-black font-sans">
       {/* Header */}
-      <header className="bg-gradient-to-r from-[#1351B4] to-[#0C326F] sticky top-0 z-30 shadow-xl">
+      <header className="bg-gradient-to-r from-[#1351B4] to-[#0C326F] sticky top-0 z-50 shadow-xl">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             {/* Left: Logo + Title + Nav Toolbar */}
