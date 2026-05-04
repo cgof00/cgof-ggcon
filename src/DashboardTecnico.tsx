@@ -85,7 +85,8 @@ const FIXED_COLS = [
 type ColKey = typeof FIXED_COLS[number]['key'];
 
 // Stage helpers (uppercase comparison)
-const stg = (r: FormalizacaoRow) => (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
+// Fallback: quando area_estagio_situacao_demanda está vazio, usa situacao_demandas_sempapel
+const stg = (r: FormalizacaoRow) => ((r.area_estagio_situacao_demanda ?? '').trim() || (r.situacao_demandas_sempapel ?? '').trim()).toUpperCase();
 const cls = (r: FormalizacaoRow) => (r.classificacao_emenda_demanda ?? '').trim().toUpperCase();
 
 // Normaliza estágios Fundo a Fundo para o nome canônico de cada coluna
@@ -308,9 +309,11 @@ const SEMPAPEL_AREA_MAP: Record<string, string> = {
 };
 
 /** Deriva área-estágio a partir de situacao_demandas_sempapel.
+ *  Quando vazio, usa area_estagio_situacao_demanda como fallback.
  *  Tenta correspondência exata → depois padrões semânticos. */
 function getAreaEstagio(r: FormalizacaoRow): string {
-  const sempapel = (r.situacao_demandas_sempapel ?? '').trim();
+  const sempapel = ((r.situacao_demandas_sempapel ?? '').trim()
+    || (r.area_estagio_situacao_demanda ?? '').trim());
   if (!sempapel) return '(não informado)';
   const exact = SEMPAPEL_AREA_MAP[sempapel];
   if (exact) return exact;
@@ -1219,7 +1222,9 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
       if (!!(r.data_liberacao_assinatura_conferencista ?? '').trim()) return 'analisada';
       return 'c_tecnico'; // presa c/ conferencista
     }
-    const sit = (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
+    // Usa area_estagio_situacao_demanda; quando vazio, cai para situacao_demandas_sempapel
+    const sit = ((r.area_estagio_situacao_demanda ?? '').trim()
+      || (r.situacao_demandas_sempapel ?? '').trim()).toUpperCase();
     // c/Técnico: estágio "DEMANDA COM O TÉCNICO" (com ou sem sufixo Fundo a Fundo)
     if (sit === 'DEMANDA COM O TÉCNICO' || sit.startsWith('DEMANDA COM O TÉCNICO')) return 'c_tecnico';
     // Em Análise: qualquer estágio que contenha "EM ANÁLISE", exceto orçamentária
