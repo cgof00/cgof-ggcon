@@ -1366,7 +1366,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
       {/* ── Tabela-matriz ─────────────────────────────────────────── */}
       <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
         <table className="w-full text-sm border-collapse">
-          <thead>
+          <thead className="sticky top-12 z-20">
             <tr>
               <th className="sticky left-0 z-10 bg-slate-800 text-white text-left px-4 py-3 font-bold text-sm whitespace-nowrap min-w-[180px]">
                 {isConf ? 'Conferencista' : 'Técnico'}
@@ -1517,7 +1517,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                                     .sort((a, b) => daysSinceTL(b[dateKey] as string) - daysSinceTL(a[dateKey] as string))
                                     .slice(0, 20)
                                     .map((r, ri) => {
-                                      const dias  = daysSinceTL((isConf ? r.data_liberacao_assinatura_conferencista : r.data_analise_demanda) as string);
+                                      const dias  = daysSinceTL((isConf ? r.data_liberacao_assinatura_conferencista : (r.data_analise_demanda || r.data_liberacao)) as string);
                                       const label = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`).substring(0, 40);
                                       return (
                                         <button key={ri} onClick={() => openDrilldown(label, [r])}
@@ -2476,10 +2476,10 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
                 onMouseMove={handleMatrixMouseMove}
                 onMouseUp={handleMatrixMouseUp}
                 onMouseLeave={handleMatrixMouseLeave}
-                className={`overflow-x-auto overflow-y-auto select-none ${isMatrixDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-                style={{ WebkitUserSelect: 'none', userSelect: 'none', maxHeight: '65vh' }}>
+                className={`overflow-x-auto select-none ${isMatrixDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
               <table className="border-collapse text-[13px] w-max min-w-full">
-                <thead className="sticky top-0 z-20">
+                <thead className="sticky z-20" style={{ top: '94px' }}>
                   <tr>
                     <th className="sticky left-0 z-30 bg-slate-700 border-r border-slate-500 px-3 py-2 text-left text-white font-bold align-middle"
                       style={{ minWidth: 180, maxWidth: 220 }}>
