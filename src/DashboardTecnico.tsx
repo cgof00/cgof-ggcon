@@ -1235,9 +1235,23 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
     // corretamente na produtividade de CADA técnico que as tratou.
     const allRows = isConf ? filtered : expandToAtribuicoes(filtered);
 
+    // Identifica técnicos com pelo menos UMA linha real (não-histórica).
+    // Linhas _isHistorico de usuários fantasma (ex: CINTIA) que não têm
+    // nenhuma linha ativa atual são excluídas para não inflar a produção.
+    const realTecnicos = new Set<string>();
+    for (const r of allRows) {
+      if (!(r as any)._isHistorico) {
+        const t = String(r[personKey] ?? '').trim();
+        if (t) realTecnicos.add(t);
+      }
+    }
+    const rowsParaMapear = allRows.filter(r =>
+      !(r as any)._isHistorico || realTecnicos.has(String(r[personKey] ?? '').trim())
+    );
+
     const MAP = new Map<string, Map<string, CellData>>();
 
-    for (const r of allRows) {
+    for (const r of rowsParaMapear) {
       const tec  = String(r[personKey] ?? '').trim(); if (!tec) continue;
       const dLib = parseDateTL(r[dateKey] as string);
       // Se não há data de referência, agrupa em 'sem-data' para não excluir a demanda dos totais
