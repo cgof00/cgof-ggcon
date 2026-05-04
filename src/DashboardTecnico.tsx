@@ -2189,14 +2189,21 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
         if (done) break;
         offset += PARALLEL * batchSize;
       }
-      // Deduplica: se a mesma demanda (demandas_formalizacao) aparecer mais de uma vez,
-      // mantém apenas o registro com maior id (mais recente / atribuição atual)
+      // Deduplica: se a mesma demanda aparecer mais de uma vez,
+      // mantém o registro com a data_liberacao mais recente (atribuição atual).
+      // Desempate pelo maior id.
+      const _keepRow = (a: FormalizacaoRow, b: FormalizacaoRow): FormalizacaoRow => {
+        const da = a.data_liberacao ? new Date(String(a.data_liberacao)).getTime() : 0;
+        const db2 = b.data_liberacao ? new Date(String(b.data_liberacao)).getTime() : 0;
+        if (da !== db2) return da > db2 ? a : b;
+        return (a.id ?? 0) > (b.id ?? 0) ? a : b;
+      };
       const deduped = new Map<string, FormalizacaoRow>();
       for (const r of all) {
         const key = String(r.demandas_formalizacao ?? r.demanda ?? r.id ?? '').trim();
         if (!key) { deduped.set(`__no_key_${r.id}`, r); continue; }
         const existing = deduped.get(key);
-        if (!existing || (r.id ?? 0) > (existing.id ?? 0)) deduped.set(key, r);
+        deduped.set(key, existing ? _keepRow(existing, r) : r);
       }
       setRawData(Array.from(deduped.values()));
       setLastUpdated(new Date());
@@ -2207,14 +2214,21 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
     }
   }, [token]);
 
-  // Função auxiliar de deduplicação: mantém apenas o registro com maior id por demanda
+  // Função auxiliar de deduplicação: mantém o registro com data_liberacao mais recente.
+  // Desempate pelo maior id. Garante que atribuições mais novas prevalecem.
   const deduplicateRows = (rows: FormalizacaoRow[]): FormalizacaoRow[] => {
+    const keepRow = (a: FormalizacaoRow, b: FormalizacaoRow): FormalizacaoRow => {
+      const da = a.data_liberacao ? new Date(String(a.data_liberacao)).getTime() : 0;
+      const db2 = b.data_liberacao ? new Date(String(b.data_liberacao)).getTime() : 0;
+      if (da !== db2) return da > db2 ? a : b;
+      return (a.id ?? 0) > (b.id ?? 0) ? a : b;
+    };
     const map = new Map<string, FormalizacaoRow>();
     for (const r of rows) {
       const key = String(r.demandas_formalizacao ?? r.demanda ?? r.id ?? '').trim();
       if (!key) { map.set(`__no_key_${r.id}`, r); continue; }
       const existing = map.get(key);
-      if (!existing || (r.id ?? 0) > (existing.id ?? 0)) map.set(key, r);
+      map.set(key, existing ? keepRow(existing, r) : r);
     }
     return Array.from(map.values());
   };
