@@ -326,6 +326,29 @@ function getAreaEstagio(r: FormalizacaoRow): string {
   if (exact) return exact;
   // Padrões semânticos para valores não mapeados / novos
   const l = sempapel.toLowerCase();
+
+  // ── Estágios internos GGCON (opções do campo area_estagio_situacao_demanda) ──
+  // Mapeados ANTES dos padrões genéricos para não cair no catch-all final.
+  if (l.startsWith('demanda com o técnico'))                                     return 'GGCON CGOF';
+  if (l.startsWith('em análise da documentação'))                                return 'GGCON CGOF';
+  if (l.startsWith('em análise do plano de trabalho'))                           return 'GGCON CGOF';
+  if (l.startsWith('aguardando documentação'))                                   return 'Beneficiário';
+  if (l.startsWith('demanda em diligência documento'))                           return l.includes('crs') ? 'CRS' : 'DRS';
+  if (l.startsWith('demanda em diligência plano de trabalho'))                   return l.includes('drs') ? 'DRS' : 'CRS';
+  if (l.startsWith('demanda em diligência'))                                     return 'Beneficiário';
+  if (l.startsWith('comitê gestor'))                                             return 'GGCON CGOF';
+  if (l.startsWith('outras pendências') || l.startsWith('outras pend'))         return 'GGCON CGOF';
+  if (l.startsWith('em conferência'))                                            return 'GGCON CGOF';
+  if (l.startsWith('conferência com pendência'))                                 return 'GGCON CGOF';
+  if (l.startsWith('laudas'))                                                    return 'Financeiro CGOF';
+  if (l.startsWith('publicação no doe'))                                         return 'Concluída';
+  if (l.startsWith('empenho cancelado'))                                         return 'Cancelada / Impedida';
+  if (l.startsWith('processo siafem'))                                           return 'Financeiro CGOF';
+  if (l.startsWith('parecer coordenador'))                                       return 'Coordenador CGOF';
+  if (l.startsWith('aprovação') && l.includes('chefia'))                        return 'Chefia de Gabinete';
+  if (l.startsWith('aguardando aprovação do secretario'))                        return 'Secretário';
+  if (l.startsWith('aguardando resolução para emissão'))                         return 'Repasse fundo a fundo';
+  // ── Padrões genéricos (SemPapel e demais) ────────────────────────────────
   if (l.includes('formalização da entidade'))                                    return 'Beneficiário';
   if (l.startsWith('documentos beneficiário') || l.startsWith('documento beneficiário')) return 'Beneficiário';
   if (l.includes('beneficiário') || l.includes('beneficiario'))                  return 'Beneficiário';
@@ -1285,11 +1308,30 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
       // na coluna "Analisadas", não em janeiro.
       let mesStatus: string;
       if (status === 'analisada') {
-        // Data em que o técnico/conf efetivamente devolveu/encaminhou a demanda
+        // Tenta data explícita (data_analise_demanda / data_lib_assinatura_conf)
         const dAnal = isConf
           ? parseDateTL(r.data_liberacao_assinatura_conferencista as string)
           : parseDateTL(r.data_analise_demanda as string);
-        mesStatus = dAnal ? toMes(dAnal) : mesRecebido;
+        if (dAnal) {
+          mesStatus = toMes(dAnal);
+        } else {
+          // Fallback: última entrada de historico_situacao que saiu de "DEMANDA COM O TÉCNICO"
+          // (registrada pelo trigger do Supabase — data no formato DD/MM/YYYY HH:MM)
+          const hist = (r.historico_situacao ?? []);
+          const entry = [...hist].reverse().find(h =>
+            h.campo === 'area_estagio_situacao_demanda' &&
+            h.de.toUpperCase().startsWith('DEMANDA COM O TÉCNICO')
+          );
+          if (entry?.em) {
+            // Converte "DD/MM/YYYY HH:MM" → Date
+            const [datePart] = entry.em.split(' ');
+            const [dd, mm, yyyy] = datePart.split('/');
+            const dHist = yyyy && mm && dd ? new Date(+yyyy, +mm - 1, +dd) : null;
+            mesStatus = dHist && !isNaN(dHist.getTime()) ? toMes(dHist) : mesRecebido;
+          } else {
+            mesStatus = mesRecebido;
+          }
+        }
       } else if (status === 'concluida') {
         const dConc = parseDateTL(r.concluida_em as string) || parseDateTL(r.publicacao as string);
         mesStatus = dConc ? toMes(dConc) : mesRecebido;

@@ -2445,6 +2445,31 @@ export default function App() {
       }
     });
 
+    // ── Auto-preenche data_analise_demanda ao sair do estágio "preso" ────────
+    // Quando o técnico muda area_estagio_situacao_demanda de "DEMANDA COM O TÉCNICO"
+    // para qualquer outro estado produtivo, e não informou a data manualmente,
+    // preenche automaticamente com hoje. Isso garante produtividade por data correta.
+    if (editingFormalizacao) {
+      const estagioAnterior = (editingFormalizacao.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
+      const estagioNovo     = (data.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
+      const eraPreso = estagioAnterior.startsWith('DEMANDA COM O TÉCNICO');
+      const agoraAvancou = estagioNovo && !estagioNovo.startsWith('DEMANDA COM O TÉCNICO') && estagioNovo !== estagioAnterior;
+      if (eraPreso && agoraAvancou && !(data.data_analise_demanda ?? '').trim()) {
+        // Usa data de hoje no formato YYYY-MM-DD (compatível com o campo date do banco)
+        data.data_analise_demanda = new Date().toISOString().slice(0, 10);
+      }
+    }
+    // Auto-preenche data_recebimento_demanda para o conferencista de forma análoga.
+    // Quando conferencista assume e não preencheu: usa hoje.
+    if (editingFormalizacao) {
+      const confAnterior = (editingFormalizacao.conferencista ?? '').trim();
+      const confNovo     = (data.conferencista ?? '').trim();
+      const isConfAtual  = confNovo && confNovo !== confAnterior;
+      if (isConfAtual && !(data.data_recebimento_demanda ?? '').trim() && !(editingFormalizacao.data_recebimento_demanda ?? '').trim()) {
+        data.data_recebimento_demanda = new Date().toISOString().slice(0, 10);
+      }
+    }
+
     try {
       const url = editingFormalizacao ? `/api/formalizacao/${editingFormalizacao.id}` : '/api/formalizacao';
       const method = editingFormalizacao ? 'PUT' : 'POST';
