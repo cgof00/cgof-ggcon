@@ -689,6 +689,7 @@ export default function App() {
   const filteredForExportRef = useRef<Formalizacao[]>([]); // Cache dos dados filtrados (sem paginação) para exportação
   const cacheTimestampRef = useRef<number>(0); // Timestamp do cache para invalidação
   const CACHE_VALIDITY_MS = 5 * 60 * 1000; // Cache válido por 5 minutos
+  const [dashboardRefreshKey, setDashboardRefreshKey] = useState<number>(0); // Incrementado após cada save
 
   // Estado de ordenação e scroll de colunas
   const [sortColumn, setSortColumn] = useState<string>('ano');
@@ -2473,6 +2474,7 @@ export default function App() {
         if (selectedFormalizacao?.id === editingFormalizacao.id) {
           setSelectedFormalizacao(mergedData);
         }
+        setDashboardRefreshKey(k => k + 1);
       }
 
       setIsFormalizacaoFormOpen(false);
@@ -3485,7 +3487,7 @@ export default function App() {
             )}
 
             {(activeTab === 'admin' || activeTab === 'dashboard') ? (
-              <DashboardTecnico initialData={allDataCacheRef.current} />
+              <DashboardTecnico initialData={allDataCacheRef.current} refreshKey={dashboardRefreshKey} />
             ) : loading && formalizacoes.length === 0 && formalizacaoSearchResult.data.length === 0 ? (
               <div className="flex flex-col justify-center items-center py-16">
                 <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-b-red-600 mb-4"></div>

@@ -36,26 +36,11 @@ SECURITY DEFINER
 AS $$
 DECLARE
   cnt bigint;
-  tbl_exists boolean;
 BEGIN
-  -- Garante que a tabela de backup existe mesmo se criada em outro schema
-  SELECT EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public'
-      AND table_name   = 'formalizacao_backup'
-  ) INTO tbl_exists;
-
-  IF NOT tbl_exists THEN
-    EXECUTE 'CREATE TABLE public.formalizacao_backup (LIKE public.formalizacao INCLUDING DEFAULTS)';
-  END IF;
-
-  -- Garantir colunas adicionadas após a criação inicial do backup
-  BEGIN
-    EXECUTE 'ALTER TABLE public.formalizacao_backup ADD COLUMN IF NOT EXISTS parecer_ld text';
-  EXCEPTION WHEN OTHERS THEN NULL; END;
-
-  -- Limpa backup anterior
-  TRUNCATE public.formalizacao_backup;
+  -- Recria a tabela de backup do zero para sempre capturar todas as colunas atuais
+  -- (evita erro "INSERT has more expressions than target columns" quando novas colunas são adicionadas)
+  DROP TABLE IF EXISTS public.formalizacao_backup;
+  CREATE TABLE public.formalizacao_backup (LIKE public.formalizacao INCLUDING DEFAULTS);
 
   -- Copia todos os registros
   INSERT INTO public.formalizacao_backup

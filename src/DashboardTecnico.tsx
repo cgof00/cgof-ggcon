@@ -1306,24 +1306,53 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
     ws2['!cols'] = [{ wch: 32 }, { wch: 20 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
     XLSX.utils.book_append_sheet(wb, ws2, 'Por Cohort-Mês');
 
-    // Aba 3: demandas presas (detalhe completo)
-    const h3 = [isConf ? 'Conferencista' : 'Técnico', 'Demanda', 'Mês Recebimento', 'Situação', 'Dias aguardando'];
+    // Aba 3: demandas presas (detalhe completo com Ano, Mês e dias corretos)
+    const h3 = [
+      isConf ? 'Conferencista' : 'Técnico',
+      'Ano', 'Mês', 'Mês/Ano',
+      'Demanda', 'Conveniado', 'Município', 'Situação Demanda',
+      'Tipo Presa',
+      'Dt. Liberação', 'Dt. Início Análise',
+      'Dias c/Técnico', 'Dias em Análise',
+    ];
     const d3: (string | number)[][] = [];
     pessoas.forEach(p => {
       p.stuck.forEach(r => {
-        const dRef = parseDateTL(r[dateKey] as string);
+        const dLib  = parseDateTL(r[dateKey] as string);
+        const tipo  = isConf ? 'Presa c/Conferencista' : (classify(r) === 'c_tecnico' ? 'c/Técnico' : 'Em Análise');
+        const mes   = dLib ? toMes(dLib) : 'sem-data';
+        const ano   = dLib ? String(dLib.getFullYear()) : '';
+        const mesNm = dLib ? dLib.toLocaleString('pt-BR', { month: 'long' }) : '';
+        const mesAno = dLib ? fmtMesProd(mes) : 'Sem Data';
+        // Dias c/Técnico = desde data_liberacao
+        const diasLib = daysSinceTL(r.data_liberacao as string);
+        // Dias em Análise = desde max(data_analise_demanda, data_liberacao)
+        const _dAnal = parseDateTL((isConf ? r.data_liberacao_assinatura_conferencista : r.data_analise_demanda) as string);
+        const _dLib2 = parseDateTL(r.data_liberacao as string);
+        const _dRef  = _dAnal && _dLib2 ? (_dAnal.getTime() > _dLib2.getTime() ? _dAnal : _dLib2) : _dAnal ?? _dLib2;
+        const diasAnal = _dRef ? Math.max(0, Math.round((Date.now() - _dRef.getTime()) / 86400000)) : 0;
         d3.push([
           p.nome,
+          ano, mesNm, mesAno,
           String(r.demandas_formalizacao ?? r.demanda ?? ''),
-          dRef ? fmtMesProd(toMes(dRef)) : '',
-          isConf ? 'Presa c/Conferencista' : (classify(r) === 'c_tecnico' ? 'Preso: c/Técnico' : 'Preso: Em Análise'),
-          daysSinceTL(r[dateKey] as string),
+          String(r.convenio_convenente ?? r.conveniado ?? ''),
+          String(r.municipio ?? ''),
+          String(r.area_estagio_situacao_demanda ?? ''),
+          tipo,
+          r.data_liberacao ? String(r.data_liberacao).substring(0, 10) : '',
+          r.data_analise_demanda ? String(r.data_analise_demanda).substring(0, 10) : '',
+          tipo === 'c/Técnico' ? diasLib : '',
+          tipo === 'Em Análise' ? diasAnal : '',
         ]);
       });
     });
-    d3.sort((a, b) => Number(b[4]) - Number(a[4]));
+    d3.sort((a, b) => {
+      // Ordena por tipo (c/Técnico primeiro), depois dias decrescente
+      if (a[8] !== b[8]) return String(a[8]).localeCompare(String(b[8]));
+      return Number(b[11] || b[12] || 0) - Number(a[11] || a[12] || 0);
+    });
     const ws3 = XLSX.utils.aoa_to_sheet([h3, ...d3]);
-    ws3['!cols'] = [{ wch: 32 }, { wch: 40 }, { wch: 18 }, { wch: 24 }, { wch: 16 }];
+    ws3['!cols'] = [{ wch: 32 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 36 }, { wch: 20 }, { wch: 36 }, { wch: 20 }, { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 16 }];
     XLSX.utils.book_append_sheet(wb, ws3, 'Presas (detalhe)');
 
     XLSX.writeFile(wb, `${isConf ? 'conferencias' : 'producao_analise'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -2009,7 +2038,7 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
 }
 
 // ─── Main Dashboard ──────────────────────────────────────────────────────────
-export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRow[] } = {}) {
+export function DashboardTecnico({ initialData, refreshKey }: { initialData?: FormalizacaoRow[]; refreshKey?: number } = {}) {
   const { token } = useAuth();
 
   const [loading, setLoading] = useState(false);
@@ -2089,15 +2118,15 @@ export function DashboardTecnico({ initialData }: { initialData?: FormalizacaoRo
     }
   }, [token]);
 
-  // Use initialData from parent cache if available
+  // Use initialData from parent cache if available, or re-sync when refreshKey changes (after edits)
   useEffect(() => {
-    if (initialData && initialData.length > 0 && rawData.length === 0) {
+    if (initialData && initialData.length > 0) {
       setRawData(initialData as FormalizacaoRow[]);
       setLastUpdated(new Date());
     } else if (!initialData || initialData.length === 0) {
       loadData();
     }
-  }, [initialData, loadData]);
+  }, [initialData, refreshKey, loadData]);
 
   const handleMatrixMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = matrixScrollRef.current;
