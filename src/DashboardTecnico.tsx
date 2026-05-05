@@ -1359,14 +1359,11 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
       const totalConc  = [...monthMap.values()].reduce((s, c) => s + c.conc.length,   0);
       const totalCTec  = [...monthMap.values()].reduce((s, c) => s + c.cTec.length,   0);
       const totalEmAnal= [...monthMap.values()].reduce((s, c) => s + c.emAnal.length, 0);
-      const taxa       = totalRec > 0 ? Math.round(((totalAnal + totalConc) / totalRec) * 100) : 0;
-      // All stuck demands (c/Técnico + Em Análise)
-      const stuck = [
-        ...[...monthMap.values()].flatMap(c => c.cTec),
-        ...[...monthMap.values()].flatMap(c => c.emAnal),
-      ];
+      // Em Análise conta como produtivo; apenas c/Técnico = não analisado
+      const taxa       = totalRec > 0 ? Math.round(((totalAnal + totalEmAnal + totalConc) / totalRec) * 100) : 0;
+      const stuck = [...monthMap.values()].flatMap(c => c.cTec);
       return { nome, monthMap, totalRec, totalAnal, totalConc, totalCTec, totalEmAnal, taxa, stuck };
-    }).sort((a, b) => (b.totalCTec + b.totalEmAnal) - (a.totalCTec + a.totalEmAnal) || b.totalRec - a.totalRec);
+    }).sort((a, b) => b.totalCTec - a.totalCTec || b.totalRec - a.totalRec);
 
     return { pessoas, allMeses };
   }, [filtered]);
@@ -1376,7 +1373,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
     const totAnal   = pessoas.reduce((s, p) => s + p.totalAnal + p.totalConc, 0);
     const totCTec   = pessoas.reduce((s, p) => s + p.totalCTec,   0);
     const totEmAnal = pessoas.reduce((s, p) => s + p.totalEmAnal, 0);
-    const taxa      = totRec > 0 ? Math.round((totAnal / totRec) * 100) : 0;
+    const taxa      = totRec > 0 ? Math.round(((totAnal + totEmAnal) / totRec) * 100) : 0;
     return { totRec, totAnal, totCTec, totEmAnal, taxa };
   }, [pessoas]);
 
@@ -1384,9 +1381,9 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
     const wb = XLSX.utils.book_new();
 
     // Aba 1: resumo por pessoa
-    const h1 = [isConf ? 'Conferencista' : 'Técnico', 'Recebidas', isConf ? 'Conferenciadas' : 'Analisadas', isConf ? 'Presa c/Conf.' : 'c/Técnico (preso)', 'Em Análise (preso)', 'Taxa %'];
-    const d1 = pessoas.map(p => [p.nome, p.totalRec, p.totalAnal + p.totalConc, p.totalCTec, p.totalEmAnal, p.taxa]);
-    d1.push(['TOTAL', kpis.totRec, kpis.totAnal, kpis.totCTec, kpis.totEmAnal, kpis.taxa]);
+    const h1 = [isConf ? 'Conferencista' : 'Técnico', 'Recebidas', isConf ? 'Conferenciadas' : 'Analisadas (incl. em andamento)', isConf ? 'Presa c/Conf.' : 'c/Técnico (sem análise)', 'Em Análise (andamento)', 'Taxa %'];
+    const d1 = pessoas.map(p => [p.nome, p.totalRec, p.totalAnal + p.totalEmAnal + p.totalConc, p.totalCTec, p.totalEmAnal, p.taxa]);
+    d1.push(['TOTAL', kpis.totRec, kpis.totAnal + kpis.totEmAnal, kpis.totCTec, kpis.totEmAnal, kpis.taxa]);
     const ws1 = XLSX.utils.aoa_to_sheet([h1, ...d1]);
     ws1['!cols'] = [{ wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 10 }];
     XLSX.utils.book_append_sheet(wb, ws1, isConf ? 'Resumo por Conferencista' : 'Resumo por Técnico');
@@ -1542,23 +1539,23 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
           <span className="text-4xl font-black text-slate-800 leading-none">{kpis.totRec}</span>
           <span className="text-[10px] text-slate-400">Total no período</span>
         </div>
-        {/* Analisadas */}
+        {/* Analisadas (inclui Em Análise) */}
         <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 p-4 flex flex-col gap-1">
           <span className="text-xs font-semibold text-emerald-500 uppercase tracking-wider">{isConf ? 'Conferenciadas' : 'Analisadas'}</span>
-          <span className="text-4xl font-black text-emerald-600 leading-none">{kpis.totAnal}</span>
-          <span className="text-[10px] text-slate-400">Encaminhadas / concluídas</span>
+          <span className="text-4xl font-black text-emerald-600 leading-none">{kpis.totAnal + kpis.totEmAnal}</span>
+          <span className="text-[10px] text-slate-400">Incl. {kpis.totEmAnal} em andamento</span>
         </div>
-        {/* Pendentes c/Técnico */}
+        {/* Demandas c/Técnico — única métrica de atraso */}
         <div className={`bg-white rounded-2xl shadow-sm border p-4 flex flex-col gap-1 ${kpis.totCTec > 0 ? 'border-red-100' : 'border-slate-100'}`}>
           <span className={`text-xs font-semibold uppercase tracking-wider ${kpis.totCTec > 0 ? 'text-red-400' : 'text-slate-400'}`}>{isConf ? 'Presas c/Conf.' : 'Demandas c/Téc.'}</span>
           <span className={`text-4xl font-black leading-none ${kpis.totCTec > 0 ? 'text-red-600' : 'text-slate-300'}`}>{kpis.totCTec}</span>
           <span className="text-[10px] text-slate-400">Sem início de análise</span>
         </div>
-        {/* Em Análise */}
-        <div className={`bg-white rounded-2xl shadow-sm border p-4 flex flex-col gap-1 ${kpis.totEmAnal > 0 ? 'border-orange-100' : 'border-slate-100'}`}>
-          <span className={`text-xs font-semibold uppercase tracking-wider ${kpis.totEmAnal > 0 ? 'text-orange-400' : 'text-slate-400'}`}>Em Análise</span>
-          <span className={`text-4xl font-black leading-none ${kpis.totEmAnal > 0 ? 'text-orange-500' : 'text-slate-300'}`}>{kpis.totEmAnal}</span>
-          <span className="text-[10px] text-slate-400">Análise iniciada</span>
+        {/* Em Andamento — subconjunto das analisadas */}
+        <div className="bg-white rounded-2xl shadow-sm border border-blue-100 p-4 flex flex-col gap-1">
+          <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Em Andamento</span>
+          <span className={`text-4xl font-black leading-none ${kpis.totEmAnal > 0 ? 'text-blue-500' : 'text-slate-300'}`}>{kpis.totEmAnal}</span>
+          <span className="text-[10px] text-slate-400">Análise iniciada (conta como analisada)</span>
         </div>
         {/* Taxa geral */}
         <div className={`rounded-2xl shadow-sm border p-4 flex flex-col gap-1 ${kpis.taxa >= 70 ? 'bg-emerald-500 border-emerald-400' : kpis.taxa >= 40 ? 'bg-amber-400 border-amber-300' : 'bg-red-500 border-red-400'}`}>
@@ -1573,20 +1570,20 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
          ══════════════════════════════════════════════════════ */}
       {(() => {
         const rec  = kpis.totRec;
-        const anal = kpis.totAnal;
-        const cTec = kpis.totCTec;
-        const em   = kpis.totEmAnal;
+        const anal = kpis.totAnal;          // finalizadas (enviadas/concluídas)
+        const em   = kpis.totEmAnal;        // em andamento (conta como produtivo)
+        const iniciadas = anal + em;        // tudo que teve análise iniciada
         const steps = [
-          { label: 'Recebidas',    val: rec,  color: 'bg-slate-500',   pct: 100 },
-          { label: 'Em análise',   val: em + cTec,  color: 'bg-orange-400',  pct: rec > 0 ? Math.round(((em + cTec) / rec) * 100) : 0 },
-          { label: isConf ? 'Conferenciadas' : 'Analisadas', val: anal, color: 'bg-emerald-500', pct: rec > 0 ? Math.round((anal / rec) * 100) : 0 },
+          { label: 'Recebidas',    val: rec,      color: 'bg-slate-500',   pct: 100 },
+          { label: 'Iniciadas',    val: iniciadas, color: 'bg-emerald-400', pct: rec > 0 ? Math.round((iniciadas / rec) * 100) : 0 },
+          { label: isConf ? 'Finalizadas' : 'Finalizadas', val: anal, color: 'bg-emerald-600', pct: rec > 0 ? Math.round((anal / rec) * 100) : 0 },
         ];
         return (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
             <div className="flex items-center gap-2 mb-4">
               <Activity className="w-4 h-4 text-slate-500" />
               <span className="text-sm font-bold text-slate-700">Funil de Demandas</span>
-              <span className="text-xs text-slate-400 ml-auto">Recebidas → Em análise → Finalizadas</span>
+              <span className="text-xs text-slate-400 ml-auto">Recebidas → Iniciadas → Finalizadas</span>
             </div>
             <div className="space-y-3">
               {steps.map(s => (
@@ -1623,8 +1620,8 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
             </div>
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
               {sorted.map(p => {
-                const anal  = p.totalAnal + p.totalConc;
-                const pend  = p.totalRec - anal;
+                const anal  = p.totalAnal + p.totalEmAnal + p.totalConc;  // emAnal conta como produtivo
+                const pend  = p.totalCTec;  // apenas c/Técnico = não analisado
                 const barColor = p.taxa >= 70 ? 'bg-emerald-500' : p.taxa >= 40 ? 'bg-amber-400' : 'bg-red-500';
                 const initials = p.nome.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
                 return (
@@ -1664,8 +1661,8 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {pessoas.map(p => {
-            const anal    = p.totalAnal + p.totalConc;
-            const pend    = p.totalCTec + p.totalEmAnal;
+            const anal    = p.totalAnal + p.totalEmAnal + p.totalConc;  // emAnal conta como produtivo
+            const pend    = p.totalCTec;  // apenas c/Técnico = não analisado
             const perfCls = p.taxa >= 70 ? 'border-emerald-200 shadow-emerald-50'
                           : p.taxa >= 40 ? 'border-amber-200 shadow-amber-50'
                           :                'border-red-200 shadow-red-50';
@@ -1700,7 +1697,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                   {[
                     { lbl: 'Rec.',    val: p.totalRec,  cls: 'text-slate-700' },
                     { lbl: isConf ? 'Conf.' : 'Anal.',  val: anal,  cls: 'text-emerald-600 font-black' },
-                    { lbl: 'Pend.',   val: pend,  cls: pend > 0 ? 'text-red-600 font-black' : 'text-emerald-500' },
+                    { lbl: 'C/Téc.',  val: pend,  cls: pend > 0 ? 'text-red-600 font-black' : 'text-emerald-500' },
                     { lbl: 'Conc.',   val: p.totalConc, cls: 'text-blue-600' },
                   ].map(s => (
                     <div key={s.lbl} className="py-2.5 flex flex-col items-center">
@@ -1720,9 +1717,9 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                   </button>
                   {pend > 0 && (
                     <button
-                      onClick={() => openDrilldown(`${p.nome} — Pendentes (${pend})`, p.stuck)}
+                      onClick={() => openDrilldown(`${p.nome} — C/Técnico (${pend})`, p.stuck)}
                       className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 rounded-xl px-3 py-1.5 transition-colors"
-                    >{pend} pend.</button>
+                    >{pend} c/téc.</button>
                   )}
                 </div>
 
@@ -1759,9 +1756,9 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                     )}
                     {p.totalEmAnal > 0 && (
                       <div>
-                        <div className="text-[10px] font-bold text-orange-600 mb-1.5 flex items-center gap-1">
-                          <span className="w-2 h-2 rounded-full bg-orange-400 inline-block"/>
-                          Em Análise ({p.totalEmAnal})
+                        <div className="text-[10px] font-bold text-blue-600 mb-1.5 flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-blue-400 inline-block"/>
+                          Em Andamento — análise iniciada ({p.totalEmAnal}) — conta como analisada
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {[...p.monthMap.values()].flatMap(c => c.emAnal)
@@ -1788,9 +1785,9 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                         </div>
                       </div>
                     )}
-                    {p.totalCTec === 0 && p.totalEmAnal === 0 && (
+                    {p.totalCTec === 0 && (
                       <div className="flex items-center gap-2 text-emerald-600 text-xs font-semibold">
-                        <CheckCircle2 className="w-4 h-4"/>Todas as demandas foram analisadas.
+                        <CheckCircle2 className="w-4 h-4"/>Nenhuma demanda presa — todas com análise iniciada ou concluída.
                       </div>
                     )}
                   </div>
@@ -1836,7 +1833,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                       <th className="bg-blue-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Rec.</th>
                       <th className="bg-emerald-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Anal.</th>
                       <th className="bg-red-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">c/Téc</th>
-                      <th className="bg-orange-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Em An.</th>
+                      <th className="bg-blue-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Em And.</th>
                       <th className="bg-slate-600 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Taxa</th>
                     </tr>
                   </thead>
@@ -1849,7 +1846,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                           {allMeses.map(mes => {
                             const c    = p.monthMap.get(mes);
                             const tot  = c?.total.length ?? 0;
-                            const an   = (c?.anal.length ?? 0) + (c?.conc.length ?? 0);
+                            const an   = (c?.anal.length ?? 0) + (c?.emAnal.length ?? 0) + (c?.conc.length ?? 0);  // emAnal conta
                             const cTec = c?.cTec.length ?? 0;
                             const emAn = c?.emAnal.length ?? 0;
                             if (tot === 0 && an === 0 && cTec === 0 && emAn === 0) return <td key={mes} className="px-2 py-2 text-center text-slate-200 text-xs">—</td>;
@@ -1865,12 +1862,12 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                             );
                           })}
                           <td className="px-3 py-2 text-center text-xs font-bold text-slate-700">{p.totalRec}</td>
-                          <td className="px-3 py-2 text-center text-xs font-bold text-emerald-600">{p.totalAnal + p.totalConc}</td>
+                          <td className="px-3 py-2 text-center text-xs font-bold text-emerald-600">{p.totalAnal + p.totalEmAnal + p.totalConc}</td>
                           <td className="px-3 py-2 text-center">
                             {p.totalCTec > 0 ? <button onClick={() => openDrilldown(`${p.nome} — C/Técnico`, [...p.monthMap.values()].flatMap(c => c.cTec))} className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200 hover:bg-red-100">{p.totalCTec}</button> : <span className="text-emerald-500 font-black">✓</span>}
                           </td>
                           <td className="px-3 py-2 text-center">
-                            {p.totalEmAnal > 0 ? <button onClick={() => openDrilldown(`${p.nome} — Em Análise`, [...p.monthMap.values()].flatMap(c => c.emAnal))} className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 hover:bg-orange-100">{p.totalEmAnal}</button> : <span className="text-emerald-500 font-black">✓</span>}
+                            {p.totalEmAnal > 0 ? <button onClick={() => openDrilldown(`${p.nome} — Em Andamento`, [...p.monthMap.values()].flatMap(c => c.emAnal))} className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 hover:bg-blue-100">{p.totalEmAnal}</button> : <span className="text-emerald-500 font-black">✓</span>}
                           </td>
                           <td className="px-3 py-2 text-center">
                             <span className={`text-xs font-bold ${p.taxa >= 70 ? 'text-emerald-600' : p.taxa >= 40 ? 'text-amber-600' : 'text-red-600'}`}>{p.taxa}%</span>
@@ -1881,14 +1878,14 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                     <tr className="bg-slate-800 text-white">
                       <td className="sticky left-0 z-10 bg-slate-800 px-4 py-2.5 text-xs font-bold uppercase">TOTAL</td>
                       {allMeses.map(mes => {
-                        const an  = pessoas.reduce((s, p) => { const c = p.monthMap.get(mes); return s + (c?.anal.length ?? 0) + (c?.conc.length ?? 0); }, 0);
+                        const an  = pessoas.reduce((s, p) => { const c = p.monthMap.get(mes); return s + (c?.anal.length ?? 0) + (c?.emAnal.length ?? 0) + (c?.conc.length ?? 0); }, 0);
                         const tot = pessoas.reduce((s, p) => s + (p.monthMap.get(mes)?.total.length ?? 0), 0);
                         return <td key={mes} className="px-2 py-2.5 text-center text-xs font-bold">{tot > 0 ? <>{an}<span className="opacity-40">/{tot}</span></> : <span className="opacity-30">—</span>}</td>;
                       })}
                       <td className="px-3 py-2.5 text-center text-xs font-black">{kpis.totRec}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-black text-emerald-300">{kpis.totAnal}</td>
+                      <td className="px-3 py-2.5 text-center text-xs font-black text-emerald-300">{kpis.totAnal + kpis.totEmAnal}</td>
                       <td className="px-3 py-2.5 text-center text-xs font-black text-red-300">{kpis.totCTec}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-black text-orange-300">{kpis.totEmAnal}</td>
+                      <td className="px-3 py-2.5 text-center text-xs font-black text-blue-300">{kpis.totEmAnal}</td>
                       <td className="px-3 py-2.5 text-center text-xs font-black">{kpis.taxa}%</td>
                     </tr>
                   </tbody>
