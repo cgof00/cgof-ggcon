@@ -1504,7 +1504,18 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
     const totCTec   = pessoas.reduce((s, p) => s + p.totalCTec,   0);
     const totEmAnal = pessoas.reduce((s, p) => s + p.totalEmAnal, 0);
     const taxa      = totRec > 0 ? Math.round(((totAnal + totEmAnal) / totRec) * 100) : 0;
-    return { totRec, totAnal, totCTec, totEmAnal, taxa };
+    // Remanescentes: demandas recebidas em mês anterior mas analisadas no mês da célula
+    let totRemanescentes = 0;
+    for (const p of pessoas) {
+      for (const [mes, cell] of p.monthMap) {
+        for (const r of [...cell.anal, ...cell.emAnal, ...cell.conc]) {
+          const dLib = parseDateTL(r[dateKey] as string);
+          const mesLib = dLib ? toMes(dLib) : 'sem-data';
+          if (mesLib !== mes) totRemanescentes++;
+        }
+      }
+    }
+    return { totRec, totAnal, totCTec, totEmAnal, taxa, totRemanescentes };
   }, [pessoas]);
 
   const exportXLSX = () => {
@@ -1727,30 +1738,29 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
       {/* ══════════════════════════════════════════════════════
           1 — KPI TOPO: números grandes + taxa geral
          ══════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {/* Recebidas */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 flex flex-col gap-1">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Recebidas</span>
           <span className="text-4xl font-black text-slate-800 leading-none">{kpis.totRec}</span>
           <span className="text-[10px] text-slate-400">Total no período</span>
         </div>
-        {/* Analisadas (inclui Em Análise) */}
+        {/* Analisadas (inclui Em Análise + Remanescentes) */}
         <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 p-4 flex flex-col gap-1">
           <span className="text-xs font-semibold text-emerald-500 uppercase tracking-wider">{isConf ? 'Conferenciadas' : 'Analisadas'}</span>
           <span className="text-4xl font-black text-emerald-600 leading-none">{kpis.totAnal + kpis.totEmAnal}</span>
-          <span className="text-[10px] text-slate-400">Incl. {kpis.totEmAnal} em andamento</span>
+          <span className="text-[10px] text-slate-400">
+            {kpis.totEmAnal > 0 && <span>{kpis.totEmAnal} em andamento</span>}
+            {kpis.totEmAnal > 0 && kpis.totRemanescentes > 0 && <span className="mx-1">·</span>}
+            {kpis.totRemanescentes > 0 && <span className="text-violet-500 font-semibold">{kpis.totRemanescentes} remanescentes</span>}
+            {kpis.totEmAnal === 0 && kpis.totRemanescentes === 0 && <span>Incl. analisadas e concluídas</span>}
+          </span>
         </div>
         {/* Demandas c/Técnico — única métrica de atraso */}
         <div className={`bg-white rounded-2xl shadow-sm border p-4 flex flex-col gap-1 ${kpis.totCTec > 0 ? 'border-red-100' : 'border-slate-100'}`}>
           <span className={`text-xs font-semibold uppercase tracking-wider ${kpis.totCTec > 0 ? 'text-red-400' : 'text-slate-400'}`}>{isConf ? 'Presas c/Conf.' : 'Demandas c/Téc.'}</span>
           <span className={`text-4xl font-black leading-none ${kpis.totCTec > 0 ? 'text-red-600' : 'text-slate-300'}`}>{kpis.totCTec}</span>
           <span className="text-[10px] text-slate-400">Sem início de análise</span>
-        </div>
-        {/* Em Andamento — subconjunto das analisadas */}
-        <div className="bg-white rounded-2xl shadow-sm border border-blue-100 p-4 flex flex-col gap-1">
-          <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Em Andamento</span>
-          <span className={`text-4xl font-black leading-none ${kpis.totEmAnal > 0 ? 'text-blue-500' : 'text-slate-300'}`}>{kpis.totEmAnal}</span>
-          <span className="text-[10px] text-slate-400">Análise iniciada (conta como analisada)</span>
         </div>
         {/* Taxa geral */}
         <div className={`rounded-2xl shadow-sm border p-4 flex flex-col gap-1 ${kpis.taxa >= 70 ? 'bg-emerald-500 border-emerald-400' : kpis.taxa >= 40 ? 'bg-amber-400 border-amber-300' : 'bg-red-500 border-red-400'}`}>
