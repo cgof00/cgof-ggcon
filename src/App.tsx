@@ -614,6 +614,10 @@ export default function App() {
   const [isSupabaseGuideOpen, setIsSupabaseGuideOpen] = useState(false);
   const [editingFormalizacao, setEditingFormalizacao] = useState<Formalizacao | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isBuscaListaOpen, setIsBuscaListaOpen] = useState(false);
+  const [buscaListaText, setBuscaListaText] = useState('');
+  // Lista de termos já aplicados (separados por vírgula/quebra/ponto-e-vírgula)
+  const [buscaListaTerms, setBuscaListaTerms] = useState<string[]>([]);
   const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(() => localStorage.getItem('formalizacao_last_update'));
   const [selectedFormalizacao, setSelectedFormalizacao] = useState<Formalizacao | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<any>(null);
@@ -845,6 +849,19 @@ export default function App() {
           .some(k => (f[k] && String(f[k]).toLowerCase().includes(s)))
           || matchEmendaValue(f.emenda, searchTerm);
         if (!match) return false;
+      }
+      // Verificar buscaListaTerms
+      if (buscaListaTerms.length > 0) {
+        const matchLista = buscaListaTerms.some(term => {
+          const tl = term.toLowerCase();
+          return (
+            (f.demanda && String(f.demanda).toLowerCase() === tl) ||
+            (f.demandas_formalizacao && String(f.demandas_formalizacao).toLowerCase() === tl) ||
+            (f.emenda && matchEmendaValue(f.emenda, term)) ||
+            (f.numero_convenio && String(f.numero_convenio).toLowerCase() === tl)
+          );
+        });
+        if (!matchLista) return false;
       }
       return true;
     });
@@ -2078,6 +2095,20 @@ export default function App() {
           if (!matchSearch) return false;
         }
 
+        // Busca por lista (múltiplas demandas/emendas)
+        if (buscaListaTerms.length > 0) {
+          const matchLista = buscaListaTerms.some(term => {
+            const tl = term.toLowerCase();
+            return (
+              (f.demanda && String(f.demanda).toLowerCase() === tl) ||
+              (f.demandas_formalizacao && String(f.demandas_formalizacao).toLowerCase() === tl) ||
+              (f.emenda && matchEmenda(f.emenda, term)) ||
+              (f.numero_convenio && String(f.numero_convenio).toLowerCase() === tl)
+            );
+          });
+          if (!matchLista) return false;
+        }
+
         if (Array.isArray(filtersToUse.data_liberacao) && filtersToUse.data_liberacao.length > 0) {
           if (!matchesAnyFilter(f.data_liberacao, filtersToUse.data_liberacao)) return false;
         }
@@ -2814,15 +2845,31 @@ export default function App() {
             <div className="flex-1" />
 
             {/* Center: Search */}
-            <div className="relative hidden md:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/60" />
-              <input 
-                type="text" 
-                placeholder="Buscar demanda, técnico..." 
-                className="pl-10 pr-4 py-1.5 bg-white/15 border border-white/30 text-white placeholder:text-white/50 focus:bg-white/25 focus:border-white/50 rounded-full text-xs w-72 transition-all outline-none backdrop-blur-sm"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+            <div className="relative hidden md:flex items-center gap-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/60" />
+                <input 
+                  type="text" 
+                  placeholder="Buscar demanda, técnico..." 
+                  className={`pl-10 pr-4 py-1.5 bg-white/15 border border-white/30 text-white placeholder:text-white/50 focus:bg-white/25 focus:border-white/50 rounded-full text-xs w-72 transition-all outline-none backdrop-blur-sm ${buscaListaTerms.length > 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  disabled={buscaListaTerms.length > 0}
+                />
+              </div>
+              {/* Botão busca em lista */}
+              <button
+                onClick={() => setIsBuscaListaOpen(true)}
+                title="Buscar por lista de demandas ou emendas"
+                className={`p-1.5 rounded-full transition-colors ${buscaListaTerms.length > 0 ? 'bg-yellow-400 text-slate-900 hover:bg-yellow-300' : 'text-white/70 hover:text-white hover:bg-white/20'}`}
+              >
+                <FileSearch className="w-4 h-4" />
+              </button>
+              {buscaListaTerms.length > 0 && (
+                <span className="text-xs text-yellow-300 font-semibold whitespace-nowrap">
+                  {buscaListaTerms.length} itens
+                </span>
+              )}
             </div>
 
             {/* Right: Tools + User */}
@@ -4241,6 +4288,65 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
               >
                 Copiar Script SQL
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Busca em Lista */}
+      <AnimatePresence>
+        {isBuscaListaOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsBuscaListaOpen(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <FileSearch className="w-5 h-5 text-violet-600" /> Busca por Lista
+                </h2>
+                <button onClick={() => setIsBuscaListaOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-full">
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              </div>
+              <p className="text-sm text-slate-500 mb-3">
+                Cole ou digite uma lista de <strong>demandas</strong>, <strong>emendas</strong> ou <strong>nº convênio</strong> — uma por linha, ou separadas por vírgula/ponto e vírgula.
+              </p>
+              <textarea
+                className="w-full h-52 border border-slate-200 rounded-xl p-3 text-sm font-mono text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent"
+                placeholder={"121457\n120249\n108120\n..."}
+                value={buscaListaText}
+                onChange={(e) => setBuscaListaText(e.target.value)}
+                autoFocus
+              />
+              {buscaListaTerms.length > 0 && (
+                <p className="text-xs text-violet-600 font-semibold mt-1">
+                  {buscaListaTerms.length} {buscaListaTerms.length === 1 ? 'item aplicado' : 'itens aplicados'}
+                </p>
+              )}
+              <div className="flex gap-2 mt-4">
+                <button
+                  className="flex-1 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold py-2 rounded-xl transition-colors"
+                  onClick={() => {
+                    const terms = buscaListaText
+                      .split(/[\n,;]+/)
+                      .map(t => t.trim())
+                      .filter(Boolean);
+                    setBuscaListaTerms(terms);
+                    setIsBuscaListaOpen(false);
+                  }}
+                >
+                  Filtrar
+                </button>
+                <button
+                  className="px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold py-2 rounded-xl transition-colors"
+                  onClick={() => {
+                    setBuscaListaText('');
+                    setBuscaListaTerms([]);
+                    setIsBuscaListaOpen(false);
+                  }}
+                >
+                  Limpar
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
