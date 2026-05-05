@@ -89,6 +89,7 @@ BEGIN
     UPDATE formalizacao f SET
       demanda                      = COALESCE(NULLIF(TRIM(b.detalhes), ''), f.demanda),
       situacao_demandas_sempapel   = COALESCE(NULLIF(TRIM(b.situacao_d), ''), f.situacao_demandas_sempapel),
+      situacao_emenda              = COALESCE(NULLIF(TRIM(b.situacao_e), ''), f.situacao_emenda),
       classificacao_emenda_demanda = COALESCE(NULLIF(f.classificacao_emenda_demanda, ''), b.natureza),
       ano                          = COALESCE(NULLIF(f.ano, ''), b.ano_refer),
       emenda                       = COALESCE(NULLIF(f.emenda, ''), b.codigo_num),
@@ -115,6 +116,7 @@ BEGIN
     UPDATE formalizacao f SET
       demanda                      = COALESCE(NULLIF(TRIM(b.detalhes), ''), f.demanda),
       situacao_demandas_sempapel   = COALESCE(NULLIF(TRIM(b.situacao_d), ''), f.situacao_demandas_sempapel),
+      situacao_emenda              = COALESCE(NULLIF(TRIM(b.situacao_e), ''), f.situacao_emenda),
       classificacao_emenda_demanda = COALESCE(NULLIF(f.classificacao_emenda_demanda, ''), b.natureza),
       ano                          = COALESCE(NULLIF(f.ano, ''), b.ano_refer),
       emendas_agregadoras          = COALESCE(NULLIF(f.emendas_agregadoras, ''), b.num_emenda),

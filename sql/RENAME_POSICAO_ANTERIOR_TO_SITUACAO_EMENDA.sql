@@ -24,3 +24,50 @@ WHERE table_schema = 'public'
   AND table_name   = 'formalizacao'
   AND column_name  = 'situacao_emenda';
 -- Deve retornar 1 linha com column_name = 'situacao_emenda'
+
+
+-- ============================================================
+-- PASSO 2: Popular situacao_emenda com dados da tabela emendas
+--          (campo situacao_e = "Situação Emenda" do CSV)
+--
+-- Executa em 2 passagens:
+--   A) Match por numero_convenio  (mais preciso)
+--   B) Match por código de emenda (cobre o que sobrar)
+-- ============================================================
+
+-- 2A) Match por número de convênio
+UPDATE public.formalizacao f
+SET
+  situacao_emenda = NULLIF(TRIM(e.situacao_e), ''),
+  updated_at      = NOW()
+FROM public.emendas e
+WHERE TRIM(COALESCE(f.numero_convenio, '')) != ''
+  AND TRIM(COALESCE(e.num_convenio,    '')) != ''
+  AND TRIM(f.numero_convenio) = TRIM(e.num_convenio)
+  AND NULLIF(TRIM(e.situacao_e), '') IS NOT NULL;
+
+-- 2B) Match por código de emenda (dígitos normalizados)
+UPDATE public.formalizacao f
+SET
+  situacao_emenda = NULLIF(TRIM(e.situacao_e), ''),
+  updated_at      = NOW()
+FROM public.emendas e
+WHERE (f.situacao_emenda IS NULL OR f.situacao_emenda = '')   -- só se ainda vazio
+  AND NULLIF(TRIM(e.situacao_e), '') IS NOT NULL
+  AND LENGTH(REGEXP_REPLACE(COALESCE(f.emenda, ''), '[^0-9]', '', 'g')) >= 6
+  AND LENGTH(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g')) >= 6
+  AND REGEXP_REPLACE(COALESCE(f.emenda, ''), '[^0-9]', '', 'g')
+    = REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g');
+
+-- 2C) Notifica PostgREST
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================
+-- Verificação: quantos registros foram preenchidos
+-- ============================================================
+SELECT
+  COUNT(*) FILTER (WHERE situacao_emenda IS NOT NULL AND situacao_emenda != '') AS preenchidos,
+  COUNT(*) FILTER (WHERE situacao_emenda IS NULL OR situacao_emenda = '')       AS vazios,
+  COUNT(*)                                                                       AS total
+FROM public.formalizacao;
+
