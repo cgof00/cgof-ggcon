@@ -1530,254 +1530,388 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
     return <p className="text-slate-400 text-center py-8 text-sm">Sem dados. Verifique se <code className="bg-slate-100 px-1 rounded">{isConf ? 'data_recebimento_demanda' : 'data_liberacao'}</code> e <code className="bg-slate-100 px-1 rounded">{isConf ? 'conferencista' : 'tecnico'}</code> estão preenchidos.</p>;
 
   return (
-    <div>
-      {/* ── KPIs + Export ─────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
-        <div className="flex gap-2 flex-wrap">
-          {[
-            { lbl: 'Recebidas',    val: kpis.totRec,    cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-            { lbl: 'Analisadas',   val: kpis.totAnal,   cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-            { lbl: isConf ? 'Presas c/Conf.' : 'Demandas c/Téc', val: kpis.totCTec,   cls: kpis.totCTec   === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-red-50 text-red-700 border-red-200' },
-            { lbl: 'Em Análise',   val: kpis.totEmAnal, cls: kpis.totEmAnal === 0 ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-orange-50 text-orange-700 border-orange-200' },
-            { lbl: 'Taxa',         val: `${kpis.taxa}%`,cls: kpis.taxa >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : kpis.taxa >= 50 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200' },
-          ].map(k => (
-            <div key={k.lbl} className={`border rounded-xl px-4 py-2.5 flex flex-col items-center min-w-[90px] ${k.cls}`}>
-              <span className="text-2xl font-extrabold leading-tight">{k.val}</span>
-              <span className="text-xs font-medium opacity-70 mt-0.5 text-center">{k.lbl}</span>
+    <div className="space-y-5">
+
+      {/* ══════════════════════════════════════════════════════
+          1 — KPI TOPO: números grandes + taxa geral
+         ══════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {/* Recebidas */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 flex flex-col gap-1">
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Recebidas</span>
+          <span className="text-4xl font-black text-slate-800 leading-none">{kpis.totRec}</span>
+          <span className="text-[10px] text-slate-400">Total no período</span>
+        </div>
+        {/* Analisadas */}
+        <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 p-4 flex flex-col gap-1">
+          <span className="text-xs font-semibold text-emerald-500 uppercase tracking-wider">{isConf ? 'Conferenciadas' : 'Analisadas'}</span>
+          <span className="text-4xl font-black text-emerald-600 leading-none">{kpis.totAnal}</span>
+          <span className="text-[10px] text-slate-400">Encaminhadas / concluídas</span>
+        </div>
+        {/* Pendentes c/Técnico */}
+        <div className={`bg-white rounded-2xl shadow-sm border p-4 flex flex-col gap-1 ${kpis.totCTec > 0 ? 'border-red-100' : 'border-slate-100'}`}>
+          <span className={`text-xs font-semibold uppercase tracking-wider ${kpis.totCTec > 0 ? 'text-red-400' : 'text-slate-400'}`}>{isConf ? 'Presas c/Conf.' : 'Demandas c/Téc.'}</span>
+          <span className={`text-4xl font-black leading-none ${kpis.totCTec > 0 ? 'text-red-600' : 'text-slate-300'}`}>{kpis.totCTec}</span>
+          <span className="text-[10px] text-slate-400">Sem início de análise</span>
+        </div>
+        {/* Em Análise */}
+        <div className={`bg-white rounded-2xl shadow-sm border p-4 flex flex-col gap-1 ${kpis.totEmAnal > 0 ? 'border-orange-100' : 'border-slate-100'}`}>
+          <span className={`text-xs font-semibold uppercase tracking-wider ${kpis.totEmAnal > 0 ? 'text-orange-400' : 'text-slate-400'}`}>Em Análise</span>
+          <span className={`text-4xl font-black leading-none ${kpis.totEmAnal > 0 ? 'text-orange-500' : 'text-slate-300'}`}>{kpis.totEmAnal}</span>
+          <span className="text-[10px] text-slate-400">Análise iniciada</span>
+        </div>
+        {/* Taxa geral */}
+        <div className={`rounded-2xl shadow-sm border p-4 flex flex-col gap-1 ${kpis.taxa >= 70 ? 'bg-emerald-500 border-emerald-400' : kpis.taxa >= 40 ? 'bg-amber-400 border-amber-300' : 'bg-red-500 border-red-400'}`}>
+          <span className="text-xs font-semibold text-white/80 uppercase tracking-wider">Produtividade</span>
+          <span className="text-4xl font-black text-white leading-none">{kpis.taxa}%</span>
+          <span className="text-[10px] text-white/70">{kpis.taxa >= 70 ? 'Boa performance' : kpis.taxa >= 40 ? 'Atenção necessária' : 'Gargalo crítico'}</span>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════
+          2 — FUNIL DE DEMANDAS (barra visual horizontal)
+         ══════════════════════════════════════════════════════ */}
+      {(() => {
+        const rec  = kpis.totRec;
+        const anal = kpis.totAnal;
+        const cTec = kpis.totCTec;
+        const em   = kpis.totEmAnal;
+        const steps = [
+          { label: 'Recebidas',    val: rec,  color: 'bg-slate-500',   pct: 100 },
+          { label: 'Em análise',   val: em + cTec,  color: 'bg-orange-400',  pct: rec > 0 ? Math.round(((em + cTec) / rec) * 100) : 0 },
+          { label: isConf ? 'Conferenciadas' : 'Analisadas', val: anal, color: 'bg-emerald-500', pct: rec > 0 ? Math.round((anal / rec) * 100) : 0 },
+        ];
+        return (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Activity className="w-4 h-4 text-slate-500" />
+              <span className="text-sm font-bold text-slate-700">Funil de Demandas</span>
+              <span className="text-xs text-slate-400 ml-auto">Recebidas → Em análise → Finalizadas</span>
             </div>
-          ))}
-        </div>
-        <div className="flex gap-2 flex-shrink-0">
-          <button onClick={exportStuckXLSX} className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition-colors">
-            <Download className="w-4 h-4" /> Atrasos (c/Téc + Em Análise)
-          </button>
-          <button onClick={exportXLSX} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors">
-            <Download className="w-4 h-4" /> XLSX completo
-          </button>
-        </div>
-      </div>
-
-      {/* ── Legenda ───────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-3 mb-4 text-xs">
-        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-emerald-500 inline-block" /><span className="text-slate-600 font-medium">{isConf ? 'Conferenciada' : 'Analisada'}</span><span className="text-slate-400">{isConf ? '= devolvida pelo conferencista' : '= saiu de c/Técnico e Em Análise (foi para conferencista ou além)'}</span></div>
-        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-red-400 inline-block" /><span className="text-slate-600 font-medium">{isConf ? 'Presa c/Conferencista' : 'Demanda c/Técnico'}</span><span className="text-slate-400">{isConf ? '= recebida mas sem Data de Retorno' : '= recebida, sem início de análise'}</span></div>
-        {!isConf && <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-orange-400 inline-block" /><span className="text-slate-600 font-medium">Em Análise</span><span className="text-slate-400">= análise iniciada mas não enviada ao conferencista</span></div>}
-        <span className="text-slate-400 ml-auto">{isConf ? 'Agrupado por mês de recebimento pela conferencista' : 'Agrupado por mês em que a demanda foi liberada para o técnico'}</span>
-      </div>
-
-      {/* ── Tabela-matriz ─────────────────────────────────────────── */}
-      <div style={{ maxHeight: '72vh', overflowX: 'auto', overflowY: 'auto' }} className="rounded-xl border border-slate-200 shadow-sm">
-        <table className="w-full text-sm border-collapse">
-          <thead className="sticky top-0 z-20">
-            <tr>
-              <th className="sticky left-0 z-30 bg-slate-800 text-white text-left px-4 py-3 font-bold text-sm whitespace-nowrap min-w-[180px]">
-                {isConf ? 'Conferencista' : 'Técnico'}
-              </th>
-              {allMeses.map(mes => (
-                <th key={mes} className={`text-white px-3 py-2.5 text-center whitespace-nowrap min-w-[80px] text-xs font-bold ${mes === 'sem-data' ? 'bg-slate-500' : 'bg-slate-700'}`}>
-                  {mes === 'sem-data' ? 'Sem Data' : fmtMesProd(mes)}
-                  <div className="text-[10px] opacity-50 font-normal mt-0.5">{mes === 'sem-data' ? 'sem rec.' : (isConf ? 'conferenc.' : 'analisadas')}</div>
-                </th>
+            <div className="space-y-3">
+              {steps.map(s => (
+                <div key={s.label} className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500 w-28 shrink-0 text-right">{s.label}</span>
+                  <div className="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden">
+                    <div className={`h-full ${s.color} rounded-full transition-all duration-700 flex items-center justify-end pr-2`} style={{ width: `${s.pct}%` }}>
+                      {s.pct > 8 && <span className="text-[10px] font-bold text-white">{s.pct}%</span>}
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-slate-700 w-10 shrink-0">{s.val}</span>
+                </div>
               ))}
-              <th className="bg-blue-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Total<br/>Rec.</th>
-              <th className="bg-emerald-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">{isConf ? <>Total<br/>Conf.</> : <>Total<br/>Anal.</>}</th>
-              <th className="bg-red-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">{isConf ? <>Presas<br/>c/Conf.</> : <>Demandas<br/>c/Téc</>}</th>
-              <th className="bg-orange-700 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Em<br/>Análise</th>
-              <th className="bg-slate-600 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Taxa</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pessoas.map((p, pi) => {
-              const isOpen = expanded.has(p.nome);
-              const rowBg  = pi % 2 === 0 ? 'bg-white' : 'bg-slate-50';
-              return (
-                <React.Fragment key={p.nome}>
-                  <tr className={`border-b border-slate-100 ${rowBg} hover:bg-blue-50/40 transition-colors`}>
-                    {/* Nome */}
-                    <td className={`sticky left-0 z-10 px-4 py-3 border-r border-slate-200 ${rowBg}`}>
-                      <button
-                        onClick={() => setExpanded(s => { const n = new Set(s); n.has(p.nome) ? n.delete(p.nome) : n.add(p.nome); return n; })}
-                        className="flex items-center gap-2 text-left w-full hover:text-[#1351B4] transition-colors"
-                      >
-                        {isOpen
-                          ? <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                          : <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />}
-                        <span className="text-sm font-bold text-slate-800 truncate max-w-[150px]" title={p.nome}>{p.nome}</span>
-                      </button>
-                    </td>
+            </div>
+          </div>
+        );
+      })()}
 
-                    {/* Células por mês — mostra quantas foram ANALISADAS daquele cohort */}
-                    {allMeses.map(mes => {
-                      const c      = p.monthMap.get(mes);
-                      const total  = c?.total.length  ?? 0;
-                      const anal   = (c?.anal.length ?? 0) + (c?.conc.length ?? 0);
-                      const cTec   = c?.cTec.length   ?? 0;
-                      const emAnal = c?.emAnal.length ?? 0;
-                      // Oculta apenas células sem nenhuma atividade
-                      if (total === 0 && anal === 0 && cTec === 0 && emAnal === 0) return <td key={mes} className="px-2 py-3 text-center"><span className="text-slate-200 text-xs">—</span></td>;
-
-                      // Cor baseia-se em produtividade real do mês: analisou algo?
-                      // Nota: anal e total podem estar em meses diferentes (produtividade por evento)
-                      const allOk  = anal > 0 && total === 0; // só analisadas de meses anteriores — verde
-                      const noneOk = anal === 0;
-                      const cls    = (anal > 0)   ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                   : (total > 0)  ? 'bg-amber-100 text-amber-800 border-amber-300'
-                                                  : 'bg-slate-100 text-slate-500 border-slate-200';
-                      void allOk; // não usada diretamente mas mantida para lógica acima
-                      return (
-                        <td key={mes} className="px-2 py-3 text-center">
-                          <button
-                            onClick={() => {
-                              const rows = c ? [...c.anal, ...c.conc, ...c.cTec, ...c.emAnal] : [];
-                              openDrilldown(`${p.nome} — ${mes === 'sem-data' ? 'Sem Data' : fmtMesProd(mes)} (${anal} ${isConf ? 'conf.' : 'anal.'} | ${total} rec.)`, rows);
-                            }}
-                            className={`inline-flex flex-col items-center px-2.5 py-1.5 rounded-lg border text-center hover:opacity-80 transition-opacity ${cls}`}
-                            title={`${anal} ${isConf ? 'conferenciadas' : 'analisadas'} neste mês | ${total} recebidas neste mês${cTec > 0 ? ` | ${cTec} presas c/técnico` : ''}${emAnal > 0 ? ` | ${emAnal} em análise` : ''}`}
-                          >
-                            <span className="text-base font-extrabold leading-none">{anal}</span>
-                            <span className="text-[10px] font-medium opacity-70 leading-none mt-0.5">rec {total}</span>
-                          </button>
-                        </td>
-                      );
-                    })}
-
-                    {/* Total recebidas */}
-                    <td className="px-3 py-3 text-center">
-                      <button onClick={() => openDrilldown(`${p.nome} — Todas recebidas`, [...p.monthMap.values()].flatMap(c => c.total))} className="text-sm font-bold text-blue-700 hover:underline">{p.totalRec}</button>
-                    </td>
-
-                    {/* Total analisadas */}
-                    <td className="px-3 py-3 text-center">
-                      <span className="text-sm font-bold text-emerald-700">{p.totalAnal + p.totalConc}</span>
-                    </td>
-
-                    {/* Presas c/Técnico */}
-                    <td className="px-3 py-3 text-center">
-                      {p.totalCTec > 0 ? (
-                        <button
-                          onClick={() => openDrilldown(`${p.nome} — ${isConf ? 'Presas c/Conferencista' : 'Demandas c/Técnico'} (${p.totalCTec})`, [...p.monthMap.values()].flatMap(c => c.cTec))}
-                          className="text-sm font-bold text-red-700 bg-red-50 px-2.5 py-1 rounded-full hover:bg-red-100 transition-colors border border-red-200"
-                        >{p.totalCTec}</button>
-                      ) : <span className="text-emerald-500 font-black text-base">✓</span>}
-                    </td>
-
-                    {/* Em Análise */}
-                    <td className="px-3 py-3 text-center">
-                      {p.totalEmAnal > 0 ? (
-                        <button
-                          onClick={() => openDrilldown(`${p.nome} — Em Análise (${p.totalEmAnal})`, [...p.monthMap.values()].flatMap(c => c.emAnal))}
-                          className="text-sm font-bold text-orange-700 bg-orange-50 px-2.5 py-1 rounded-full hover:bg-orange-100 transition-colors border border-orange-200"
-                        >{p.totalEmAnal}</button>
-                      ) : <span className="text-emerald-500 font-black text-base">✓</span>}
-                    </td>
-
-                    {/* Taxa */}
-                    <td className="px-3 py-3 text-center">
-                      <span className={`text-sm font-bold ${p.taxa >= 80 ? 'text-emerald-600' : p.taxa >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-                        {p.taxa}%
-                      </span>
-                    </td>
-                  </tr>
-
-                  {/* Linha expandida — chips das demandas presas */}
-                  {isOpen && (
-                    <tr key={`${p.nome}-detail`} className="border-b border-slate-100 bg-slate-50/80">
-                      <td colSpan={allMeses.length + 6} className="px-6 py-4">
-                        {p.stuck.length > 0 ? (
-                          <div className="space-y-3">
-                            {/* c/Técnico stuck */}
-                            {p.totalCTec > 0 && (
-                              <div>
-                                <div className="text-xs font-bold text-red-700 mb-2 flex items-center gap-2">
-                                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
-                                  {isConf ? `Presas c/Conferencista (${p.totalCTec}) — sem Data de Retorno:` : `Demandas c/Técnico (${p.totalCTec}) — sem início de análise:`}
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {[...p.monthMap.values()].flatMap(c => c.cTec)
-                                    .sort((a, b) => daysSinceTL(b[dateKey] as string) - daysSinceTL(a[dateKey] as string))
-                                    .slice(0, 20)
-                                    .map((r, ri) => {
-                                      const dias  = daysSinceTL(r[dateKey] as string);
-                                      const label = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`).substring(0, 40);
-                                      return (
-                                        <button key={ri} onClick={() => openDrilldown(label, [r])}
-                                          className={`text-xs border rounded-lg px-2.5 py-1 hover:opacity-80 transition-opacity flex items-center gap-1.5 ${dias > 90 ? 'bg-red-100 border-red-300 text-red-800 font-bold' : dias > 30 ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-white border-slate-200 text-slate-700'}`}>
-                                          {label}
-                                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${dias > 90 ? 'bg-red-200' : dias > 30 ? 'bg-amber-200' : 'bg-slate-100'}`}>{dias}d</span>
-                                        </button>
-                                      );
-                                    })}
-                                  {p.totalCTec > 20 && <button onClick={() => openDrilldown(`${p.nome} — ${isConf ? 'Presas c/Conferencista' : 'Demandas c/Técnico'}`, [...p.monthMap.values()].flatMap(c => c.cTec))} className="text-xs text-[#1351B4] hover:underline">+{p.totalCTec - 20} mais →</button>}
-                                </div>
-                              </div>
-                            )}
-                            {/* Em Análise stuck */}
-                            {p.totalEmAnal > 0 && (
-                              <div>
-                                <div className="text-xs font-bold text-orange-700 mb-2 flex items-center gap-2">
-                                  <span className="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block" />
-                                  Em Análise ({p.totalEmAnal}) — análise iniciada mas não enviada ao conferencista:
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {[...p.monthMap.values()].flatMap(c => c.emAnal)
-                                    .sort((a, b) => daysSinceTL(b[dateKey] as string) - daysSinceTL(a[dateKey] as string))
-                                    .slice(0, 20)
-                                    .map((r, ri) => {
-                                      // Usa a data MAIS RECENTE entre data_analise_demanda e data_liberacao
-                                      // Evita inconsistências onde data_analise_demanda é anterior à data_liberacao
-                                      const _dAnal = parseDateTL((isConf ? r.data_liberacao_assinatura_conferencista : r.data_analise_demanda) as string);
-                                      const _dLib  = parseDateTL(r.data_liberacao as string);
-                                      const _dRef  = _dAnal && _dLib ? (_dAnal.getTime() > _dLib.getTime() ? _dAnal : _dLib) : _dAnal ?? _dLib;
-                                      const dias   = _dRef ? Math.max(0, Math.round((Date.now() - _dRef.getTime()) / 86400000)) : 0;
-                                      const label = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`).substring(0, 40);
-                                      return (
-                                        <button key={ri} onClick={() => openDrilldown(label, [r])}
-                                          className={`text-xs border rounded-lg px-2.5 py-1 hover:opacity-80 transition-opacity flex items-center gap-1.5 ${dias > 60 ? 'bg-orange-100 border-orange-300 text-orange-800 font-bold' : dias > 20 ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-white border-slate-200 text-slate-700'}`}>
-                                          {label}
-                                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${dias > 60 ? 'bg-orange-200' : dias > 20 ? 'bg-amber-200' : 'bg-slate-100'}`}>{dias}d em análise</span>
-                                        </button>
-                                      );
-                                    })}
-                                  {p.totalEmAnal > 20 && <button onClick={() => openDrilldown(`${p.nome} — Em Análise`, [...p.monthMap.values()].flatMap(c => c.emAnal))} className="text-xs text-[#1351B4] hover:underline">+{p.totalEmAnal - 20} mais →</button>}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-sm text-emerald-600 font-semibold flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4" />
-                            Nenhuma demanda presa — todas foram analisadas ou concluídas.
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-
-            {/* Linha de totais */}
-            <tr className="bg-slate-800 text-white font-bold">
-              <td className="sticky left-0 z-10 bg-slate-800 px-4 py-3 text-sm uppercase tracking-wide">TOTAL</td>
-              {allMeses.map(mes => {
-                const anal  = pessoas.reduce((s, p) => { const c = p.monthMap.get(mes); return s + (c?.anal.length ?? 0) + (c?.conc.length ?? 0); }, 0);
-                const total = pessoas.reduce((s, p) => s + (p.monthMap.get(mes)?.total.length ?? 0), 0);
+      {/* ══════════════════════════════════════════════════════
+          3 — GRÁFICO DE BARRAS: produtividade por técnico
+         ══════════════════════════════════════════════════════ */}
+      {(() => {
+        const sorted = [...pessoas].sort((a, b) => b.taxa - a.taxa);
+        const maxRec = Math.max(...pessoas.map(p => p.totalRec), 1);
+        return (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="w-4 h-4 text-slate-500" />
+              <span className="text-sm font-bold text-slate-700">Produtividade por {isConf ? 'Conferencista' : 'Técnico'}</span>
+              <div className="flex gap-3 ml-auto text-[10px] text-slate-400">
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block"/>Analisadas</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-slate-200 inline-block"/>Pendentes</span>
+              </div>
+            </div>
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {sorted.map(p => {
+                const anal  = p.totalAnal + p.totalConc;
+                const pend  = p.totalRec - anal;
+                const pctAnal = p.totalRec > 0 ? (anal / p.totalRec) * 100 : 0;
+                const pctPend = p.totalRec > 0 ? (pend / p.totalRec) * 100 : 0;
+                const barColor = p.taxa >= 70 ? 'bg-emerald-500' : p.taxa >= 40 ? 'bg-amber-400' : 'bg-red-500';
+                const initials = p.nome.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
                 return (
-                  <td key={mes} className="px-2 py-3 text-center">
-                    {total > 0
-                      ? <span className="text-xs font-bold">{anal}<span className="opacity-50 text-[10px]">/{total}</span></span>
-                      : <span className="text-slate-600 text-xs">—</span>}
-                  </td>
+                  <div key={p.nome} className="flex items-center gap-2">
+                    <div className={`w-6 h-6 rounded-full text-white text-[9px] font-black flex items-center justify-center shrink-0 ${barColor}`}>{initials}</div>
+                    <span className="text-xs text-slate-600 font-medium w-32 shrink-0 truncate" title={p.nome}>{p.nome.split(' ')[0]}</span>
+                    <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden flex">
+                      <div className={`h-full ${barColor} transition-all duration-700`} style={{ width: `${(anal / maxRec) * 100}%` }} />
+                      <div className="h-full bg-slate-200 transition-all duration-700" style={{ width: `${(Math.max(0, pend) / maxRec) * 100}%` }} />
+                    </div>
+                    <span className={`text-xs font-bold w-10 shrink-0 text-right ${p.taxa >= 70 ? 'text-emerald-600' : p.taxa >= 40 ? 'text-amber-600' : 'text-red-600'}`}>{p.taxa}%</span>
+                    <span className="text-[10px] text-slate-400 w-14 shrink-0 text-right">{anal}/{p.totalRec} rec.</span>
+                    <button
+                      onClick={() => openDrilldown(`${p.nome} — Todas`, [...p.monthMap.values()].flatMap(c => [...c.total]))}
+                      className="text-[10px] text-slate-400 hover:text-blue-600 shrink-0 underline-offset-2 hover:underline"
+                    >detalhes</button>
+                    {void pctAnal; void pctPend;}
+                  </div>
                 );
               })}
-              <td className="px-3 py-3 text-center text-sm font-black">{kpis.totRec}</td>
-              <td className="px-3 py-3 text-center text-sm font-black">{kpis.totAnal}</td>
-              <td className="px-3 py-3 text-center text-sm font-black text-red-300">{kpis.totCTec}</td>
-              <td className="px-3 py-3 text-center text-sm font-black text-orange-300">{kpis.totEmAnal}</td>
-              <td className="px-3 py-3 text-center text-sm font-black">{kpis.taxa}%</td>
-            </tr>
-          </tbody>
-        </table>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ══════════════════════════════════════════════════════
+          4 — CARDS POR TÉCNICO
+         ══════════════════════════════════════════════════════ */}
+      <div>
+        <div className="flex items-center gap-3 mb-3">
+          <Users className="w-4 h-4 text-slate-500" />
+          <span className="text-sm font-bold text-slate-700">{isConf ? 'Conferencistas' : 'Técnicos'} ({pessoas.length})</span>
+          <div className="flex gap-2 ml-auto text-[10px]">
+            <span className="flex items-center gap-1 text-emerald-600"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"/>≥70% Boa</span>
+            <span className="flex items-center gap-1 text-amber-600"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block"/>40–69% Atenção</span>
+            <span className="flex items-center gap-1 text-red-600"><span className="w-2 h-2 rounded-full bg-red-500 inline-block"/>&lt;40% Crítico</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {pessoas.map(p => {
+            const anal    = p.totalAnal + p.totalConc;
+            const pend    = p.totalCTec + p.totalEmAnal;
+            const perfCls = p.taxa >= 70 ? 'border-emerald-200 shadow-emerald-50'
+                          : p.taxa >= 40 ? 'border-amber-200 shadow-amber-50'
+                          :                'border-red-200 shadow-red-50';
+            const dotCls  = p.taxa >= 70 ? 'bg-emerald-500' : p.taxa >= 40 ? 'bg-amber-400' : 'bg-red-500';
+            const barCls  = p.taxa >= 70 ? 'bg-emerald-500' : p.taxa >= 40 ? 'bg-amber-400' : 'bg-red-500';
+            const taxaCls = p.taxa >= 70 ? 'text-emerald-600' : p.taxa >= 40 ? 'text-amber-600' : 'text-red-600';
+            const badgeLbl = p.taxa >= 70 ? 'Boa performance' : p.taxa >= 40 ? 'Atenção' : 'Crítico';
+            const badgeBg  = p.taxa >= 70 ? 'bg-emerald-50 text-emerald-700' : p.taxa >= 40 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700';
+            const initials = p.nome.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+            const isOpen = expanded.has(p.nome);
+            return (
+              <div key={p.nome} className={`bg-white rounded-2xl border shadow-sm ${perfCls} flex flex-col overflow-hidden transition-shadow hover:shadow-md`}>
+                {/* Header do card */}
+                <div className="p-4 flex items-start gap-3">
+                  <div className={`w-10 h-10 rounded-xl ${dotCls} text-white font-black text-sm flex items-center justify-center shrink-0 shadow-sm`}>{initials}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-slate-800 text-sm truncate" title={p.nome}>{p.nome}</div>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${badgeBg}`}>{badgeLbl}</span>
+                  </div>
+                  <span className={`text-2xl font-black leading-none ${taxaCls}`}>{p.taxa}%</span>
+                </div>
+
+                {/* Barra de progresso */}
+                <div className="px-4">
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                    <div className={`h-full ${barCls} rounded-full transition-all duration-700`} style={{ width: `${p.taxa}%` }} />
+                  </div>
+                </div>
+
+                {/* Stats grid */}
+                <div className="grid grid-cols-4 gap-0 mt-3 border-t border-slate-100 divide-x divide-slate-100">
+                  {[
+                    { lbl: 'Rec.',    val: p.totalRec,  cls: 'text-slate-700' },
+                    { lbl: isConf ? 'Conf.' : 'Anal.',  val: anal,  cls: 'text-emerald-600 font-black' },
+                    { lbl: 'Pend.',   val: pend,  cls: pend > 0 ? 'text-red-600 font-black' : 'text-emerald-500' },
+                    { lbl: 'Conc.',   val: p.totalConc, cls: 'text-blue-600' },
+                  ].map(s => (
+                    <div key={s.lbl} className="py-2.5 flex flex-col items-center">
+                      <span className={`text-base font-bold leading-none ${s.cls}`}>{s.val}</span>
+                      <span className="text-[9px] text-slate-400 mt-0.5">{s.lbl}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Botão detalhes */}
+                <div className="px-3 pb-3 pt-2 flex gap-2">
+                  <button
+                    onClick={() => setExpanded(s => { const n = new Set(s); n.has(p.nome) ? n.delete(p.nome) : n.add(p.nome); return n; })}
+                    className="flex-1 text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 hover:bg-slate-100 rounded-xl py-1.5 transition-colors flex items-center justify-center gap-1"
+                  >
+                    {isOpen ? <><ChevronDown className="w-3 h-3"/>Ocultar</> : <><Eye className="w-3 h-3"/>Ver detalhes</>}
+                  </button>
+                  {pend > 0 && (
+                    <button
+                      onClick={() => openDrilldown(`${p.nome} — Pendentes (${pend})`, p.stuck)}
+                      className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 rounded-xl px-3 py-1.5 transition-colors"
+                    >{pend} pend.</button>
+                  )}
+                </div>
+
+                {/* Detalhe expandido */}
+                {isOpen && (
+                  <div className="border-t border-slate-100 bg-slate-50/80 px-4 py-3 space-y-3">
+                    {p.totalCTec > 0 && (
+                      <div>
+                        <div className="text-[10px] font-bold text-red-600 mb-1.5 flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-red-500 inline-block"/>
+                          {isConf ? `Presas c/Conferencista (${p.totalCTec})` : `C/Técnico sem análise (${p.totalCTec})`}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {[...p.monthMap.values()].flatMap(c => c.cTec)
+                            .sort((a, b) => daysSinceTL(b[dateKey] as string) - daysSinceTL(a[dateKey] as string))
+                            .slice(0, 10)
+                            .map((r, ri) => {
+                              const dias  = daysSinceTL(r[dateKey] as string);
+                              const label = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`).substring(0, 30);
+                              return (
+                                <button key={ri} onClick={() => openDrilldown(label, [r])}
+                                  className={`text-[10px] border rounded px-1.5 py-0.5 hover:opacity-80 flex items-center gap-1 ${dias > 90 ? 'bg-red-100 border-red-300 text-red-800 font-bold' : dias > 30 ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-white border-slate-200 text-slate-600'}`}>
+                                  {label}
+                                  <span className="font-black">{dias}d</span>
+                                </button>
+                              );
+                            })}
+                          {p.totalCTec > 10 && (
+                            <button onClick={() => openDrilldown(`${p.nome} — C/Técnico`, [...p.monthMap.values()].flatMap(c => c.cTec))}
+                              className="text-[10px] text-blue-600 hover:underline">+{p.totalCTec - 10} mais</button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {p.totalEmAnal > 0 && (
+                      <div>
+                        <div className="text-[10px] font-bold text-orange-600 mb-1.5 flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-orange-400 inline-block"/>
+                          Em Análise ({p.totalEmAnal})
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {[...p.monthMap.values()].flatMap(c => c.emAnal)
+                            .sort((a, b) => daysSinceTL(b[dateKey] as string) - daysSinceTL(a[dateKey] as string))
+                            .slice(0, 10)
+                            .map((r, ri) => {
+                              const _dAnal = parseDateTL((isConf ? r.data_liberacao_assinatura_conferencista : r.data_analise_demanda) as string);
+                              const _dLib  = parseDateTL(r.data_liberacao as string);
+                              const _dRef  = _dAnal && _dLib ? (_dAnal.getTime() > _dLib.getTime() ? _dAnal : _dLib) : _dAnal ?? _dLib;
+                              const dias   = _dRef ? Math.max(0, Math.round((Date.now() - _dRef.getTime()) / 86400000)) : 0;
+                              const label = String(r.demandas_formalizacao ?? r.demanda ?? `#${r.id}`).substring(0, 30);
+                              return (
+                                <button key={ri} onClick={() => openDrilldown(label, [r])}
+                                  className={`text-[10px] border rounded px-1.5 py-0.5 hover:opacity-80 flex items-center gap-1 ${dias > 60 ? 'bg-orange-100 border-orange-300 text-orange-800 font-bold' : dias > 20 ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-white border-slate-200 text-slate-600'}`}>
+                                  {label}
+                                  <span className="font-black">{dias}d</span>
+                                </button>
+                              );
+                            })}
+                          {p.totalEmAnal > 10 && (
+                            <button onClick={() => openDrilldown(`${p.nome} — Em Análise`, [...p.monthMap.values()].flatMap(c => c.emAnal))}
+                              className="text-[10px] text-blue-600 hover:underline">+{p.totalEmAnal - 10} mais</button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {p.totalCTec === 0 && p.totalEmAnal === 0 && (
+                      <div className="flex items-center gap-2 text-emerald-600 text-xs font-semibold">
+                        <CheckCircle2 className="w-4 h-4"/>Todas as demandas foram analisadas.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════
+          5 — TABELA MENSAL (colapsável — visão histórica)
+         ══════════════════════════════════════════════════════ */}
+      {(() => {
+        const [open, setOpen] = React.useState(false);
+        return (
+          <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <button
+              onClick={() => setOpen(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+            >
+              <span className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                <Calendar className="w-4 h-4"/>
+                Detalhe por Mês (cohort)
+                <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full">{allMeses.filter(m => m !== 'sem-data').length} meses</span>
+              </span>
+              {open ? <ChevronDown className="w-4 h-4 text-slate-400"/> : <ChevronRight className="w-4 h-4 text-slate-400"/>}
+            </button>
+            {open && (
+              <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '60vh' }}>
+                <table className="w-full text-sm border-collapse">
+                  <thead className="sticky top-0 z-20">
+                    <tr>
+                      <th className="sticky left-0 z-30 bg-slate-800 text-white text-left px-4 py-3 font-bold text-xs whitespace-nowrap min-w-[160px]">
+                        {isConf ? 'Conferencista' : 'Técnico'}
+                      </th>
+                      {allMeses.map(mes => (
+                        <th key={mes} className={`text-white px-3 py-2.5 text-center whitespace-nowrap min-w-[80px] text-xs font-bold ${mes === 'sem-data' ? 'bg-slate-500' : 'bg-slate-700'}`}>
+                          {mes === 'sem-data' ? 'Sem Data' : fmtMesProd(mes)}
+                          <div className="text-[9px] opacity-50 font-normal mt-0.5">anal./rec.</div>
+                        </th>
+                      ))}
+                      <th className="bg-blue-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Rec.</th>
+                      <th className="bg-emerald-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Anal.</th>
+                      <th className="bg-red-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">c/Téc</th>
+                      <th className="bg-orange-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Em An.</th>
+                      <th className="bg-slate-600 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Taxa</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pessoas.map((p, pi) => {
+                      const rowBg = pi % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                      return (
+                        <tr key={p.nome} className={`border-b border-slate-100 ${rowBg} hover:bg-blue-50/30 transition-colors`}>
+                          <td className={`sticky left-0 z-10 px-4 py-2.5 border-r border-slate-200 text-xs font-bold text-slate-700 truncate max-w-[160px] ${rowBg}`} title={p.nome}>{p.nome}</td>
+                          {allMeses.map(mes => {
+                            const c    = p.monthMap.get(mes);
+                            const tot  = c?.total.length ?? 0;
+                            const an   = (c?.anal.length ?? 0) + (c?.conc.length ?? 0);
+                            const cTec = c?.cTec.length ?? 0;
+                            const emAn = c?.emAnal.length ?? 0;
+                            if (tot === 0 && an === 0 && cTec === 0 && emAn === 0) return <td key={mes} className="px-2 py-2 text-center text-slate-200 text-xs">—</td>;
+                            const cls = an > 0 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : tot > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-500 border-slate-200';
+                            return (
+                              <td key={mes} className="px-2 py-2 text-center">
+                                <button onClick={() => { const rows = c ? [...c.anal,...c.conc,...c.cTec,...c.emAnal] : []; openDrilldown(`${p.nome} — ${fmtMesProd(mes)}`, rows); }}
+                                  className={`inline-flex flex-col items-center px-2 py-1 rounded border text-center hover:opacity-80 transition-opacity text-xs ${cls}`}>
+                                  <span className="font-extrabold">{an}</span>
+                                  <span className="opacity-60 text-[9px]">/{tot}</span>
+                                </button>
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-2 text-center text-xs font-bold text-slate-700">{p.totalRec}</td>
+                          <td className="px-3 py-2 text-center text-xs font-bold text-emerald-600">{p.totalAnal + p.totalConc}</td>
+                          <td className="px-3 py-2 text-center">
+                            {p.totalCTec > 0 ? <button onClick={() => openDrilldown(`${p.nome} — C/Técnico`, [...p.monthMap.values()].flatMap(c => c.cTec))} className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200 hover:bg-red-100">{p.totalCTec}</button> : <span className="text-emerald-500 font-black">✓</span>}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {p.totalEmAnal > 0 ? <button onClick={() => openDrilldown(`${p.nome} — Em Análise`, [...p.monthMap.values()].flatMap(c => c.emAnal))} className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 hover:bg-orange-100">{p.totalEmAnal}</button> : <span className="text-emerald-500 font-black">✓</span>}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <span className={`text-xs font-bold ${p.taxa >= 70 ? 'text-emerald-600' : p.taxa >= 40 ? 'text-amber-600' : 'text-red-600'}`}>{p.taxa}%</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="bg-slate-800 text-white">
+                      <td className="sticky left-0 z-10 bg-slate-800 px-4 py-2.5 text-xs font-bold uppercase">TOTAL</td>
+                      {allMeses.map(mes => {
+                        const an  = pessoas.reduce((s, p) => { const c = p.monthMap.get(mes); return s + (c?.anal.length ?? 0) + (c?.conc.length ?? 0); }, 0);
+                        const tot = pessoas.reduce((s, p) => s + (p.monthMap.get(mes)?.total.length ?? 0), 0);
+                        return <td key={mes} className="px-2 py-2.5 text-center text-xs font-bold">{tot > 0 ? <>{an}<span className="opacity-40">/{tot}</span></> : <span className="opacity-30">—</span>}</td>;
+                      })}
+                      <td className="px-3 py-2.5 text-center text-xs font-black">{kpis.totRec}</td>
+                      <td className="px-3 py-2.5 text-center text-xs font-black text-emerald-300">{kpis.totAnal}</td>
+                      <td className="px-3 py-2.5 text-center text-xs font-black text-red-300">{kpis.totCTec}</td>
+                      <td className="px-3 py-2.5 text-center text-xs font-black text-orange-300">{kpis.totEmAnal}</td>
+                      <td className="px-3 py-2.5 text-center text-xs font-black">{kpis.taxa}%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ══════════════════════════════════════════════════════
+          6 — EXPORTAR
+         ══════════════════════════════════════════════════════ */}
+      <div className="flex gap-2 flex-wrap justify-end">
+        <button onClick={exportStuckXLSX} className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
+          <Download className="w-4 h-4" /> Exportar Atrasos
+        </button>
+        <button onClick={exportXLSX} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
+          <Download className="w-4 h-4" /> XLSX Completo
+        </button>
       </div>
     </div>
   );
