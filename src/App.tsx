@@ -1021,7 +1021,7 @@ export default function App() {
     
     // Aplicar filtros IMEDIATAMENTE do cache em memória
     fetchFormalizacoesComFiltros(0);
-  }, [filters, searchTerm, activeTab, hideEmptyFields, headerFilters, fundoAFundoFilter]);
+  }, [filters, searchTerm, buscaListaTerms, activeTab, hideEmptyFields, headerFilters, fundoAFundoFilter]);
 
   // ⚡ NOVO: Carregar TUDO o cache quando aba de formalizações abre
   // Isto roda UMA ÚNICA VEZ quando activeTab muda para 'formalizacao'
@@ -1167,7 +1167,7 @@ export default function App() {
   // Resetar paginação quando filtros mudam
   useEffect(() => {
     setPaginaAtual(0);
-  }, [filters, searchTerm, columnTextFilters, headerFilters]);
+  }, [filters, searchTerm, buscaListaTerms, columnTextFilters, headerFilters]);
 
   // Recarregar dados quando filtros de texto de coluna mudam
   useEffect(() => {
