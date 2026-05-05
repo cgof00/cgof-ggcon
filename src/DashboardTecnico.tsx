@@ -523,6 +523,16 @@ function fmtDate(s?: string) {
   const d = new Date(s + 'T00:00:00');
   return isNaN(d.getTime()) ? s : d.toLocaleDateString('pt-BR');
 }
+// Formata data para XLSX: aceita YYYY-MM-DD ou DD/MM/YYYY ou Date, retorna DD/MM/AAAA
+function fmtDateXLSX(s?: string | null): string {
+  if (!s?.trim()) return '';
+  const d = parseDateTL(s);
+  if (!d) return '';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
 
 // ─── MultiCheckFilter ────────────────────────────────────────────────────────
 function MultiCheckFilter({
@@ -1554,8 +1564,8 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
           String(r.municipio ?? ''),
           String(r.area_estagio_situacao_demanda ?? ''),
           tipo,
-          r.data_liberacao ? String(r.data_liberacao).substring(0, 10) : '',
-          r.data_analise_demanda ? String(r.data_analise_demanda).substring(0, 10) : '',
+          fmtDateXLSX(r.data_liberacao as string),
+          fmtDateXLSX((isConf ? r.data_liberacao_assinatura_conferencista : r.data_analise_demanda) as string),
           tipo === 'c/Técnico' ? diasLib : '',
           tipo === 'Em Análise' ? diasAnal : '',
         ]);
@@ -1601,7 +1611,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
           String(r.classificacao ?? ''),
           String(r.area_estagio_situacao_demanda ?? ''),
           isConf ? 'Presa c/Conferencista' : 'c/Técnico',
-          r.data_liberacao ? String(r.data_liberacao).substring(0, 10) : '',
+          fmtDateXLSX(r.data_liberacao as string),
           '',
           diasLib,
           '',
@@ -1625,8 +1635,8 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
           String(r.classificacao ?? ''),
           String(r.area_estagio_situacao_demanda ?? ''),
           'Em Análise',
-          r.data_liberacao ? String(r.data_liberacao).substring(0, 10) : '',
-          r.data_analise_demanda ? String(r.data_analise_demanda).substring(0, 10) : '',
+          fmtDateXLSX(r.data_liberacao as string),
+          fmtDateXLSX((isConf ? r.data_liberacao_assinatura_conferencista : r.data_analise_demanda) as string),
           '',
           diasAnal,
         ]);
@@ -1679,10 +1689,10 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
         String(r.situacao_demandas_sempapel ?? ''),
         String(r.situacao_analise_demanda ?? ''),
         statusLabel,
-        r.data_liberacao ? String(r.data_liberacao).substring(0, 10) : '',
-        r.data_analise_demanda ? String(r.data_analise_demanda).substring(0, 10) : '',
-        r.publicacao ? String(r.publicacao).substring(0, 10) : '',
-        r.concluida_em ? String(r.concluida_em).substring(0, 10) : '',
+        fmtDateXLSX(r.data_liberacao as string),
+        fmtDateXLSX(r.data_analise_demanda as string),
+        fmtDateXLSX(r.publicacao as string),
+        fmtDateXLSX(r.concluida_em as string),
       ];
     });
     // Ordena: status (c/Técnico primeiro), depois Mês/Ano, depois Técnico
