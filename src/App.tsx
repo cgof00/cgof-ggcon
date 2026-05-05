@@ -618,6 +618,9 @@ export default function App() {
   const [buscaListaText, setBuscaListaText] = useState('');
   // Lista de termos já aplicados (separados por vírgula/quebra/ponto-e-vírgula)
   const [buscaListaTerms, setBuscaListaTerms] = useState<string[]>([]);
+  // Filtro por intervalo de data de liberação
+  const [dataInicioFilter, setDataInicioFilter] = useState('');
+  const [dataFimFilter, setDataFimFilter] = useState('');
   const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(() => localStorage.getItem('formalizacao_last_update'));
   const [selectedFormalizacao, setSelectedFormalizacao] = useState<Formalizacao | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<any>(null);
@@ -853,12 +856,13 @@ export default function App() {
       // Verificar buscaListaTerms
       if (buscaListaTerms.length > 0) {
         const matchLista = buscaListaTerms.some(term => {
-          const tl = term.toLowerCase();
+          const tl = term.toLowerCase().trim();
+          if (!tl) return false;
           return (
-            (f.demanda && String(f.demanda).toLowerCase() === tl) ||
-            (f.demandas_formalizacao && String(f.demandas_formalizacao).toLowerCase() === tl) ||
+            (f.demanda && String(f.demanda).toLowerCase().trim().includes(tl)) ||
+            (f.demandas_formalizacao && String(f.demandas_formalizacao).toLowerCase().trim().includes(tl)) ||
             (f.emenda && matchEmendaValue(f.emenda, term)) ||
-            (f.numero_convenio && String(f.numero_convenio).toLowerCase() === tl)
+            (f.numero_convenio && String(f.numero_convenio).toLowerCase().trim().includes(tl))
           );
         });
         if (!matchLista) return false;
@@ -1014,14 +1018,15 @@ export default function App() {
   // ⚡ REMOVIDO: Sem debounce! Aplica filtros INSTANTANEAMENTE do cache
   useEffect(() => {
     if (activeTab !== 'formalizacao') return;
-    if (!formalizacoes || formalizacoes.length === 0) return; // Só aplica se tem cache
+    // Usar cache em memória como referência (mais confiável que o estado formalizacoes)
+    if (allDataCacheRef.current.length === 0 && (!formalizacoes || formalizacoes.length === 0)) return;
     
     console.log('⚡ FILTROS MUDARAM - Aplicando instantaneamente (sem debounce)');
     setPaginaAtual(0);
     
     // Aplicar filtros IMEDIATAMENTE do cache em memória
     fetchFormalizacoesComFiltros(0);
-  }, [filters, searchTerm, buscaListaTerms, activeTab, hideEmptyFields, headerFilters, fundoAFundoFilter]);
+  }, [filters, searchTerm, buscaListaTerms, dataInicioFilter, dataFimFilter, activeTab, hideEmptyFields, headerFilters, fundoAFundoFilter]);
 
   // ⚡ NOVO: Carregar TUDO o cache quando aba de formalizações abre
   // Isto roda UMA ÚNICA VEZ quando activeTab muda para 'formalizacao'
@@ -2098,12 +2103,13 @@ export default function App() {
         // Busca por lista (múltiplas demandas/emendas)
         if (buscaListaTerms.length > 0) {
           const matchLista = buscaListaTerms.some(term => {
-            const tl = term.toLowerCase();
+            const tl = term.toLowerCase().trim();
+            if (!tl) return false;
             return (
-              (f.demanda && String(f.demanda).toLowerCase() === tl) ||
-              (f.demandas_formalizacao && String(f.demandas_formalizacao).toLowerCase() === tl) ||
+              (f.demanda && String(f.demanda).toLowerCase().trim().includes(tl)) ||
+              (f.demandas_formalizacao && String(f.demandas_formalizacao).toLowerCase().trim().includes(tl)) ||
               (f.emenda && matchEmenda(f.emenda, term)) ||
-              (f.numero_convenio && String(f.numero_convenio).toLowerCase() === tl)
+              (f.numero_convenio && String(f.numero_convenio).toLowerCase().trim().includes(tl))
             );
           });
           if (!matchLista) return false;
@@ -2111,6 +2117,18 @@ export default function App() {
 
         if (Array.isArray(filtersToUse.data_liberacao) && filtersToUse.data_liberacao.length > 0) {
           if (!matchesAnyFilter(f.data_liberacao, filtersToUse.data_liberacao)) return false;
+        }
+        // Filtro por intervalo de data de liberação (dataInicioFilter / dataFimFilter)
+        if (dataInicioFilter || dataFimFilter) {
+          // data_liberacao pode ser "2026-02-13" ou "13/02/2026" — normaliza para ISO
+          const rawDt = String(f.data_liberacao || '').trim();
+          if (!rawDt) return false; // sem data → excluído quando filtro ativo
+          // Converter dd/mm/yyyy → yyyy-mm-dd se necessário
+          const dtISO = rawDt.includes('/') 
+            ? rawDt.split('/').reverse().join('-') 
+            : rawDt.substring(0, 10);
+          if (dataInicioFilter && dtISO < dataInicioFilter) return false;
+          if (dataFimFilter && dtISO > dataFimFilter) return false;
         }
         if (Array.isArray(filtersToUse.data_analise_demanda) && filtersToUse.data_analise_demanda.length > 0) {
           if (!matchesAnyFilter(f.data_analise_demanda, filtersToUse.data_analise_demanda)) return false;
@@ -2424,6 +2442,10 @@ export default function App() {
     setHeaderFilters({});
     setColumnTextFilters({});
     setSearchTerm('');
+    setBuscaListaText('');
+    setBuscaListaTerms([]);
+    setDataInicioFilter('');
+    setDataFimFilter('');
     setHideEmptyFields({});
     setShowOnlyEmptyFields({});
     setShowSomenteMinhas(false);
@@ -3171,7 +3193,31 @@ export default function App() {
                     </div>
 
                     {/* RIGHT: Filters group + separator + Export group */}
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* Filtro por intervalo de data de liberação */}
+                      <div className="flex items-center gap-1 border border-gray-300 rounded-lg bg-white px-2 py-1">
+                        <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        <input
+                          type="date"
+                          title="Data Liberação — início"
+                          value={dataInicioFilter}
+                          onChange={e => setDataInicioFilter(e.target.value)}
+                          className="text-xs text-gray-700 outline-none border-none bg-transparent w-28 cursor-pointer"
+                        />
+                        <span className="text-gray-300 text-xs">–</span>
+                        <input
+                          type="date"
+                          title="Data Liberação — fim"
+                          value={dataFimFilter}
+                          onChange={e => setDataFimFilter(e.target.value)}
+                          className="text-xs text-gray-700 outline-none border-none bg-transparent w-28 cursor-pointer"
+                        />
+                        {(dataInicioFilter || dataFimFilter) && (
+                          <button onClick={() => { setDataInicioFilter(''); setDataFimFilter(''); }} className="ml-1 text-gray-400 hover:text-red-500 transition-colors" title="Limpar filtro de data">
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
                       {/* Fundo a Fundo quick filter */}
                       <button
                         onClick={() => setFundoAFundoFilter(v => !v)}
