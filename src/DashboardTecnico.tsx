@@ -1345,19 +1345,29 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
   // - 'c_tecnico'  = "DEMANDA COM O TÉCNICO" ou variante Fundo a Fundo
   // - 'em_analise' = qualquer "EM ANÁLISE ..." exceto "EM ANÁLISE ORÇAMENTÁRIA"
   // - 'concluida'  = tem publicacao ou concluida_em
+  //                  OU situacao_sempapel / area_estagio = "PROCESSO SIAFEM"
+  //                  (NÃO "EM PROCESSO SIAFEM", que é outra situação — Financeiro CGOF)
   // - 'analisada'  = tudo o mais (diligência, formalização, conferência etc.)
   const classify = (r: FormalizacaoRow): 'analisada' | 'em_analise' | 'c_tecnico' | 'concluida' => {
     // Atribuição histórica (técnico anterior) = já foi encerrada, conta como analisada
     if ((r as any)._isHistorico) return 'analisada';
     if (!!(r.concluida_em ?? '').trim() || !!(r.publicacao ?? '').trim()) return 'concluida';
+
+    // "PROCESSO SIAFEM" em qualquer dos dois campos = concluída
+    // Cuidado: "EM PROCESSO SIAFEM" começa com "EM PROCESSO" e é outra situação
+    const areaEst = (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
+    const sitSemP = (r.situacao_demandas_sempapel ?? '').trim().toUpperCase();
+    const isProcessoSiafem = (s: string) =>
+      s.includes('PROCESSO SIAFEM') && !s.startsWith('EM PROCESSO');
+    if (isProcessoSiafem(areaEst) || isProcessoSiafem(sitSemP)) return 'concluida';
+
     if (isConf) {
       // Conferencista: devolveu = tem data de liberação assinatura do conferencista
       if (!!(r.data_liberacao_assinatura_conferencista ?? '').trim()) return 'analisada';
       return 'c_tecnico'; // presa c/ conferencista
     }
-    // Usa area_estagio_situacao_demanda; quando vazio, cai para situacao_demandas_sempapel
-    const sit = ((r.area_estagio_situacao_demanda ?? '').trim()
-      || (r.situacao_demandas_sempapel ?? '').trim()).toUpperCase();
+    // Combinação (fallback) para os demais testes abaixo
+    const sit = areaEst || sitSemP;
     // c/Técnico: estágio "DEMANDA COM O TÉCNICO" (com ou sem sufixo Fundo a Fundo)
     if (sit === 'DEMANDA COM O TÉCNICO' || sit.startsWith('DEMANDA COM O TÉCNICO')) return 'c_tecnico';
     // Em Análise: qualquer estágio que contenha "EM ANÁLISE", exceto orçamentária
