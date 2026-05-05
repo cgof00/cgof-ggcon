@@ -6,9 +6,9 @@ ATUALIZAR situacao_emenda NO SUPABASE A PARTIR DO RELATÓRIO EMENDAS (XLS)
 Lê o arquivo "Relatório Emendas" (SpreadsheetML XML) e atualiza
 formalizacao.situacao_emenda via Supabase REST API.
 
-Estratégia de join (em ordem):
-  1) Nº de Convênio
-  2) Código/Nº Emenda (dígitos normalizados)
+Estratégia: match pelos 5 últimos dígitos do Código/Nº Emenda.
+  XLS:          '2024.293.53155' → últimos 5 dígitos → '53155'
+  formalizacao: '202429353155'   → últimos 5 dígitos → '53155' ✅
 
 USO:
   python atualizar_situacao_emenda.py "C:\\caminho\\para\\Relatório Emendas (14).xls"
@@ -17,7 +17,7 @@ REQUISITOS:
   pip install requests python-dotenv lxml
 """
 
-import os, sys, re, json, time
+import os, sys, re, time
 from lxml import etree
 from pathlib import Path
 
@@ -35,13 +35,14 @@ except ImportError:
     print("❌ pip install python-dotenv")
     sys.exit(1)
 
-# ── Configuração ────────────────────────────────────────────────────────────
+# ── Configuração ─────────────────────────────────────────────────────────────
 
-XLS_FILE = sys.argv[1] if len(sys.argv) > 1 else r"C:\Users\afpereira\Downloads\Relatório Emendas (14).xls"
-BATCH_SIZE = 500   # registros por chamada PATCH
+XLS_FILE   = sys.argv[1] if len(sys.argv) > 1 else r"C:\Users\afpereira\Downloads\Relatório Emendas (14).xls"
+BATCH_SIZE = 200   # IDs por chamada PATCH
+TAIL_DIGITS = 5    # quantos dígitos finais usar como chave
 NS = 'urn:schemas-microsoft-com:office:spreadsheet'
 
-# ── Credenciais ─────────────────────────────────────────────────────────────
+# ── Credenciais ──────────────────────────────────────────────────────────────
 
 script_dir = Path(__file__).parent
 env_path = script_dir / '.env.local'
@@ -64,13 +65,18 @@ HEADERS = {
     'apikey': SUPABASE_KEY,
     'Authorization': f'Bearer {SUPABASE_KEY}',
     'Content-Type': 'application/json',
-    'Prefer': 'return=representation',
+    'Prefer': '',
 }
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def digits_only(s):
     return re.sub(r'[^0-9]', '', s or '')
+
+def tail(s):
+    """Retorna os N últimos dígitos de uma string."""
+    d = digits_only(s)
+    return d[-TAIL_DIGITS:] if len(d) >= TAIL_DIGITS else ''
 
 def cell_val(row):
     cells = row.findall(f'{{{NS}}}Cell')
@@ -84,15 +90,13 @@ def cell_val(row):
         vals.append(d.text if d is not None and d.text else '')
     return vals
 
-# ── Ler XLS ──────────────────────────────────────────────────────────────────
+# ── Ler XLS ───────────────────────────────────────────────────────────────────
 
 print(f"\n📂 Lendo: {XLS_FILE}")
 with open(XLS_FILE, 'rb') as f:
     content = f.read()
 
-# Corrige encoding inválido no XML declaration
 content = content.replace(b'encoding="UTF8"', b'encoding="UTF-8"')
-
 root = etree.fromstring(content)
 ws = root.findall(f'.//{{{NS}}}Worksheet')[0]
 rows_xml = ws.findall(f'.//{{{NS}}}Row')
@@ -100,156 +104,124 @@ rows_xml = ws.findall(f'.//{{{NS}}}Row')
 headers = cell_val(rows_xml[0])
 print(f"✅ Arquivo lido: {len(rows_xml)-1} linhas, {len(headers)} colunas")
 
-# Mapeia índices das colunas necessárias
-col_idx = {}
-for i, h in enumerate(headers):
-    hl = h.lower()
-    if 'convênio' in hl or 'convenio' in hl:
-        col_idx['conv'] = i
-    elif 'código' in hl or 'codigo' in hl:
-        if 'emenda' in hl:
-            col_idx['cod'] = i
-    elif 'situação emenda' in hl or 'situacao emenda' in hl:
-        col_idx['sit'] = i
+# Índices fixos (confirmados na análise):
+# [3] Código/Nº Emenda  [6] Situação Emenda
+COL_COD = 3
+COL_SIT = 6
+print(f"   Coluna código   : [{COL_COD}] {headers[COL_COD]}")
+print(f"   Coluna situação : [{COL_SIT}] {headers[COL_SIT]}")
 
-# Fallback por índice fixo (sabemos os índices do arquivo)
-if 'conv' not in col_idx: col_idx['conv'] = 20
-if 'cod'  not in col_idx: col_idx['cod']  = 3
-if 'sit'  not in col_idx: col_idx['sit']  = 6
-
-print(f"   Coluna convênio    : [{col_idx['conv']}] {headers[col_idx['conv']]}")
-print(f"   Coluna código      : [{col_idx['cod']}]  {headers[col_idx['cod']]}")
-print(f"   Coluna situação    : [{col_idx['sit']}]  {headers[col_idx['sit']]}")
-
-# Extrai dados relevantes
-records = []
+# Constrói mapa: 5 últimos dígitos → situação emenda
+# Se houver conflito de chave, o mais recente (linha menor do XLS) ganha
+tail_to_sit = {}
+sem_chave = 0
 for row in rows_xml[1:]:
     vals = cell_val(row)
-    while len(vals) <= max(col_idx.values()):
+    while len(vals) <= max(COL_COD, COL_SIT):
         vals.append('')
-    
-    sit = vals[col_idx['sit']].strip()
-    cod = vals[col_idx['cod']].strip()
-    conv = vals[col_idx['conv']].strip()
-    
-    if not sit:
+    sit = vals[COL_SIT].strip()
+    cod = vals[COL_COD].strip()
+    k = tail(cod)
+    if not sit or not k:
+        sem_chave += 1
         continue
-    
-    records.append({
-        'situacao': sit,
-        'cod_digits': digits_only(cod) if len(digits_only(cod)) >= 6 else '',
-        'conv': conv,
-    })
+    tail_to_sit[k] = sit  # última ocorrência sobrescreve
 
-print(f"✅ Registros com situação emenda: {len(records)}")
-print(f"   Com convênio: {sum(1 for r in records if r['conv'])}")
-print(f"   Com código:   {sum(1 for r in records if r['cod_digits'])}")
+print(f"   Chaves únicas (5 dígitos): {len(tail_to_sit)}")
+print(f"   Sem chave / sem situação:  {sem_chave}")
+print(f"   Exemplos de chave: {list(tail_to_sit.items())[:5]}")
 
-# ── Busca IDs do formalizacao por convênio ──────────────────────────────────
+# ── Busca todos os registros de formalizacao com emenda preenchida ────────────
 
-print("\n⚙️  Fase 1: Atualizando por número de convênio...")
+print(f"\n⚙️  Buscando registros de formalizacao com emenda preenchida...")
 
-convs_com_sit = {r['conv']: r['situacao'] for r in records if r['conv']}
-updated_by_conv = 0
-errors_conv = 0
-
-# Processa em lotes de BATCH_SIZE convênios únicos
-conv_list = list(convs_com_sit.items())
-for i in range(0, len(conv_list), BATCH_SIZE):
-    batch = conv_list[i:i+BATCH_SIZE]
-    
-    for conv, sit in batch:
-        # PATCH com filtro pelo numero_convenio
-        url = f"{SUPABASE_URL}/rest/v1/formalizacao"
-        params = {
-            'numero_convenio': f'eq.{conv}',
-        }
-        body = {'situacao_emenda': sit}
-        resp = requests.patch(url, headers=HEADERS, params=params, json=body, timeout=30)
-        if resp.status_code in (200, 204):
-            updated_by_conv += 1
-        else:
-            errors_conv += 1
-    
-    print(f"   Lote {i//BATCH_SIZE + 1}: {min(i+BATCH_SIZE, len(conv_list))}/{len(conv_list)} convênios", end='\r')
-
-print(f"\n   ✅ Convênios processados: {len(conv_list)} | Erros: {errors_conv}")
-
-# ── Atualiza por código de emenda (dígitos) ─────────────────────────────────
-
-print("\n⚙️  Fase 2: Buscando IDs por código de emenda...")
-
-# Busca todos os registros de formalizacao que ainda não têm situacao_emenda
-# e têm campo emenda preenchido
 page_size = 1000
 offset = 0
-sem_situacao = []
+formalizacao_rows = []
 
 while True:
     url = f"{SUPABASE_URL}/rest/v1/formalizacao"
     params = {
-        'select': 'id,emenda',
-        'situacao_emenda': 'is.null',
+        'select': 'id,emenda,situacao_emenda',
         'emenda': 'neq.',
         'limit': str(page_size),
         'offset': str(offset),
     }
-    resp = requests.get(url, headers={**HEADERS, 'Prefer': 'count=exact'}, params=params, timeout=60)
+    resp = requests.get(url, headers=HEADERS, params=params, timeout=60)
+    if resp.status_code != 200:
+        print(f"❌ Erro ao buscar formalizacao: {resp.status_code} {resp.text[:200]}")
+        sys.exit(1)
     batch = resp.json()
     if not batch:
         break
-    sem_situacao.extend(batch)
+    formalizacao_rows.extend(batch)
     if len(batch) < page_size:
         break
     offset += page_size
-    print(f"   Buscando sem situação... {len(sem_situacao)}", end='\r')
+    print(f"   Buscados: {len(formalizacao_rows)}", end='\r')
 
-print(f"\n   Sem situação + com emenda: {len(sem_situacao)}")
+print(f"\n   Total registros com emenda: {len(formalizacao_rows)}")
 
-# Indexa registros do arquivo por código de emenda (dígitos)
-cod_to_sit = {r['cod_digits']: r['situacao'] for r in records if r['cod_digits']}
+# ── Cruza e agrupa por situação → lista de IDs ───────────────────────────────
 
-# Cruza formalizacao com emendas por dígitos
-updated_by_cod = 0
-errors_cod = 0
-
-# Agrupa por situação para fazer PATCH em lote (menos chamadas API)
 sit_to_ids = {}
-for row in sem_situacao:
-    emenda = row.get('emenda', '') or ''
-    d = digits_only(emenda)
-    sit = cod_to_sit.get(d)
-    if sit:
-        if sit not in sit_to_ids:
-            sit_to_ids[sit] = []
-        sit_to_ids[sit].append(row['id'])
+sem_match = 0
+ja_preenchido = 0
 
-print(f"   Formalizacao com match por código: {sum(len(v) for v in sit_to_ids.values())}")
+for row in formalizacao_rows:
+    emenda = row.get('emenda') or ''
+    k = tail(emenda)
+    sit_nova = tail_to_sit.get(k)
+    if not sit_nova:
+        sem_match += 1
+        continue
+    # Atualiza mesmo se já preenchido (para refletir versão mais atual do XLS)
+    if row.get('situacao_emenda') == sit_nova:
+        ja_preenchido += 1
+        continue
+    if sit_nova not in sit_to_ids:
+        sit_to_ids[sit_nova] = []
+    sit_to_ids[sit_nova].append(row['id'])
+
+total_para_atualizar = sum(len(v) for v in sit_to_ids.values())
+print(f"   Com match: {total_para_atualizar}")
+print(f"   Sem match: {sem_match}")
+print(f"   Já correto (sem mudança): {ja_preenchido}")
+
+if not sit_to_ids:
+    print("\n⚠️  Nenhum registro para atualizar. Verifique se os dados do XLS já estão no banco.")
+    sys.exit(0)
+
+# ── PATCH em lotes por situação ───────────────────────────────────────────────
+
+print(f"\n⚙️  Atualizando {total_para_atualizar} registros...")
+
+updated = 0
+errors = 0
+lote_num = 0
 
 for sit, ids in sit_to_ids.items():
-    # PATCH em lotes de BATCH_SIZE IDs usando operador in
     for i in range(0, len(ids), BATCH_SIZE):
-        batch_ids = ids[i:i+BATCH_SIZE]
+        batch_ids = ids[i:i + BATCH_SIZE]
+        lote_num += 1
         url = f"{SUPABASE_URL}/rest/v1/formalizacao"
         params = {'id': f'in.({",".join(str(x) for x in batch_ids)})'}
         body = {'situacao_emenda': sit}
-        resp = requests.patch(url, headers={**HEADERS, 'Prefer': ''}, params=params, json=body, timeout=30)
+        resp = requests.patch(url, headers=HEADERS, params=params, json=body, timeout=30)
         if resp.status_code in (200, 204):
-            updated_by_cod += len(batch_ids)
+            updated += len(batch_ids)
         else:
-            errors_cod += 1
-            print(f"\n   ⚠️  Erro {resp.status_code}: {resp.text[:100]}")
+            errors += 1
+            print(f"\n   ⚠️  Lote {lote_num} erro {resp.status_code}: {resp.text[:120]}")
+        if lote_num % 10 == 0:
+            print(f"   Progresso: {updated}/{total_para_atualizar} atualizados...", end='\r')
 
-print(f"   ✅ Por código: {updated_by_cod} atualizados | Erros: {errors_cod}")
-
-# ── Resumo ────────────────────────────────────────────────────────────────────
-
-print(f"""
-{'='*60}
-  RESUMO FINAL
-{'='*60}
-  Fase 1 (por convênio)  : {len(conv_list)} convênios → {updated_by_conv} OK
-  Fase 2 (por código)    : {updated_by_cod} atualizados
-  Erros                  : {errors_conv + errors_cod}
-{'='*60}
-""")
+print(f"\n\n{'='*60}")
+print(f"  RESUMO FINAL")
+print(f"{'='*60}")
+print(f"  Atualizados : {updated}")
+print(f"  Sem match   : {sem_match}")
+print(f"  Já correto  : {ja_preenchido}")
+print(f"  Erros       : {errors}")
+print(f"{'='*60}")
+
