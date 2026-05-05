@@ -548,7 +548,7 @@ interface Formalizacao {
   objeto?: string;
   portfolio?: string;
   valor?: number;
-  posicao_anterior?: string;
+  situacao_emenda?: string;
   situacao_demandas_sempapel?: string;
   area_estagio?: string;
   recurso?: string;
@@ -639,7 +639,7 @@ export default function App() {
     objeto: true,
     portfolio: true,
     valor: true,
-    posicao_anterior: true,
+    situacao_emenda: true,
     situacao_demandas_sempapel: true,
     area_estagio: true,
     recurso: true,
@@ -884,7 +884,7 @@ export default function App() {
     demandas_formalizacao: 'demandas_formalizacao', numero_convenio: 'numero_convenio',
     classificacao_emenda_demanda: 'classificacao_emenda_demanda', tipo_formalizacao: 'tipo_formalizacao',
     regional: 'regional', municipio: 'municipio', conveniado: 'conveniado', objeto: 'objeto',
-    portfolio: 'portfolio', valor: 'valor', posicao_anterior: 'posicao_anterior',
+    portfolio: 'portfolio', valor: 'valor', situacao_emenda: 'situacao_emenda',
     situacao_demandas_sempapel: 'situacao_demandas_sempapel', area_estagio: 'area_estagio',
     recurso: 'recurso', tecnico: 'tecnico',
     parecer_ld: 'parecer_ld', data_liberacao: 'data_liberacao',
@@ -1198,7 +1198,7 @@ export default function App() {
         objeto: false,
         portfolio: false,
         valor: true,
-        posicao_anterior: false,
+        situacao_emenda: false,
         situacao_demandas_sempapel: true,
         area_estagio: false,
         recurso: false,
@@ -1243,7 +1243,7 @@ export default function App() {
         objeto: false,
         portfolio: false,
         valor: true,
-        posicao_anterior: false,
+        situacao_emenda: false,
         situacao_demandas_sempapel: false,
         area_estagio: false,
         recurso: false,
@@ -2213,7 +2213,7 @@ export default function App() {
       classificacao_emenda_demanda: 'Classificação', tipo_formalizacao: 'Tipo Formalização',
       regional: 'Regional', municipio: 'Município', conveniado: 'Conveniado',
       objeto: 'Objeto', portfolio: 'Portfólio', valor: 'Valor',
-      posicao_anterior: 'Posição Anterior', situacao_demandas_sempapel: 'Situação SemPapel',
+      situacao_emenda: 'Situação Emenda', situacao_demandas_sempapel: 'Situação SemPapel',
       area_estagio: 'Área - Estágio', recurso: 'Recurso', parecer_ld: 'Parecer LDO', tecnico: 'Técnico',
       data_liberacao: 'Data Liberação', area_estagio_situacao_demanda: 'Área - Situação',
       situacao_analise_demanda: 'Situação Análise', data_analise_demanda: 'Data Análise',
@@ -2590,7 +2590,7 @@ export default function App() {
         'objeto': 'objeto',
         'portfolio': 'portfolio',
         'valor': 'valor',
-        'posicao_anterior': 'posicao_anterior',
+        'situacao_emenda': 'situacao_emenda',
         'situacao_demandas_sempapel': 'situacao_demandas_sempapel',
         'area_estagio': 'area_estagio',
         'recurso': 'recurso',
@@ -3203,7 +3203,7 @@ export default function App() {
                               { key: 'objeto', label: 'Objeto' },
                               { key: 'portfolio', label: 'Portfólio' },
                               { key: 'valor', label: 'Valor' },
-                              { key: 'posicao_anterior', label: 'Posição Anterior' },
+                              { key: 'situacao_emenda', label: 'Situação Emenda' },
                               { key: 'situacao_demandas_sempapel', label: 'Situação SemPapel' },
                               { key: 'area_estagio', label: 'Área - Estágio' },
                               { key: 'recurso', label: 'Recurso' },
@@ -3627,7 +3627,7 @@ export default function App() {
                           { key: 'objeto', label: 'Objeto', render: (f: any) => f.objeto },
                           { key: 'portfolio', label: 'Portfólio', render: (f: any) => f.portfolio },
                           { key: 'valor', label: 'Valor', render: (f: any) => formatCurrency(f.valor), align: 'right' },
-                          { key: 'posicao_anterior', label: 'Posição Anterior', render: (f: any) => f.posicao_anterior },
+                          { key: 'situacao_emenda', label: 'Situação Emenda', render: (f: any) => f.situacao_emenda },
                           { key: 'situacao_demandas_sempapel', label: 'Situação SemPapel', render: (f: any) => f.situacao_demandas_sempapel || f.area_estagio_situacao_demanda },
                           { key: 'area_estagio', label: 'Área - Estágio', render: (f: any) => f.area_estagio },
                           { key: 'recurso', label: 'Recurso', render: (f: any) => f.recurso },
@@ -4545,7 +4545,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     { label: 'Objeto', value: f.objeto || '—' },
                     { label: 'Portfólio', value: f.portfolio || '—' },
                     { label: 'Valor', value: formatCurrency(f.valor) },
-                    { label: 'Posição Anterior', value: f.posicao_anterior || '—' },
+                    { label: 'Situação Emenda', value: f.situacao_emenda || '—' },
                     { label: 'Situação SemPapel', value: f.situacao_demandas_sempapel || '—' },
                     { label: 'Área - Estágio', value: f.area_estagio || '—' },
                     { label: 'Recurso', value: f.recurso || '—' },

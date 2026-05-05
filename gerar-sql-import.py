@@ -87,7 +87,7 @@ ALL_COLUMNS = [
     "demanda", "demandas_formalizacao", "numero_convenio",
     "classificacao_emenda_demanda", "tipo_formalizacao",
     "regional", "municipio", "conveniado", "objeto", "portfolio",
-    "valor", "posicao_anterior", "situacao_demandas_sempapel",
+    "valor", "situacao_emenda", "situacao_demandas_sempapel",
     "area_estagio", "recurso", "tecnico", "data_liberacao",
     "area_estagio_situacao_demanda", "situacao_analise_demanda",
     "data_analise_demanda", "motivo_retorno_diligencia",
