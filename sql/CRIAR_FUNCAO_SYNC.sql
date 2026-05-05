@@ -144,13 +144,14 @@ BEGIN
     ano, parlamentar, partido, emenda, demanda,
     classificacao_emenda_demanda, numero_convenio,
     regional, municipio, conveniado, objeto, portfolio, valor,
-    parecer_ld
+    parecer_ld, situacao_emenda
   )
   SELECT
     b.ano_refer, b.parlamentar, b.partido, b.codigo_num, b.detalhes,
     b.natureza,  b.num_convenio, b.regional, b.municipio,
     b.beneficiario, b.objeto, b.portfolio, b.valor,
-    NULLIF(b.parecer_ld, '')
+    NULLIF(b.parecer_ld, ''),
+    NULLIF(TRIM(b.situacao_e), '')
   FROM _batch b
   LEFT JOIN formalizacao f_e
     ON LENGTH(b.digits) >= 6
