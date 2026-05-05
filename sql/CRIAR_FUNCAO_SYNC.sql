@@ -71,7 +71,7 @@ BEGIN
       e.ano_refer, e.parlamentar, e.partido, e.codigo_num,
       e.detalhes, e.natureza, e.num_convenio, e.regional,
       e.municipio, e.beneficiario, e.objeto, e.portfolio,
-      e.valor, e.num_emenda, e.situacao_d,
+      e.valor, e.num_emenda, e.situacao_d, e.situacao_e,
       COALESCE(e.parecer_ld, '')                                           AS parecer_ld,
       TRIM(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g')) AS digits,
       TRIM(COALESCE(e.num_convenio, ''))                                   AS conv_trim
