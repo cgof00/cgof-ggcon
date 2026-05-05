@@ -1643,6 +1643,71 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
     XLSX.writeFile(wb, `atrasos_${isConf ? 'conferencistas' : 'tecnicos'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  // Planilha única: TODAS as demandas filtradas, todas situações, técnico + conferencista
+  const exportTodasXLSX = () => {
+    const h = [
+      'Técnico', 'Conferencista',
+      'Ano', 'Mês', 'Mês/Ano',
+      'Demanda', 'Emenda',
+      'Conveniado', 'Município', 'Regional', 'Classificação',
+      'Situação (Area/Estágio)', 'Situação (SemPapel)', 'Situação Análise',
+      'Status Produtividade',
+      'Dt. Liberação', 'Dt. Início Análise', 'Dt. Publicação', 'Concluída em',
+    ];
+    const rows = filtered.map(r => {
+      const dLib = parseDateTL(r[dateKey] as string);
+      const mes  = dLib ? toMes(dLib) : 'sem-data';
+      const ano  = dLib ? String(dLib.getFullYear()) : '';
+      const mesNm = dLib ? dLib.toLocaleString('pt-BR', { month: 'long' }) : '';
+      const mesAno = dLib ? fmtMesProd(mes) : 'Sem Data';
+      const st = classify(r);
+      const statusLabel = st === 'c_tecnico' ? 'c/Técnico'
+        : st === 'em_analise' ? 'Em Análise'
+        : st === 'concluida'  ? 'Concluída'
+        : 'Analisada';
+      return [
+        String(r.tecnico ?? ''),
+        String(r.conferencista ?? ''),
+        ano, mesNm, mesAno,
+        String(r.demandas_formalizacao ?? r.demanda ?? ''),
+        String(r.emenda ?? ''),
+        String(r.convenio_convenente ?? r.conveniado ?? ''),
+        String(r.municipio ?? ''),
+        String(r.regional ?? ''),
+        String(r.classificacao_emenda_demanda ?? r.classificacao ?? ''),
+        String(r.area_estagio_situacao_demanda ?? ''),
+        String(r.situacao_demandas_sempapel ?? ''),
+        String(r.situacao_analise_demanda ?? ''),
+        statusLabel,
+        r.data_liberacao ? String(r.data_liberacao).substring(0, 10) : '',
+        r.data_analise_demanda ? String(r.data_analise_demanda).substring(0, 10) : '',
+        r.publicacao ? String(r.publicacao).substring(0, 10) : '',
+        r.concluida_em ? String(r.concluida_em).substring(0, 10) : '',
+      ];
+    });
+    // Ordena: status (c/Técnico primeiro), depois Mês/Ano, depois Técnico
+    rows.sort((a, b) => {
+      const ord: Record<string, number> = { 'c/Técnico': 0, 'Em Análise': 1, 'Analisada': 2, 'Concluída': 3 };
+      const oa = ord[String(a[14])] ?? 9, ob = ord[String(b[14])] ?? 9;
+      if (oa !== ob) return oa - ob;
+      if (a[4] !== b[4]) return String(a[4]).localeCompare(String(b[4]));
+      return String(a[0]).localeCompare(String(b[0]));
+    });
+    const ws = XLSX.utils.aoa_to_sheet([h, ...rows]);
+    ws['!cols'] = [
+      { wch: 32 }, { wch: 32 },
+      { wch: 8 }, { wch: 12 }, { wch: 12 },
+      { wch: 14 }, { wch: 12 },
+      { wch: 40 }, { wch: 22 }, { wch: 18 }, { wch: 22 },
+      { wch: 40 }, { wch: 40 }, { wch: 40 },
+      { wch: 16 },
+      { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 14 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Todas as Demandas');
+    XLSX.writeFile(wb, `demandas_completo_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   if (pessoas.length === 0)
     return <p className="text-slate-400 text-center py-8 text-sm">Sem dados. Verifique se <code className="bg-slate-100 px-1 rounded">{isConf ? 'data_recebimento_demanda' : 'data_liberacao'}</code> e <code className="bg-slate-100 px-1 rounded">{isConf ? 'conferencista' : 'tecnico'}</code> estão preenchidos.</p>;
 
@@ -1939,6 +2004,9 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
         </button>
         <button onClick={exportXLSX} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
           <Download className="w-4 h-4" /> XLSX Completo
+        </button>
+        <button onClick={exportTodasXLSX} className="flex items-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
+          <Download className="w-4 h-4" /> Todas as Demandas
         </button>
       </div>
     </div>
