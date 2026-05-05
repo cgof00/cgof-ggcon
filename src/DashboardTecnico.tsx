@@ -1625,8 +1625,6 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
               {sorted.map(p => {
                 const anal  = p.totalAnal + p.totalConc;
                 const pend  = p.totalRec - anal;
-                const pctAnal = p.totalRec > 0 ? (anal / p.totalRec) * 100 : 0;
-                const pctPend = p.totalRec > 0 ? (pend / p.totalRec) * 100 : 0;
                 const barColor = p.taxa >= 70 ? 'bg-emerald-500' : p.taxa >= 40 ? 'bg-amber-400' : 'bg-red-500';
                 const initials = p.nome.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
                 return (
@@ -1643,7 +1641,6 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                       onClick={() => openDrilldown(`${p.nome} — Todas`, [...p.monthMap.values()].flatMap(c => [...c.total]))}
                       className="text-[10px] text-slate-400 hover:text-blue-600 shrink-0 underline-offset-2 hover:underline"
                     >detalhes</button>
-                    {void pctAnal; void pctPend;}
                   </div>
                 );
               })}
