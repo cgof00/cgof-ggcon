@@ -30,12 +30,13 @@ WHERE table_schema = 'public'
 -- PASSO 2: Popular situacao_emenda com dados da tabela emendas
 --          (campo situacao_e = "Situação Emenda" do CSV)
 --
--- Executa em 2 passagens:
---   A) Match por numero_convenio  (mais preciso)
---   B) Match por código de emenda (cobre o que sobrar)
+-- Executa em 3 passagens (da mais precisa para a menos):
+--   A) Match por numero_convenio       (chave exata)
+--   B) Match por código de emenda      (dígitos normalizados)
+--   C) Match por num_emenda/agregadoras (emendas agregadoras)
 -- ============================================================
 
--- 2A) Match por número de convênio
+-- 2A) Match por número de convênio (mais preciso)
 UPDATE public.formalizacao f
 SET
   situacao_emenda = NULLIF(TRIM(e.situacao_e), ''),
@@ -52,14 +53,26 @@ SET
   situacao_emenda = NULLIF(TRIM(e.situacao_e), ''),
   updated_at      = NOW()
 FROM public.emendas e
-WHERE (f.situacao_emenda IS NULL OR f.situacao_emenda = '')   -- só se ainda vazio
+WHERE (f.situacao_emenda IS NULL OR f.situacao_emenda = '')
   AND NULLIF(TRIM(e.situacao_e), '') IS NOT NULL
   AND LENGTH(REGEXP_REPLACE(COALESCE(f.emenda, ''), '[^0-9]', '', 'g')) >= 6
   AND LENGTH(REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g')) >= 6
   AND REGEXP_REPLACE(COALESCE(f.emenda, ''), '[^0-9]', '', 'g')
     = REGEXP_REPLACE(COALESCE(e.codigo_num, ''), '[^0-9]', '', 'g');
 
--- 2C) Notifica PostgREST
+-- 2C) Match por emenda agregadora (num_emenda ↔ emendas_agregadoras)
+UPDATE public.formalizacao f
+SET
+  situacao_emenda = NULLIF(TRIM(e.situacao_e), ''),
+  updated_at      = NOW()
+FROM public.emendas e
+WHERE (f.situacao_emenda IS NULL OR f.situacao_emenda = '')
+  AND NULLIF(TRIM(e.situacao_e), '') IS NOT NULL
+  AND TRIM(COALESCE(f.emendas_agregadoras, '')) != ''
+  AND TRIM(COALESCE(e.num_emenda, '')) != ''
+  AND TRIM(f.emendas_agregadoras) = TRIM(e.num_emenda);
+
+-- 2D) Notifica PostgREST
 NOTIFY pgrst, 'reload schema';
 
 -- ============================================================
