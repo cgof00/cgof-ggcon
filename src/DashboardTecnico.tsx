@@ -1227,6 +1227,109 @@ function expandToAtribuicoes(rows: FormalizacaoRow[]): FormalizacaoRow[] {
   return result;
 }
 
+// Sub-componente isolado para garantir que useState respeite as regras dos Hooks
+function TabelaMensalSection({ allMeses, pessoas, kpis, isConf, openDrilldown, fmtMes }: {
+  allMeses: string[];
+  pessoas: { nome: string; monthMap: Map<string, { total: FormalizacaoRow[]; anal: FormalizacaoRow[]; conc: FormalizacaoRow[]; cTec: FormalizacaoRow[]; emAnal: FormalizacaoRow[]; }>; totalRec: number; totalAnal: number; totalConc: number; totalCTec: number; totalEmAnal: number; taxa: number }[];
+  kpis: { totRec: number; totAnal: number; totCTec: number; totEmAnal: number; taxa: number };
+  isConf: boolean;
+  openDrilldown: (title: string, rows: FormalizacaoRow[]) => void;
+  fmtMes: (mes: string) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+      >
+        <span className="flex items-center gap-2 text-sm font-bold text-slate-700">
+          <Calendar className="w-4 h-4"/>
+          Detalhe por Mês (cohort)
+          <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full">{allMeses.filter(m => m !== 'sem-data').length} meses</span>
+        </span>
+        {open ? <ChevronDown className="w-4 h-4 text-slate-400"/> : <ChevronRight className="w-4 h-4 text-slate-400"/>}
+      </button>
+      {open && (
+        <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '60vh' }}>
+          <table className="w-full text-sm border-collapse">
+            <thead className="sticky top-0 z-20">
+              <tr>
+                <th className="sticky left-0 z-30 bg-slate-800 text-white text-left px-4 py-3 font-bold text-xs whitespace-nowrap min-w-[160px]">
+                  {isConf ? 'Conferencista' : 'Técnico'}
+                </th>
+                {allMeses.map(mes => (
+                  <th key={mes} className={`text-white px-3 py-2.5 text-center whitespace-nowrap min-w-[80px] text-xs font-bold ${mes === 'sem-data' ? 'bg-slate-500' : 'bg-slate-700'}`}>
+                    {mes === 'sem-data' ? 'Sem Data' : fmtMes(mes)}
+                    <div className="text-[9px] opacity-50 font-normal mt-0.5">anal./rec.</div>
+                  </th>
+                ))}
+                <th className="bg-blue-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Rec.</th>
+                <th className="bg-emerald-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Anal.</th>
+                <th className="bg-red-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">c/Téc</th>
+                <th className="bg-blue-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Em And.</th>
+                <th className="bg-slate-600 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Taxa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pessoas.map((p, pi) => {
+                const rowBg = pi % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                return (
+                  <tr key={p.nome} className={`border-b border-slate-100 ${rowBg} hover:bg-blue-50/30 transition-colors`}>
+                    <td className={`sticky left-0 z-10 px-4 py-2.5 border-r border-slate-200 text-xs font-bold text-slate-700 truncate max-w-[160px] ${rowBg}`} title={p.nome}>{p.nome}</td>
+                    {allMeses.map(mes => {
+                      const c    = p.monthMap.get(mes);
+                      const tot  = c?.total.length ?? 0;
+                      const an   = (c?.anal.length ?? 0) + (c?.emAnal.length ?? 0) + (c?.conc.length ?? 0);
+                      const cTec = c?.cTec.length ?? 0;
+                      const emAn = c?.emAnal.length ?? 0;
+                      if (tot === 0 && an === 0 && cTec === 0 && emAn === 0) return <td key={mes} className="px-2 py-2 text-center text-slate-200 text-xs">—</td>;
+                      const cls = an > 0 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : tot > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-500 border-slate-200';
+                      return (
+                        <td key={mes} className="px-2 py-2 text-center">
+                          <button onClick={() => { const rows = c ? [...c.anal,...c.conc,...c.cTec,...c.emAnal] : []; openDrilldown(`${p.nome} — ${fmtMes(mes)}`, rows); }}
+                            className={`inline-flex flex-col items-center px-2 py-1 rounded border text-center hover:opacity-80 transition-opacity text-xs ${cls}`}>
+                            <span className="font-extrabold">{an}</span>
+                            <span className="opacity-60 text-[9px]">/{tot}</span>
+                          </button>
+                        </td>
+                      );
+                    })}
+                    <td className="px-3 py-2 text-center text-xs font-bold text-slate-700">{p.totalRec}</td>
+                    <td className="px-3 py-2 text-center text-xs font-bold text-emerald-600">{p.totalAnal + p.totalEmAnal + p.totalConc}</td>
+                    <td className="px-3 py-2 text-center">
+                      {p.totalCTec > 0 ? <button onClick={() => openDrilldown(`${p.nome} — C/Técnico`, [...p.monthMap.values()].flatMap(c => c.cTec))} className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200 hover:bg-red-100">{p.totalCTec}</button> : <span className="text-emerald-500 font-black">✓</span>}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {p.totalEmAnal > 0 ? <button onClick={() => openDrilldown(`${p.nome} — Em Andamento`, [...p.monthMap.values()].flatMap(c => c.emAnal))} className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 hover:bg-blue-100">{p.totalEmAnal}</button> : <span className="text-emerald-500 font-black">✓</span>}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <span className={`text-xs font-bold ${p.taxa >= 70 ? 'text-emerald-600' : p.taxa >= 40 ? 'text-amber-600' : 'text-red-600'}`}>{p.taxa}%</span>
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr className="bg-slate-800 text-white">
+                <td className="sticky left-0 z-10 bg-slate-800 px-4 py-2.5 text-xs font-bold uppercase">TOTAL</td>
+                {allMeses.map(mes => {
+                  const an  = pessoas.reduce((s, p) => { const c = p.monthMap.get(mes); return s + (c?.anal.length ?? 0) + (c?.emAnal.length ?? 0) + (c?.conc.length ?? 0); }, 0);
+                  const tot = pessoas.reduce((s, p) => s + (p.monthMap.get(mes)?.total.length ?? 0), 0);
+                  return <td key={mes} className="px-2 py-2.5 text-center text-xs font-bold">{tot > 0 ? <>{an}<span className="opacity-40">/{tot}</span></> : <span className="opacity-30">—</span>}</td>;
+                })}
+                <td className="px-3 py-2.5 text-center text-xs font-black">{kpis.totRec}</td>
+                <td className="px-3 py-2.5 text-center text-xs font-black text-emerald-300">{kpis.totAnal + kpis.totEmAnal}</td>
+                <td className="px-3 py-2.5 text-center text-xs font-black text-red-300">{kpis.totCTec}</td>
+                <td className="px-3 py-2.5 text-center text-xs font-black text-blue-300">{kpis.totEmAnal}</td>
+                <td className="px-3 py-2.5 text-center text-xs font-black">{kpis.taxa}%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
   filtered: FormalizacaoRow[];
   openDrilldown: (title: string, rows: FormalizacaoRow[]) => void;
@@ -1801,100 +1904,14 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
       {/* ══════════════════════════════════════════════════════
           5 — TABELA MENSAL (colapsável — visão histórica)
          ══════════════════════════════════════════════════════ */}
-      {(() => {
-        const [open, setOpen] = React.useState(false);
-        return (
-          <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-            <button
-              onClick={() => setOpen(v => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
-            >
-              <span className="flex items-center gap-2 text-sm font-bold text-slate-700">
-                <Calendar className="w-4 h-4"/>
-                Detalhe por Mês (cohort)
-                <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full">{allMeses.filter(m => m !== 'sem-data').length} meses</span>
-              </span>
-              {open ? <ChevronDown className="w-4 h-4 text-slate-400"/> : <ChevronRight className="w-4 h-4 text-slate-400"/>}
-            </button>
-            {open && (
-              <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '60vh' }}>
-                <table className="w-full text-sm border-collapse">
-                  <thead className="sticky top-0 z-20">
-                    <tr>
-                      <th className="sticky left-0 z-30 bg-slate-800 text-white text-left px-4 py-3 font-bold text-xs whitespace-nowrap min-w-[160px]">
-                        {isConf ? 'Conferencista' : 'Técnico'}
-                      </th>
-                      {allMeses.map(mes => (
-                        <th key={mes} className={`text-white px-3 py-2.5 text-center whitespace-nowrap min-w-[80px] text-xs font-bold ${mes === 'sem-data' ? 'bg-slate-500' : 'bg-slate-700'}`}>
-                          {mes === 'sem-data' ? 'Sem Data' : fmtMesProd(mes)}
-                          <div className="text-[9px] opacity-50 font-normal mt-0.5">anal./rec.</div>
-                        </th>
-                      ))}
-                      <th className="bg-blue-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Rec.</th>
-                      <th className="bg-emerald-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Anal.</th>
-                      <th className="bg-red-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">c/Téc</th>
-                      <th className="bg-blue-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Em And.</th>
-                      <th className="bg-slate-600 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Taxa</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pessoas.map((p, pi) => {
-                      const rowBg = pi % 2 === 0 ? 'bg-white' : 'bg-slate-50';
-                      return (
-                        <tr key={p.nome} className={`border-b border-slate-100 ${rowBg} hover:bg-blue-50/30 transition-colors`}>
-                          <td className={`sticky left-0 z-10 px-4 py-2.5 border-r border-slate-200 text-xs font-bold text-slate-700 truncate max-w-[160px] ${rowBg}`} title={p.nome}>{p.nome}</td>
-                          {allMeses.map(mes => {
-                            const c    = p.monthMap.get(mes);
-                            const tot  = c?.total.length ?? 0;
-                            const an   = (c?.anal.length ?? 0) + (c?.emAnal.length ?? 0) + (c?.conc.length ?? 0);  // emAnal conta
-                            const cTec = c?.cTec.length ?? 0;
-                            const emAn = c?.emAnal.length ?? 0;
-                            if (tot === 0 && an === 0 && cTec === 0 && emAn === 0) return <td key={mes} className="px-2 py-2 text-center text-slate-200 text-xs">—</td>;
-                            const cls = an > 0 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : tot > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-500 border-slate-200';
-                            return (
-                              <td key={mes} className="px-2 py-2 text-center">
-                                <button onClick={() => { const rows = c ? [...c.anal,...c.conc,...c.cTec,...c.emAnal] : []; openDrilldown(`${p.nome} — ${fmtMesProd(mes)}`, rows); }}
-                                  className={`inline-flex flex-col items-center px-2 py-1 rounded border text-center hover:opacity-80 transition-opacity text-xs ${cls}`}>
-                                  <span className="font-extrabold">{an}</span>
-                                  <span className="opacity-60 text-[9px]">/{tot}</span>
-                                </button>
-                              </td>
-                            );
-                          })}
-                          <td className="px-3 py-2 text-center text-xs font-bold text-slate-700">{p.totalRec}</td>
-                          <td className="px-3 py-2 text-center text-xs font-bold text-emerald-600">{p.totalAnal + p.totalEmAnal + p.totalConc}</td>
-                          <td className="px-3 py-2 text-center">
-                            {p.totalCTec > 0 ? <button onClick={() => openDrilldown(`${p.nome} — C/Técnico`, [...p.monthMap.values()].flatMap(c => c.cTec))} className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200 hover:bg-red-100">{p.totalCTec}</button> : <span className="text-emerald-500 font-black">✓</span>}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {p.totalEmAnal > 0 ? <button onClick={() => openDrilldown(`${p.nome} — Em Andamento`, [...p.monthMap.values()].flatMap(c => c.emAnal))} className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 hover:bg-blue-100">{p.totalEmAnal}</button> : <span className="text-emerald-500 font-black">✓</span>}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            <span className={`text-xs font-bold ${p.taxa >= 70 ? 'text-emerald-600' : p.taxa >= 40 ? 'text-amber-600' : 'text-red-600'}`}>{p.taxa}%</span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    <tr className="bg-slate-800 text-white">
-                      <td className="sticky left-0 z-10 bg-slate-800 px-4 py-2.5 text-xs font-bold uppercase">TOTAL</td>
-                      {allMeses.map(mes => {
-                        const an  = pessoas.reduce((s, p) => { const c = p.monthMap.get(mes); return s + (c?.anal.length ?? 0) + (c?.emAnal.length ?? 0) + (c?.conc.length ?? 0); }, 0);
-                        const tot = pessoas.reduce((s, p) => s + (p.monthMap.get(mes)?.total.length ?? 0), 0);
-                        return <td key={mes} className="px-2 py-2.5 text-center text-xs font-bold">{tot > 0 ? <>{an}<span className="opacity-40">/{tot}</span></> : <span className="opacity-30">—</span>}</td>;
-                      })}
-                      <td className="px-3 py-2.5 text-center text-xs font-black">{kpis.totRec}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-black text-emerald-300">{kpis.totAnal + kpis.totEmAnal}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-black text-red-300">{kpis.totCTec}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-black text-blue-300">{kpis.totEmAnal}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-black">{kpis.taxa}%</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        );
-      })()}
+      <TabelaMensalSection
+        allMeses={allMeses}
+        pessoas={pessoas}
+        kpis={kpis}
+        isConf={isConf}
+        openDrilldown={openDrilldown}
+        fmtMes={fmtMesProd}
+      />
 
       {/* ══════════════════════════════════════════════════════
           6 — EXPORTAR
