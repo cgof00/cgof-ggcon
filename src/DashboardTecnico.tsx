@@ -1256,8 +1256,8 @@ function expandToAtribuicoes(rows: FormalizacaoRow[]): FormalizacaoRow[] {
 // Sub-componente isolado para garantir que useState respeite as regras dos Hooks
 function TabelaMensalSection({ allMeses, pessoas, kpis, isConf, openDrilldown, fmtMes }: {
   allMeses: string[];
-  pessoas: { nome: string; monthMap: Map<string, { total: FormalizacaoRow[]; anal: FormalizacaoRow[]; conc: FormalizacaoRow[]; cTec: FormalizacaoRow[]; emAnal: FormalizacaoRow[]; }>; totalRec: number; totalAnal: number; totalConc: number; totalCTec: number; totalEmAnal: number; taxa: number }[];
-  kpis: { totRec: number; totAnal: number; totCTec: number; totEmAnal: number; taxa: number };
+  pessoas: { nome: string; monthMap: Map<string, { total: FormalizacaoRow[]; anal: FormalizacaoRow[]; conc: FormalizacaoRow[]; cTec: FormalizacaoRow[]; emAnal: FormalizacaoRow[]; rem: FormalizacaoRow[]; }>; totalRec: number; totalAnal: number; totalConc: number; totalCTec: number; totalEmAnal: number; totalRemanescentes: number; taxa: number }[];
+  kpis: { totRec: number; totAnal: number; totCTec: number; totEmAnal: number; taxa: number; totRemanescentes: number };
   isConf: boolean;
   openDrilldown: (title: string, rows: FormalizacaoRow[]) => void;
   fmtMes: (mes: string) => string;
@@ -1294,6 +1294,7 @@ function TabelaMensalSection({ allMeses, pessoas, kpis, isConf, openDrilldown, f
                 <th className="bg-emerald-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Anal.</th>
                 <th className="bg-red-900 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">c/Téc</th>
                 <th className="bg-blue-800 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Em And.</th>
+                <th className="bg-violet-700 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Rem.</th>
                 <th className="bg-slate-600 text-white px-3 py-3 text-center whitespace-nowrap text-xs font-bold">Taxa</th>
               </tr>
             </thead>
@@ -1309,6 +1310,7 @@ function TabelaMensalSection({ allMeses, pessoas, kpis, isConf, openDrilldown, f
                       const an   = (c?.anal.length ?? 0) + (c?.emAnal.length ?? 0) + (c?.conc.length ?? 0);
                       const cTec = c?.cTec.length ?? 0;
                       const emAn = c?.emAnal.length ?? 0;
+                      const rem  = c?.rem.length ?? 0;
                       if (tot === 0 && an === 0 && cTec === 0 && emAn === 0) return <td key={mes} className="px-2 py-2 text-center text-slate-200 text-xs">—</td>;
                       const cls = an > 0 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : tot > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-500 border-slate-200';
                       return (
@@ -1318,6 +1320,7 @@ function TabelaMensalSection({ allMeses, pessoas, kpis, isConf, openDrilldown, f
                             <span className="font-extrabold">{an}</span>
                             <span className="opacity-60 text-[9px]">/{tot}</span>
                           </button>
+                          {rem > 0 && <div className="text-[9px] text-violet-500 font-bold mt-0.5">{rem}rem</div>}
                         </td>
                       );
                     })}
@@ -1328,6 +1331,9 @@ function TabelaMensalSection({ allMeses, pessoas, kpis, isConf, openDrilldown, f
                     </td>
                     <td className="px-3 py-2 text-center">
                       {p.totalEmAnal > 0 ? <button onClick={() => openDrilldown(`${p.nome} — Em Andamento`, [...p.monthMap.values()].flatMap(c => c.emAnal))} className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 hover:bg-blue-100">{p.totalEmAnal}</button> : <span className="text-emerald-500 font-black">✓</span>}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {p.totalRemanescentes > 0 ? <button onClick={() => openDrilldown(`${p.nome} — Remanescentes`, [...p.monthMap.values()].flatMap(c => c.rem))} className="text-xs font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200 hover:bg-violet-100">{p.totalRemanescentes}</button> : <span className="text-slate-300">0</span>}
                     </td>
                     <td className="px-3 py-2 text-center">
                       <span className={`text-xs font-bold ${p.taxa >= 70 ? 'text-emerald-600' : p.taxa >= 40 ? 'text-amber-600' : 'text-red-600'}`}>{p.taxa}%</span>
@@ -1346,6 +1352,7 @@ function TabelaMensalSection({ allMeses, pessoas, kpis, isConf, openDrilldown, f
                 <td className="px-3 py-2.5 text-center text-xs font-black text-emerald-300">{kpis.totAnal + kpis.totEmAnal}</td>
                 <td className="px-3 py-2.5 text-center text-xs font-black text-red-300">{kpis.totCTec}</td>
                 <td className="px-3 py-2.5 text-center text-xs font-black text-blue-300">{kpis.totEmAnal}</td>
+                <td className="px-3 py-2.5 text-center text-xs font-black text-violet-300">{kpis.totRemanescentes}</td>
                 <td className="px-3 py-2.5 text-center text-xs font-black">{kpis.taxa}%</td>
               </tr>
             </tbody>
@@ -1393,7 +1400,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
     return 'analisada';
   };
 
-  type CellData = { total: FormalizacaoRow[]; anal: FormalizacaoRow[]; cTec: FormalizacaoRow[]; emAnal: FormalizacaoRow[]; conc: FormalizacaoRow[] };
+  type CellData = { total: FormalizacaoRow[]; anal: FormalizacaoRow[]; cTec: FormalizacaoRow[]; emAnal: FormalizacaoRow[]; conc: FormalizacaoRow[]; rem: FormalizacaoRow[] };
 
   const { pessoas, allMeses } = useMemo(() => {
     // Expande cada demanda nas suas múltiplas atribuições (atual + históricas).
@@ -1425,7 +1432,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
       if (!MAP.has(tec)) MAP.set(tec, new Map());
       const tm = MAP.get(tec)!;
       const ensureCell = (m: string) => {
-        if (!tm.has(m)) tm.set(m, { total: [], anal: [], cTec: [], emAnal: [], conc: [] });
+        if (!tm.has(m)) tm.set(m, { total: [], anal: [], cTec: [], emAnal: [], conc: [], rem: [] });
         return tm.get(m)!;
       };
       const status = classify(r);
@@ -1469,10 +1476,18 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
         // c_tecnico ou em_analise: demanda ainda ativa — usa mês de recebimento
         mesStatus = mesRecebido;
       }
-      if (status === 'analisada')       ensureCell(mesStatus).anal.push(r);
-      else if (status === 'em_analise') ensureCell(mesStatus).emAnal.push(r);
-      else if (status === 'c_tecnico')  ensureCell(mesStatus).cTec.push(r);
-      else                              ensureCell(mesStatus).conc.push(r);
+      if (status === 'analisada') {
+        ensureCell(mesStatus).anal.push(r);
+        if (mesStatus !== mesRecebido) ensureCell(mesStatus).rem.push(r);
+      } else if (status === 'em_analise') {
+        ensureCell(mesStatus).emAnal.push(r);
+        // em_analise always has mesStatus === mesRecebido, never remanescente
+      } else if (status === 'c_tecnico') {
+        ensureCell(mesStatus).cTec.push(r);
+      } else {
+        ensureCell(mesStatus).conc.push(r);
+        if (mesStatus !== mesRecebido) ensureCell(mesStatus).rem.push(r);
+      }
     }
 
     const allMesesSet = new Set<string>();
@@ -1489,10 +1504,11 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
       const totalConc  = [...monthMap.values()].reduce((s, c) => s + c.conc.length,   0);
       const totalCTec  = [...monthMap.values()].reduce((s, c) => s + c.cTec.length,   0);
       const totalEmAnal= [...monthMap.values()].reduce((s, c) => s + c.emAnal.length, 0);
+      const totalRemanescentes = [...monthMap.values()].reduce((s, c) => s + c.rem.length, 0);
       // Em Análise conta como produtivo; apenas c/Técnico = não analisado
       const taxa       = totalRec > 0 ? Math.round(((totalAnal + totalEmAnal + totalConc) / totalRec) * 100) : 0;
       const stuck = [...monthMap.values()].flatMap(c => c.cTec);
-      return { nome, monthMap, totalRec, totalAnal, totalConc, totalCTec, totalEmAnal, taxa, stuck };
+      return { nome, monthMap, totalRec, totalAnal, totalConc, totalCTec, totalEmAnal, totalRemanescentes, taxa, stuck };
     }).sort((a, b) => b.totalCTec - a.totalCTec || b.totalRec - a.totalRec);
 
     return { pessoas, allMeses };
@@ -1504,17 +1520,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
     const totCTec   = pessoas.reduce((s, p) => s + p.totalCTec,   0);
     const totEmAnal = pessoas.reduce((s, p) => s + p.totalEmAnal, 0);
     const taxa      = totRec > 0 ? Math.round(((totAnal + totEmAnal) / totRec) * 100) : 0;
-    // Remanescentes: demandas recebidas em mês anterior mas analisadas no mês da célula
-    let totRemanescentes = 0;
-    for (const p of pessoas) {
-      for (const [mes, cell] of p.monthMap) {
-        for (const r of [...cell.anal, ...cell.emAnal, ...cell.conc]) {
-          const dLib = parseDateTL(r[dateKey] as string);
-          const mesLib = dLib ? toMes(dLib) : 'sem-data';
-          if (mesLib !== mes) totRemanescentes++;
-        }
-      }
-    }
+    const totRemanescentes = pessoas.reduce((s, p) => s + p.totalRemanescentes, 0);
     return { totRec, totAnal, totCTec, totEmAnal, taxa, totRemanescentes };
   }, [pessoas]);
 
@@ -1522,24 +1528,24 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
     const wb = XLSX.utils.book_new();
 
     // Aba 1: resumo por pessoa
-    const h1 = [isConf ? 'Conferencista' : 'Técnico', 'Recebidas', isConf ? 'Conferenciadas' : 'Analisadas (incl. em andamento)', isConf ? 'Presa c/Conf.' : 'c/Técnico (sem análise)', 'Em Análise (andamento)', 'Taxa %'];
-    const d1 = pessoas.map(p => [p.nome, p.totalRec, p.totalAnal + p.totalEmAnal + p.totalConc, p.totalCTec, p.totalEmAnal, p.taxa]);
-    d1.push(['TOTAL', kpis.totRec, kpis.totAnal + kpis.totEmAnal, kpis.totCTec, kpis.totEmAnal, kpis.taxa]);
+    const h1 = [isConf ? 'Conferencista' : 'Técnico', 'Recebidas', isConf ? 'Conferenciadas' : 'Analisadas (incl. em andamento)', isConf ? 'Presa c/Conf.' : 'c/Técnico (sem análise)', 'Em Análise (andamento)', 'Remanescentes (de meses ant.)', 'Taxa %'];
+    const d1 = pessoas.map(p => [p.nome, p.totalRec, p.totalAnal + p.totalEmAnal + p.totalConc, p.totalCTec, p.totalEmAnal, p.totalRemanescentes, p.taxa]);
+    d1.push(['TOTAL', kpis.totRec, kpis.totAnal + kpis.totEmAnal, kpis.totCTec, kpis.totEmAnal, kpis.totRemanescentes, kpis.taxa]);
     const ws1 = XLSX.utils.aoa_to_sheet([h1, ...d1]);
-    ws1['!cols'] = [{ wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 10 }];
+    ws1['!cols'] = [{ wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 26 }, { wch: 10 }];
     XLSX.utils.book_append_sheet(wb, ws1, isConf ? 'Resumo por Conferencista' : 'Resumo por Técnico');
 
     // Aba 2: detalhe por cohort (mês de recebimento)
-    const h2 = [isConf ? 'Conferencista' : 'Técnico', 'Mês de Recebimento', 'Total Recebidas', isConf ? 'Conferenciadas' : 'Analisadas', isConf ? 'Presa c/Conf.' : 'c/Técnico', 'Em Análise'];
+    const h2 = [isConf ? 'Conferencista' : 'Técnico', 'Mês de Recebimento', 'Total Recebidas', isConf ? 'Conferenciadas' : 'Analisadas', isConf ? 'Presa c/Conf.' : 'c/Técnico', 'Em Análise', 'Remanescentes'];
     const d2: (string | number)[][] = [];
     pessoas.forEach(p => {
       allMeses.forEach(mes => {
         const c = p.monthMap.get(mes);
-        if (c && c.total.length > 0) d2.push([p.nome, mes === 'sem-data' ? 'Sem Data' : fmtMesProd(mes), c.total.length, c.anal.length + c.conc.length, c.cTec.length, c.emAnal.length]);
+        if (c && c.total.length > 0) d2.push([p.nome, mes === 'sem-data' ? 'Sem Data' : fmtMesProd(mes), c.total.length, c.anal.length + c.conc.length, c.cTec.length, c.emAnal.length, c.rem.length]);
       });
     });
     const ws2 = XLSX.utils.aoa_to_sheet([h2, ...d2]);
-    ws2['!cols'] = [{ wch: 32 }, { wch: 20 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+    ws2['!cols'] = [{ wch: 32 }, { wch: 20 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
     XLSX.utils.book_append_sheet(wb, ws2, 'Por Cohort-Mês');
 
     // Aba 3: demandas presas (detalhe completo com Ano, Mês e dias corretos)
@@ -1673,6 +1679,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
       'Conveniado', 'Município', 'Regional', 'Classificação',
       'Situação (Area/Estágio)', 'Situação (SemPapel)', 'Situação Análise',
       'Status Produtividade',
+      'Remanescente?',
       'Dt. Liberação', 'Dt. Início Análise', 'Dt. Publicação', 'Concluída em',
     ];
     const rows = filtered.map(r => {
@@ -1686,6 +1693,15 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
         : st === 'em_analise' ? 'Em Análise'
         : st === 'concluida'  ? 'Concluída'
         : 'Analisada';
+      // Remanescente: analisada ou concluída em mês diferente do recebimento
+      let isRem = 'Não';
+      if (st === 'analisada') {
+        const dAnal = parseDateTL(r.data_analise_demanda as string);
+        if (dAnal && mes !== 'sem-data' && toMes(dAnal) !== mes) isRem = 'Sim';
+      } else if (st === 'concluida') {
+        const dConc = parseDateTL(r.concluida_em as string) || parseDateTL(r.publicacao as string);
+        if (dConc && mes !== 'sem-data' && toMes(dConc) !== mes) isRem = 'Sim';
+      }
       return [
         String(r.tecnico ?? ''),
         String(r.conferencista ?? ''),
@@ -1700,6 +1716,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
         String(r.situacao_demandas_sempapel ?? ''),
         String(r.situacao_analise_demanda ?? ''),
         statusLabel,
+        isRem,
         fmtDateXLSX(r.data_liberacao as string),
         fmtDateXLSX(r.data_analise_demanda as string),
         fmtDateXLSX(r.publicacao as string),
@@ -1722,6 +1739,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
       { wch: 40 }, { wch: 22 }, { wch: 18 }, { wch: 22 },
       { wch: 40 }, { wch: 40 }, { wch: 40 },
       { wch: 16 },
+      { wch: 14 },
       { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 14 },
     ];
     const wb = XLSX.utils.book_new();
@@ -1820,6 +1838,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
               <span className="text-sm font-bold text-slate-700">Produtividade por {isConf ? 'Conferencista' : 'Técnico'}</span>
               <div className="flex gap-3 ml-auto text-[10px] text-slate-400">
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block"/>Analisadas</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-violet-400 inline-block"/>Remanescentes</span>
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-slate-200 inline-block"/>Pendentes</span>
               </div>
             </div>
@@ -1835,6 +1854,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                     <span className="text-xs text-slate-600 font-medium w-32 shrink-0 truncate" title={p.nome}>{p.nome.split(' ')[0]}</span>
                     <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden flex">
                       <div className={`h-full ${barColor} transition-all duration-700`} style={{ width: `${(anal / maxRec) * 100}%` }} />
+                      <div className="h-full bg-violet-400 transition-all duration-700" style={{ width: `${(p.totalRemanescentes / maxRec) * 100}%` }} />
                       <div className="h-full bg-slate-200 transition-all duration-700" style={{ width: `${(Math.max(0, pend) / maxRec) * 100}%` }} />
                     </div>
                     <span className={`text-xs font-bold w-10 shrink-0 text-right ${p.taxa >= 70 ? 'text-emerald-600' : p.taxa >= 40 ? 'text-amber-600' : 'text-red-600'}`}>{p.taxa}%</span>
@@ -1898,10 +1918,11 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
                 </div>
 
                 {/* Stats grid */}
-                <div className="grid grid-cols-4 gap-0 mt-3 border-t border-slate-100 divide-x divide-slate-100">
+                <div className="grid grid-cols-5 gap-0 mt-3 border-t border-slate-100 divide-x divide-slate-100">
                   {[
                     { lbl: 'Rec.',    val: p.totalRec,  cls: 'text-slate-700' },
                     { lbl: isConf ? 'Conf.' : 'Anal.',  val: anal,  cls: 'text-emerald-600 font-black' },
+                    { lbl: 'Rem.',    val: p.totalRemanescentes, cls: p.totalRemanescentes > 0 ? 'text-violet-600 font-black' : 'text-slate-300' },
                     { lbl: 'C/Téc.',  val: pend,  cls: pend > 0 ? 'text-red-600 font-black' : 'text-emerald-500' },
                     { lbl: 'Conc.',   val: p.totalConc, cls: 'text-blue-600' },
                   ].map(s => (
