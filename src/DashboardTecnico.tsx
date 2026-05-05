@@ -441,9 +441,26 @@ const GGCON_STAGES = new Set([
   'OUTRAS PENDÊNCIAS',
 ]);
 
+// ─── Helper central de conclusão ────────────────────────────────────────────
+// Uma demanda é considerada concluída se:
+//   1. concluida_em preenchida
+//   2. publicacao preenchida (publicação no DOE)
+//   3. area_estagio_situacao_demanda = "PROCESSO SIAFEM" (mas NÃO "EM PROCESSO SIAFEM")
+//   4. situacao_demandas_sempapel = "PROCESSO SIAFEM" (mesma ressalva)
+// Usada em TODOS os demonstrativos para garantir consistência.
+function isConcluida(r: FormalizacaoRow): boolean {
+  if ((r.concluida_em ?? '').trim()) return true;
+  if ((r.publicacao ?? '').trim()) return true;
+  const areaEst = (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
+  const sitSemP = (r.situacao_demandas_sempapel ?? '').trim().toUpperCase();
+  const isProcessoSiafem = (s: string) =>
+    s.includes('PROCESSO SIAFEM') && !s.startsWith('EM PROCESSO');
+  return isProcessoSiafem(areaEst) || isProcessoSiafem(sitSemP);
+}
+
 function computeColValues(rows: FormalizacaoRow[]): Record<ColKey, number> {
   // Registros ativos (não concluídos) são usados para os estágios — concluídos contam apenas na coluna própria
-  const active = rows.filter(r => !(r.concluida_em ?? '').trim());
+  const active = rows.filter(r => !isConcluida(r));
   const cTecnico        = active.filter(r => stgNorm(r) === 'DEMANDA COM O TÉCNICO').length;
   const emAnalise       = active.filter(r => stgNorm(r) === 'EM ANÁLISE DA DOCUMENTAÇÃO' || stgNorm(r) === 'EM ANÁLISE DO PLANO DE TRABALHO').length;
   const agDoc           = active.filter(r => stgNorm(r) === 'AGUARDANDO DOCUMENTAÇÃO').length;
@@ -457,8 +474,8 @@ function computeColValues(rows: FormalizacaoRow[]): Record<ColKey, number> {
   const outras          = active.filter(r => stgNorm(r) === 'OUTRAS PENDÊNCIAS').length;
   // Total GGCON = soma dos estágios GGCON_STAGES (Diligência NOT included), apenas ativos
   const totalGgcon      = active.filter(r => GGCON_STAGES.has(stgNorm(r))).length;
-  // Concluída = tem data preenchida em concluida_em (conta do total de rows)
-  const concluida       = rows.filter(r => !!(r.concluida_em ?? '').trim()).length;
+  // Concluída = helper central (concluida_em OU publicacao OU PROCESSO SIAFEM)
+  const concluida       = rows.filter(r => isConcluida(r)).length;
   const transfVol       = rows.filter(r => cls(r).includes('TRANSFER')).length;
   const emendaLoa       = rows.filter(r => cls(r).includes('LOA') || cls(r).includes('EMENDA LOA')).length;
   return {
@@ -470,7 +487,7 @@ function computeColValues(rows: FormalizacaoRow[]): Record<ColKey, number> {
 }
 
 function getColRows(colKey: ColKey, rows: FormalizacaoRow[]): FormalizacaoRow[] {
-  const active = rows.filter(r => !(r.concluida_em ?? '').trim());
+  const active = rows.filter(r => !isConcluida(r));
   switch (colKey) {
     case 'demandas_recebidas': return rows;
     case 'c_tecnico':      return active.filter(r => stgNorm(r) === 'DEMANDA COM O TÉCNICO');
@@ -485,7 +502,7 @@ function getColRows(colKey: ColKey, rows: FormalizacaoRow[]): FormalizacaoRow[] 
     case 'comite':         return active.filter(r => stgNorm(r) === 'COMITE GESTOR');
     case 'outras':         return active.filter(r => stgNorm(r) === 'OUTRAS PENDÊNCIAS');
     case 'total_ggcon':    return active.filter(r => GGCON_STAGES.has(stgNorm(r)));
-    case 'concluida':      return rows.filter(r => !!(r.concluida_em ?? '').trim());
+    case 'concluida':      return rows.filter(r => isConcluida(r));
     case 'transf_vol':     return rows.filter(r => cls(r).includes('TRANSFER'));
     case 'emenda_loa':     return rows.filter(r => cls(r).includes('LOA') || cls(r).includes('EMENDA LOA'));
     default: return [];
@@ -862,10 +879,9 @@ function TimelineSection({
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  // Only include demands that are NOT yet concluded
-  // publicacao preenchida = publicado no DOE = efetivamente concluído mesmo sem concluida_em
+  // Only include demands that are NOT yet concluded (isConcluida = helper central)
   const pending = useMemo(
-    () => filtered.filter(r => !(r.concluida_em ?? '').trim() && !(r.publicacao ?? '').trim()),
+    () => filtered.filter(r => !isConcluida(r)),
     [filtered]
   );
 
@@ -1344,22 +1360,12 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
   // Classifica pelo campo area_estagio_situacao_demanda (situação atual real):
   // - 'c_tecnico'  = "DEMANDA COM O TÉCNICO" ou variante Fundo a Fundo
   // - 'em_analise' = qualquer "EM ANÁLISE ..." exceto "EM ANÁLISE ORÇAMENTÁRIA"
-  // - 'concluida'  = tem publicacao ou concluida_em
-  //                  OU situacao_sempapel / area_estagio = "PROCESSO SIAFEM"
-  //                  (NÃO "EM PROCESSO SIAFEM", que é outra situação — Financeiro CGOF)
+  // - 'concluida'  = isConcluida(r) → ver helper central (concluida_em / publicacao / PROCESSO SIAFEM)
   // - 'analisada'  = tudo o mais (diligência, formalização, conferência etc.)
   const classify = (r: FormalizacaoRow): 'analisada' | 'em_analise' | 'c_tecnico' | 'concluida' => {
     // Atribuição histórica (técnico anterior) = já foi encerrada, conta como analisada
     if ((r as any)._isHistorico) return 'analisada';
-    if (!!(r.concluida_em ?? '').trim() || !!(r.publicacao ?? '').trim()) return 'concluida';
-
-    // "PROCESSO SIAFEM" em qualquer dos dois campos = concluída
-    // Cuidado: "EM PROCESSO SIAFEM" começa com "EM PROCESSO" e é outra situação
-    const areaEst = (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
-    const sitSemP = (r.situacao_demandas_sempapel ?? '').trim().toUpperCase();
-    const isProcessoSiafem = (s: string) =>
-      s.includes('PROCESSO SIAFEM') && !s.startsWith('EM PROCESSO');
-    if (isProcessoSiafem(areaEst) || isProcessoSiafem(sitSemP)) return 'concluida';
+    if (isConcluida(r)) return 'concluida';
 
     if (isConf) {
       // Conferencista: devolveu = tem data de liberação assinatura do conferencista
@@ -1367,7 +1373,8 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
       return 'c_tecnico'; // presa c/ conferencista
     }
     // Combinação (fallback) para os demais testes abaixo
-    const sit = areaEst || sitSemP;
+    const sit = ((r.area_estagio_situacao_demanda ?? '').trim()
+      || (r.situacao_demandas_sempapel ?? '').trim()).toUpperCase();
     // c/Técnico: estágio "DEMANDA COM O TÉCNICO" (com ou sem sufixo Fundo a Fundo)
     if (sit === 'DEMANDA COM O TÉCNICO' || sit.startsWith('DEMANDA COM O TÉCNICO')) return 'c_tecnico';
     // Em Análise: qualquer estágio que contenha "EM ANÁLISE", exceto orçamentária
@@ -2303,7 +2310,7 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
                                 </td>
                                 <td className="px-3 py-1.5 text-center">
                                   {r.naoConcl > 0
-                                    ? <button onClick={() => { const rws = getRows(p.nome, r.mes).filter(x => !(x.concluida_em ?? '').trim()); openDrilldown(`${p.nome} — Pend. ${fmtMesProd(r.mes)} (${rws.length})`, rws); }} className="inline-flex items-center justify-center w-7 bg-orange-100 text-orange-700 rounded font-bold hover:bg-orange-200 transition-colors">{r.naoConcl}</button>
+                                    ? <button onClick={() => { const rws = getRows(p.nome, r.mes).filter(x => !isConcluida(x)); openDrilldown(`${p.nome} — Pend. ${fmtMesProd(r.mes)} (${rws.length})`, rws); }} className="inline-flex items-center justify-center w-7 bg-orange-100 text-orange-700 rounded font-bold hover:bg-orange-200 transition-colors">{r.naoConcl}</button>
                                     : <span className="text-slate-300">—</span>}
                                 </td>
                                 <td className="px-3 py-1.5 text-center">
@@ -2635,7 +2642,7 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
           const dias = Math.round((dp.getTime() - d.getTime()) / 86400000);
           if (dias >= 0 && dias <= 730) { row.td += dias; row.cd++; }
         }
-        if ((r.concluida_em ?? '').trim()) row.conc++;
+        if (isConcluida(r)) row.conc++;
       });
       const meses = [...new Set([
         ...allMeses,
@@ -2991,7 +2998,7 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
           {/* ── Distribuição por Área - Estágio ─────────────────────── */}
           <CollapsibleSection title="Distribuição por Área (Sem Papel)" icon={MapPin} headerBg="bg-slate-600 hover:bg-slate-500" collapsed={sec.areaEstagio} onToggle={() => toggleSec('areaEstagio')}>
           {(() => {
-            const activeRows = filtered.filter(r => !(r.concluida_em ?? '').trim());
+            const activeRows = filtered.filter(r => !isConcluida(r));
             const areaMap = new Map<string, FormalizacaoRow[]>();
             for (const r of activeRows) {
               const area = getAreaEstagio(r);
@@ -3183,7 +3190,7 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             // Only non-completed demands with a liberação date
-            const pending = filtered.filter(r => !(r.concluida_em ?? '').trim() && (r.data_liberacao ?? '').trim());
+            const pending = filtered.filter(r => !isConcluida(r) && (r.data_liberacao ?? '').trim());
             // Compute days since liberação for each
             const withDays = pending.map(r => {
               const d = new Date(r.data_liberacao + 'T00:00:00');
