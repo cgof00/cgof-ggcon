@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env.local
+.env.production
+.env.*.local
+.wrangler/
+*.db
+*.sqlite
+emendas-import.csv
+Copia_Dashboard_*.csv
+hash-output.txt
+temp_debug.txt

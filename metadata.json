@@ -1,0 +1,5 @@
+{
+  "name": "Gestor de Emendas e Convênios",
+  "description": "Sistema para controle de emendas parlamentares e formalização de convênios com acompanhamento de status e valores.",
+  "requestFramePermissions": []
+}
