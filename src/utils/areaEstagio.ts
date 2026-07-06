@@ -193,6 +193,7 @@ export const SEMPAPEL_AREA_MAP: Record<string, string> = {
   'Transferência Voluntária contabilizada como impeditiva': '9.2 - Impedida',
   'Contabilizar em impedidas tecnicamente': '9.2 - Impedida',
   'Demanda parlamentar contabilizada como impeditiva': '9.2 - Impedida',
+  'FORMALIZADO AGUARDANDO IMPEDIMENTO': '9.2 - Impedida',
   // ── OUTRAS ÁREAS (sem mapeamento no sem papel oficial) ────────────────────
   'Em Processamento': 'Repasse Próprio Beneficiário',
   'Em análise de admissibilidade do Órgão Processador': 'Repasse Próprio Beneficiário',

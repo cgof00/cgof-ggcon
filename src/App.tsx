@@ -2743,7 +2743,8 @@ export default function App() {
       'GESTOR ADMINISTRATIVO DRS', 'GESTOR TÉCNICO DRS', 'DIRETOR DRS',
       'COORDENADOR CRS', 'DIRETOR GGCON', 'ORDENADOR DE DESPESAS',
       'SECRETÁRIO', 'GESTOR – CONVÊNIO / DEMANDANTE', 'ORÇAMENTO CGOF',
-      'CHEFIA DE GABINETE', 'AGUARDANDO RESOLUÇÃO', 'NOTA DE RESERVA - GCF', 'LOTE3'
+      'CHEFIA DE GABINETE', 'AGUARDANDO RESOLUÇÃO', 'NOTA DE RESERVA - GCF',
+      'AGUARDANDO FINALIZAÇÃO', 'LOTE3'
     ];
 
     const header = cols.map(c => c.label);
@@ -5559,6 +5560,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         <option value="APROVAÇÃO - CHEFIA DE GABINETE – FUNDO A FUNDO">APROVAÇÃO - CHEFIA DE GABINETE – FUNDO A FUNDO</option>
                         <option value="AGUARDANDO APROVAÇÃO DO SECRETARIO DE ESTADO DA SAÚDE – FUNDO A FUNDO">AGUARDANDO APROVAÇÃO DO SECRETARIO DE ESTADO DA SAÚDE – FUNDO A FUNDO</option>
                         <option value="AGUARDANDO RESOLUÇÃO PARA EMISSÃO RESOLUÇÃO PARA REPASSE FUNDO A FUNDO - DOE">AGUARDANDO RESOLUÇÃO PARA EMISSÃO RESOLUÇÃO PARA REPASSE FUNDO A FUNDO - DOE</option>
+                        <option value="FORMALIZADO AGUARDANDO IMPEDIMENTO">FORMALIZADO AGUARDANDO IMPEDIMENTO</option>
                       </select>
 
                       {/* ── Histórico de alterações da situação ── */}
@@ -5875,6 +5877,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                 'CHEFIA DE GABINETE',
                                 'AGUARDANDO RESOLUÇÃO',
                                 'NOTA DE RESERVA - GCF',
+                                'AGUARDANDO FINALIZAÇÃO',
                                 'LOTE3',
                               ].map((opcao) => {
                                 const checked = editingFormalizacao?.falta_assinatura
@@ -7558,6 +7561,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                 'CHEFIA DE GABINETE',
                 'AGUARDANDO RESOLUÇÃO',
                 'NOTA DE RESERVA - GCF',
+                'AGUARDANDO FINALIZAÇÃO',
                 'LOTE3',
               ].map(opcao => {
                 const currentValues = inlineEditFalta.value
@@ -7574,7 +7578,8 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                           'GESTOR ADMINISTRATIVO DRS', 'GESTOR TÉCNICO DRS', 'DIRETOR DRS',
                           'COORDENADOR CRS', 'DIRETOR GGCON', 'ORDENADOR DE DESPESAS',
                           'SECRETÁRIO', 'GESTOR – CONVÊNIO / DEMANDANTE', 'ORÇAMENTO CGOF',
-                          'CHEFIA DE GABINETE', 'AGUARDANDO RESOLUÇÃO', 'NOTA DE RESERVA - GCF', 'LOTE3'
+                          'CHEFIA DE GABINETE', 'AGUARDANDO RESOLUÇÃO', 'NOTA DE RESERVA - GCF',
+                          'AGUARDANDO FINALIZAÇÃO', 'LOTE3'
                         ];
                         const newValues = isChecked
                           ? currentValues.filter(v => v !== opcao)
