@@ -715,7 +715,7 @@ const app = express();
       const { data: adminData, error: adminError } = await supabase
         .from("usuarios")
         .select("senha_hash")
-        .eq("id", req.user.id)
+        .eq("id", req.user.userId)
         .single();
 
       if (adminError || !adminData) {
@@ -2849,7 +2849,7 @@ const app = express();
       const { data: adminData, error: adminError } = await supabase
         .from("usuarios")
         .select("senha_hash")
-        .eq("id", req.user.id)
+        .eq("id", req.user.userId)
         .single();
 
       if (adminError || !adminData) {
