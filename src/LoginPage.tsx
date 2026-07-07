@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Mail, AlertCircle, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from './AuthContext';
-import logoImg from './img/logo.png';
+import logoImg from './img/Brasão.png';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
