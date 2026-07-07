@@ -263,6 +263,65 @@ export const onRequest: PagesFunction = async (context) => {
   // DELETE /api/formalizacao/:id
   if (request.method === 'DELETE') {
     try {
+      async function hashPassword(password: string): Promise<string> {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(password);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+
+      const authHeader = request.headers.get('Authorization') || '';
+      let decoded: any = null;
+      try { decoded = JSON.parse(atob(authHeader.replace('Bearer ', ''))); } catch { /* noop */ }
+
+      if (!decoded) {
+        return new Response(JSON.stringify({ error: 'Token não fornecido ou inválido' }), {
+          status: 401, headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
+        return new Response(JSON.stringify({ error: 'Token expirado' }), {
+          status: 401, headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (decoded.role !== 'admin') {
+        return new Response(JSON.stringify({ error: 'Acesso negado. Apenas administradores podem deletar formalizações.' }), {
+          status: 403, headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+      const senha = body?.senha as string | undefined;
+      if (!senha) {
+        return new Response(JSON.stringify({ error: 'Senha é obrigatória para deletar uma formalização' }), {
+          status: 400, headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      const callerId = decoded.id ?? decoded.userId;
+      const adminResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/usuarios?id=eq.${callerId}&select=senha_hash`,
+        {
+          headers: {
+            'Authorization': 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
+            'apikey': SUPABASE_SERVICE_ROLE_KEY,
+          }
+        }
+      );
+      const adminRows: any[] = adminResp.ok ? await adminResp.json() : [];
+      if (!adminRows[0]) {
+        return new Response(JSON.stringify({ error: 'Erro ao verificar credenciais' }), {
+          status: 400, headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      const senhaHash = await hashPassword(senha);
+      if (senhaHash !== adminRows[0].senha_hash) {
+        return new Response(JSON.stringify({ error: 'Senha incorreta' }), {
+          status: 401, headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
       const resp = await fetch(
         `${SUPABASE_URL}/rest/v1/formalizacao?id=eq.${parsedId}`,
         {

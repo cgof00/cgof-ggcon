@@ -608,6 +608,24 @@ export default function App() {
   const [showAlertasDropdown, setShowAlertasDropdown] = useState(false);
   const [showAlertaModal, setShowAlertaModal] = useState(false);
   const alertaModalShownRef = useRef<Set<string>>(new Set());
+  // Debounce do auto-show do modal de alertas — evita reabri-lo repetidamente
+  // enquanto o carregamento inicial dos ~40 mil registros ainda está recalculando os alertas
+  // (em dev, o StrictMode chega a rodar essa carga duas vezes em sequência).
+  // alertaModalDismissedAtRef registra quando o usuário fechou manualmente, para não
+  // reabrir por causa de uma leva de recálculo tardia dentro da mesma sessão.
+  const alertaModalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const alertaModalDismissedAtRef = useRef<number>(0);
+  const scheduleShowAlertaModal = () => {
+    if (alertaModalTimerRef.current) clearTimeout(alertaModalTimerRef.current);
+    alertaModalTimerRef.current = setTimeout(() => {
+      if (Date.now() - alertaModalDismissedAtRef.current < 8000) return;
+      setShowAlertaModal(true);
+    }, 1500);
+  };
+  const dismissAlertaModal = () => {
+    alertaModalDismissedAtRef.current = Date.now();
+    setShowAlertaModal(false);
+  };
   const [refreshProgress, setRefreshProgress] = useState<{ active: boolean; loaded: number; total: number; startTime: number } | null>(null);
 
   // ── Sistema de Notificações de Atribuição ─────────────────────────────────
@@ -1584,13 +1602,16 @@ export default function App() {
     }
   }, [formalizacoes, isAdmin]);
 
-  // 🔔 Auto-show modal when new admin alerts arrive
+  // 🔔 Auto-show modal when new admin alerts arrive.
+  // Debounced: durante o carregamento inicial dos ~40 mil registros, `adminAlertas`
+  // é recalculado várias vezes em sequência rápida — sem o debounce, cada recálculo
+  // reabria o modal mesmo segundos depois de o usuário tê-lo fechado.
   useEffect(() => {
     if (!isAdmin || adminAlertas.length === 0) return;
-    const hasNew = adminAlertas.some(a => !alertaModalShownRef.current.has(`${a.id}:${a.data}`));
+    const hasNew = adminAlertas.some((a: { id: number; data: string }) => !alertaModalShownRef.current.has(`${a.id}:${a.data}`));
     if (hasNew) {
-      adminAlertas.forEach(a => alertaModalShownRef.current.add(`${a.id}:${a.data}`));
-      setShowAlertaModal(true);
+      adminAlertas.forEach((a: { id: number; data: string }) => alertaModalShownRef.current.add(`${a.id}:${a.data}`));
+      scheduleShowAlertaModal();
     }
   }, [adminAlertas, isAdmin]);
 
@@ -1628,7 +1649,7 @@ export default function App() {
         const hasNew2 = reallyNew.some(f => !alertaModalShownRef.current.has(`${f.id}:${f.data_liberacao_assinatura_conferencista || ''}`));
         if (hasNew2) {
           reallyNew.forEach(f => alertaModalShownRef.current.add(`${f.id}:${f.data_liberacao_assinatura_conferencista || ''}`));
-          setShowAlertaModal(true);
+          scheduleShowAlertaModal();
         }
         return updated;
       });
@@ -3676,7 +3697,7 @@ export default function App() {
                     setActiveTab('formalizacao');
                     openEditFormFresh(f);
                   }
-                  setShowAlertaModal(false);
+                  dismissAlertaModal();
                   setShowAlertasDropdown(false);
                 };
 
@@ -3697,7 +3718,7 @@ export default function App() {
                   saveTecnicoAlertasVistos(tecnicoAlertasVistosRef.current);
                   setTecnicoAlertas([]);
                   setShowAlertasDropdown(false);
-                  setShowAlertaModal(false);
+                  dismissAlertaModal();
                 };
 
                 return (
@@ -3721,7 +3742,7 @@ export default function App() {
                     <>
                       <motion.div
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        onClick={() => setShowAlertaModal(false)}
+                        onClick={() => dismissAlertaModal()}
                         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998]"
                       />
                       <motion.div
@@ -3747,7 +3768,7 @@ export default function App() {
                               className="text-[11px] font-bold text-white/70 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-all">
                               Limpar tudo
                             </button>
-                            <button onClick={() => setShowAlertaModal(false)}
+                            <button onClick={() => dismissAlertaModal()}
                               className="p-1.5 hover:bg-white/20 rounded-lg transition-all text-white/80 hover:text-white">
                               <X className="w-5 h-5" />
                             </button>

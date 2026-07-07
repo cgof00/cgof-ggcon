@@ -110,6 +110,20 @@ const app = express();
     res.json({ status: 'OK', timestamp: new Date().toISOString() });
   });
 
+  // Middleware para verificar autenticação
+  const authMiddleware = (req: any, res: any, next: any) => {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ error: 'Token não fornecido' });
+    }
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return res.status(401).json({ error: 'Token inválido ou expirado' });
+    }
+    req.user = decoded;
+    next();
+  };
+
   // Log de status do Supabase
   console.log('\n--- STATUS DA CONEXÃO SUPABASE ---');
   console.log('Supabase URL:', supabaseUrl ? '✓ Configurada' : '✗ NÃO CONFIGURADA');
@@ -147,7 +161,7 @@ const app = express();
   });
 
   // 🔧 Endpoint de DEBUG
-  app.get("/api/debug/cache", async (req, res) => {
+  app.get("/api/debug/cache", authMiddleware, async (req: any, res) => {
     try {
       const now = Date.now();
       const cacheAge = formalizacaoCache ? Math.round((now - formalizacaoCacheTimestamp) / 1000) : null;
@@ -178,7 +192,7 @@ const app = express();
   });
 
   // 🚀 Endpoint para pré-carregar cache na inicialização
-  app.post("/api/debug/warmup-cache", async (req, res) => {
+  app.post("/api/debug/warmup-cache", authMiddleware, async (req: any, res) => {
     try {
       console.log('\n🔥 WARMUP: Pré-carregando cache de formalizações...');
       const start = Date.now();
@@ -196,20 +210,6 @@ const app = express();
       res.status(500).json({ error: error.message });
     }
   });
-
-  // Middleware para verificar autenticação
-  const authMiddleware = (req: any, res: any, next: any) => {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Token não fornecido' });
-    }
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return res.status(401).json({ error: 'Token inválido ou expirado' });
-    }
-    req.user = decoded;
-    next();
-  };
 
   // 🧹 Página de limpeza de dados
   app.get("/cleanup", (req, res) => {
@@ -346,8 +346,12 @@ const app = express();
     }
   });
 
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", authMiddleware, async (req: any, res) => {
     try {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Acesso negado. Apenas administradores podem registrar usuários." });
+      }
+
       const { email, senha, nome, role } = req.body;
       console.log('\n📝 POST /api/auth/register - Email:', email);
 
@@ -1004,8 +1008,11 @@ const app = express();
     }
   }
 
-  app.post("/api/admin/limpar-formalizacoes", async (req, res) => {
+  app.post("/api/admin/limpar-formalizacoes", authMiddleware, async (req: any, res) => {
     try {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Acesso negado. Apenas administradores podem limpar formalizações." });
+      }
       if (!supabase) {
         return res.status(400).json({ error: "Supabase não disponível" });
       }
@@ -1046,7 +1053,7 @@ const app = express();
     }
   });
 
-  app.get("/api/debug/compare-records", async (req, res) => {
+  app.get("/api/debug/compare-records", authMiddleware, async (req: any, res) => {
     try {
       if (!supabase) {
         return res.json({ error: "Supabase não disponível" });
@@ -1093,7 +1100,7 @@ const app = express();
     }
   });
 
-  app.get("/api/debug/formalizacao-sample", async (req, res) => {
+  app.get("/api/debug/formalizacao-sample", authMiddleware, async (req: any, res) => {
     try {
       if (!supabase) {
         return res.json({ error: "Supabase não disponível" });
@@ -1174,7 +1181,7 @@ const app = express();
     }
   });
 
-  app.get("/api/debug/formalizacao-status", async (req, res) => {
+  app.get("/api/debug/formalizacao-status", authMiddleware, async (req: any, res) => {
     try {
       if (!supabase) {
         return res.json({ error: "Supabase não disponível" });
@@ -1374,7 +1381,7 @@ const app = express();
   });
 
   // Endpoint para valores únicos dos filtros de formalização (com CACHE)
-  app.get("/api/formalizacao/filters", async (req, res) => {
+  app.get("/api/formalizacao/filters", authMiddleware, async (req: any, res) => {
     try {
       if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
       
@@ -1588,7 +1595,7 @@ const app = express();
   });
 
   // Endpoint de diagnóstico para debug de filtros
-  app.get("/api/diagnostic/filters", async (req, res) => {
+  app.get("/api/diagnostic/filters", authMiddleware, async (req: any, res) => {
     try {
       if (!supabase) return res.status(500).json({ error: "Supabase não configurado" });
       
@@ -1651,7 +1658,7 @@ const app = express();
   });
 
   // 🔍 Diagnóstico específico para demandas_formalizacao
-  app.get("/api/diagnostic/demandas", async (req, res) => {
+  app.get("/api/diagnostic/demandas", authMiddleware, async (req: any, res) => {
     try {
       console.log('\n🔍 DIAGNÓSTICO DE DEMANDAS_FORMALIZACAO');
       
@@ -1691,7 +1698,7 @@ const app = express();
     }
   });
 
-  app.post("/api/emendas", async (req, res) => {
+  app.post("/api/emendas", authMiddleware, async (req: any, res) => {
     try {
       if (supabase) {
         const { data, error } = await supabase
@@ -1710,7 +1717,7 @@ const app = express();
   });
 
   // Bulk Import Route
-  app.post("/api/emendas/bulk", async (req, res) => {
+  app.post("/api/emendas/bulk", authMiddleware, async (req: any, res) => {
     try {
       const items = req.body;
       if (!Array.isArray(items)) return res.status(400).json({ error: "Dados inválidos" });
@@ -1916,7 +1923,7 @@ const app = express();
   });
 
   // Importar Relatório de Emendas - recebe CSV mapeado, faz PROCV no servidor, insere somente novas
-  app.post("/api/emendas/import-report", async (req, res) => {
+  app.post("/api/emendas/import-report", authMiddleware, async (req: any, res) => {
     try {
       const items = req.body;
       if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: "Dados inválidos ou vazios" });
@@ -2102,7 +2109,7 @@ const app = express();
   });
 
   // Sincronizar emendas → formalização (para quando emendas são importadas direto no Supabase)
-  app.post("/api/emendas/sync-formalizacao", async (req, res) => {
+  app.post("/api/emendas/sync-formalizacao", authMiddleware, async (req: any, res) => {
     try {
       const authHeader = req.headers.authorization;
       if (!authHeader) return res.status(401).json({ error: 'Token não fornecido' });
@@ -2226,7 +2233,7 @@ const app = express();
     }
   });
 
-  app.post("/api/cache/reset", async (req, res) => {
+  app.post("/api/cache/reset", authMiddleware, async (req: any, res) => {
     try {
       console.log('🔄 Resetando cache de formalizações...');
       formalizacaoCache = null;
@@ -2304,7 +2311,7 @@ const app = express();
     }
   });
 
-  app.get("/api/debug/cache-status", async (req, res) => {
+  app.get("/api/debug/cache-status", authMiddleware, async (req: any, res) => {
     try {
       const hasCacheData = formalizacaoCache !== null && formalizacaoCache !== undefined;
       const cacheAge = hasCacheData ? Math.round((Date.now() - formalizacaoCacheTimestamp) / 1000) : null;
@@ -2321,7 +2328,7 @@ const app = express();
     }
   });
 
-  app.post("/api/formalizacao/bulk", async (req, res) => {
+  app.post("/api/formalizacao/bulk", authMiddleware, async (req: any, res) => {
     try {
       const items = req.body;
       if (!Array.isArray(items)) return res.status(400).json({ error: "Dados inválidos" });
@@ -2687,7 +2694,7 @@ const app = express();
     }
   });
 
-  app.put("/api/emendas/:id", async (req, res) => {
+  app.put("/api/emendas/:id", authMiddleware, async (req: any, res) => {
     try {
       const { id } = req.params;
       if (supabase) {
@@ -2704,7 +2711,7 @@ const app = express();
     }
   });
 
-  app.delete("/api/emendas/:id", async (req, res) => {
+  app.delete("/api/emendas/:id", authMiddleware, async (req: any, res) => {
     try {
       const { id } = req.params;
       if (supabase) {
@@ -2721,7 +2728,7 @@ const app = express();
     }
   });
 
-  app.post("/api/formalizacao", async (req, res) => {
+  app.post("/api/formalizacao", authMiddleware, async (req: any, res) => {
     try {
       if (supabase) {
         const { data, error } = await supabase
