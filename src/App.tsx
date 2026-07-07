@@ -812,18 +812,14 @@ export default function App() {
   const CACHE_VALIDITY_MS = 30 * 60 * 1000; // Cache válido por 30 minutos (reduz requests em 6x)
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState<number>(0); // Incrementado após cada save
 
-  // Persiste o cache em memória no localStorage após qualquer alteração de registro
-  // Deve ser chamado SEMPRE que allDataCacheRef.current for modificado por um save
+  // Reseta o timer de validade do cache em memória após qualquer alteração de registro.
+  // Deve ser chamado SEMPRE que allDataCacheRef.current for modificado por um save.
+  // Não persiste em localStorage: o dataset completo (~40 mil registros) sempre excede
+  // a cota do navegador, então a escrita nunca é bem-sucedida — só desperdiça CPU serializando.
   const syncLocalStorageCache = () => {
-    try {
-      const data = allDataCacheRef.current;
-      if (data.length > 0) {
-        const now = Date.now();
-        cacheTimestampRef.current = now; // Reseta o timer para 30 min a partir de agora
-        localStorage.setItem('formalizacoes_cache', JSON.stringify(data));
-        localStorage.setItem('formalizacoes_cache_time', String(now));
-      }
-    } catch (e) { /* localStorage cheio - ignorar */ }
+    if (allDataCacheRef.current.length > 0) {
+      cacheTimestampRef.current = Date.now();
+    }
   };
 
   // Estado de ordenação e scroll de colunas
@@ -2266,17 +2262,10 @@ export default function App() {
           allData = existingCache;
         }
         
-        // 💾 Persistir em localStorage (só se tiver dados reais)
-        console.log(`📝 ANTES DE SALVAR: allData.length=${allData.length}`);
+        // Não persiste o dataset completo em localStorage: para ~40 mil registros a
+        // escrita sempre excede a cota do navegador (só desperdiça CPU serializando).
+        // O cache em memória (allDataCacheRef) já cobre o caso de uso real.
         if (allData.length > 0) {
-          try {
-            localStorage.setItem('formalizacoes_cache', JSON.stringify(allData));
-            localStorage.setItem('formalizacoes_cache_time', String(now));
-            console.log(`💾 Cache salvo em localStorage (${allData.length} registros)`);
-          } catch (e) {
-            console.warn(`⚠️ Erro ao salvar cache em localStorage:`, e);
-          }
-          // ⚠️ SEMPRE setar timestamp, independente de localStorage falhar
           setLastDataUpdate(new Date(now));
           console.log(`📅 SETANDO TIMESTAMP DO FETCH: ${new Date(now).toLocaleString('pt-BR')}`);
         }

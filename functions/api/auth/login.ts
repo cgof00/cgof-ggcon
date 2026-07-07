@@ -55,7 +55,6 @@ export const onRequest: PagesFunction = async (context) => {
       const hashCalc = await hashPassword(senha);
 
       console.log(`🔐 Login attempt: ${email}`);
-      console.log(`   Hash calculado: ${hashCalc}`);
 
       // Fetch todos os usuários (sem filtro para evitar erro 1016)
       const resp = await fetch(SUPABASE_URL + '/rest/v1/usuarios?select=*', {
@@ -87,7 +86,6 @@ export const onRequest: PagesFunction = async (context) => {
       }
 
       console.log(`✓ User found: ${user.email}`);
-      console.log(`   Hash armazenado: ${user.senha_hash}`);
 
       // Comparar SHA256
       if (hashCalc !== user.senha_hash) {

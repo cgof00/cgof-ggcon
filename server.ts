@@ -232,7 +232,6 @@ const app = express();
       const { email, senha } = req.body;
       console.log('\n🔐 POST /api/auth/login');
       console.log('  Email:', email);
-      console.log('  Senha recebida:', senha);
 
       if (supabase) {
         console.log('  Consultando Supabase...');
@@ -310,17 +309,12 @@ const app = express();
         }
 
         console.log('✓ Usuário encontrado:', data.email);
-        console.log('  Hash no banco:', data.senha_hash);
-        
+
         if (!data.ativo) {
           console.log('❌ Usuário inativo');
           return res.status(401).json({ error: "Usuário desativado" });
         }
 
-        const hashCalculado = hashPassword(senha);
-        console.log('  Hash calculado:', hashCalculado);
-        console.log('  Batem?', hashCalculado === data.senha_hash ? '✅ SIM!' : '❌ NÃO');
-        
         if (!verifyPassword(senha, data.senha_hash)) {
           console.log('❌ Senha incorreta - hash não bate');
           return res.status(401).json({ error: "Email ou senha inválidos" });
@@ -624,8 +618,7 @@ const app = express();
       }
       const senhaHash = hashPassword(senhaTemp);
 
-      console.log('✅ 6️⃣ Senha gerada/fornecida:', senhaTemp.substring(0, 3) + '****');
-      console.log('   - Hash:', senhaHash.substring(0, 10) + '...');
+      console.log('✅ 6️⃣ Senha gerada/fornecida');
 
       console.log('✅ 7️⃣ Iniciando INSERT no Supabase...');
       const { data, error } = await supabase
