@@ -696,6 +696,9 @@ export default function App() {
   const columnMenuPanelRef = useRef<HTMLDivElement>(null);
   const editFormRef = useRef<HTMLFormElement>(null);
   const liberarConferenciaInputRef = useRef<HTMLInputElement>(null);
+  // Quando true, o próximo submit do formulário salva sem fechar o modal
+  // (usado pelos botões de ação rápida: Demanda Analisada, Liberação Conferência, Remover)
+  const keepFormOpenAfterSaveRef = useRef(false);
   const [columnMenuPos, setColumnMenuPos] = useState<{ top: number; right: number } | null>(null);
   // Atualizar campos formalização states
   const [isUpdateCamposOpen, setIsUpdateCamposOpen] = useState(false);
@@ -2422,7 +2425,15 @@ export default function App() {
 
         // Quick filter: Fundo a Fundo
         if (fundoAFundoFilter && !(f.area_estagio_situacao_demanda ?? '').toUpperCase().includes('FUNDO A FUNDO')) return false;
-        if (emConferenciaFilter && !isLiberadoParaConferencia(f)) return false;
+        if (emConferenciaFilter) {
+          if (!isLiberadoParaConferencia(f)) return false;
+          // Não-admin só vê as próprias demandas liberadas; admin vê de todos os técnicos
+          if (!isAdmin) {
+            const isDoTecnico = (user?.id && f.usuario_atribuido_id && user.id === f.usuario_atribuido_id)
+              || (user?.nome && f.tecnico && user.nome === f.tecnico);
+            if (!isDoTecnico) return false;
+          }
+        }
 
         if (searchTerm) {
           const searchLower = searchTerm.toLowerCase();
@@ -3253,6 +3264,10 @@ export default function App() {
       ? (allDataCacheRef.current.find((f: any) => f.id === savedId) ?? editingFormalizacao)
       : null;
 
+    // Ação rápida (Demanda Analisada / Liberação Conferência / Remover) pede pra manter o modal aberto
+    const keepOpen = keepFormOpenAfterSaveRef.current;
+    keepFormOpenAfterSaveRef.current = false;
+
     // UPDATE OTIMISTA VERDADEIRO: aplica no UI e fecha o form ANTES da resposta do servidor
     if (editingFormalizacao) {
       const optimisticRecord = { ...editingFormalizacao, ...data };
@@ -3272,12 +3287,21 @@ export default function App() {
         setSelectedFormalizacao(optimisticRecord);
       }
       setDashboardRefreshKey(k => k + 1);
+
+      if (keepOpen) {
+        // Mantém o modal aberto, só atualiza os valores exibidos (ex: badge de liberação)
+        setEditingFormalizacao(optimisticRecord);
+      }
     }
 
-    // Fecha o formulário imediatamente — o usuário não precisa esperar
-    setIsFormalizacaoFormOpen(false);
-    setEditingFormalizacao(null);
-    setFormDirty(false);
+    if (keepOpen) {
+      setFormDirty(false);
+    } else {
+      // Fecha o formulário imediatamente — o usuário não precisa esperar
+      setIsFormalizacaoFormOpen(false);
+      setEditingFormalizacao(null);
+      setFormDirty(false);
+    }
     setIsSaving(true);
 
     const rollback = () => {
@@ -4047,7 +4071,7 @@ export default function App() {
                         ? 'bg-sky-600 text-white border-sky-600 shadow-sm'
                         : 'bg-white text-sky-700 border-sky-300 hover:bg-sky-50 hover:border-sky-400'
                     }`}
-                    title="Demandas já analisadas pelo técnico e aguardando atribuição de conferencista"
+                    title={isAdmin ? "Demandas de todos os técnicos, já analisadas e aguardando atribuição de conferencista" : "Suas demandas já analisadas, aguardando atribuição de conferencista"}
                   >
                     <FileSearch className="w-3 h-3" />
                     <span className="hidden lg:inline">Liberadas p/ Conferência</span>
@@ -4816,7 +4840,7 @@ export default function App() {
                                         : (f.publicacao && String(f.publicacao).trim() !== '' && String(f.publicacao).trim() !== '—') || (f.concluida_em && String(f.concluida_em).trim() !== '' && String(f.concluida_em).trim() !== '—')
                                         ? 'bg-emerald-50 border-l-4 border-emerald-500 hover:bg-emerald-100'
                                         : isLiberadoParaConferencia(f)
-                                        ? 'bg-sky-50 border-l-4 border-sky-500 hover:bg-sky-100'
+                                        ? 'bg-sky-200 border-l-[6px] border-sky-600 hover:bg-sky-300 font-semibold'
                                         : f.falta_assinatura && String(f.falta_assinatura).trim() !== '' && String(f.falta_assinatura).trim() !== 'DEMANDA ASSINADA'
                                         ? 'bg-amber-50 border-l-4 border-amber-400 hover:bg-amber-100'
                                         : 'hover:bg-blue-50'
@@ -5801,8 +5825,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                   if (liberarConferenciaInputRef.current && !liberarConferenciaInputRef.current.value) {
                                     liberarConferenciaInputRef.current.value = dataHoje;
                                   }
-                                  // Salva imediatamente — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
+                                  // Salva imediatamente sem fechar o modal — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
                                   setFormDirty(true);
+                                  keepFormOpenAfterSaveRef.current = true;
                                   editFormRef.current?.requestSubmit();
                                 }}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
@@ -5848,8 +5873,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                       liberarConferenciaInputRef.current.value = '';
                                     }
                                     setEditingFormalizacao(prev => prev ? { ...prev, data_liberacao_conferencia: '' } : prev);
-                                    // Salva imediatamente — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
+                                    // Salva imediatamente sem fechar o modal — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
                                     setFormDirty(true);
+                                    keepFormOpenAfterSaveRef.current = true;
                                     editFormRef.current?.requestSubmit();
                                   }}
                                   className="flex-shrink-0 text-sky-600 hover:text-sky-800 hover:underline font-semibold"
@@ -5957,8 +5983,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                   const displaySpan = document.getElementById('data_liberacao_conferencista_display');
                                   if (hiddenInput) hiddenInput.value = dataHoje;
                                   if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
-                                  // Salva imediatamente — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
+                                  // Salva imediatamente sem fechar o modal — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
                                   setFormDirty(true);
+                                  keepFormOpenAfterSaveRef.current = true;
                                   editFormRef.current?.requestSubmit();
                                 }}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
