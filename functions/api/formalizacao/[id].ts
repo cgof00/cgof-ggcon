@@ -154,7 +154,7 @@ export const onRequest: PagesFunction = async (context) => {
       const ANALISE_FIELDS = [
         'situacao_analise_demanda', 'data_analise_demanda', 'area_estagio_situacao_demanda',
         'area_estagio', 'motivo_retorno_diligencia', 'data_retorno_diligencia',
-        'data_retorno', 'observacao_motivo_retorno',
+        'data_retorno', 'observacao_motivo_retorno', 'data_liberacao_conferencia',
       ];
       const propagateData: Record<string, unknown> = {};
       for (const field of ANALISE_FIELDS) {
@@ -201,6 +201,7 @@ export const onRequest: PagesFunction = async (context) => {
         const TRACKED_FIELDS = [
           'tecnico', 'conferencista', 'situacao_analise_demanda',
           'data_liberacao', 'data_liberacao_assinatura', 'data_recebimento_demanda',
+          'data_liberacao_conferencia',
           'status', 'tipo_formalizacao', 'recurso', 'regional',
           'parlamentar', 'conveniado', 'emenda', 'lote', 'prioridade',
           'falta_assinatura',
@@ -219,6 +220,7 @@ export const onRequest: PagesFunction = async (context) => {
           if (campo === 'conferencista') acao = cleanBody[campo] ? 'atribuir_conferencista' : 'remover_conferencista';
           if (campo === 'situacao_analise_demanda') acao = 'alterar_situacao';
           if (campo === 'data_liberacao_assinatura') acao = 'liberar_assinatura';
+          if (campo === 'data_liberacao_conferencia') acao = 'liberar_para_conferencia';
 
           auditRows.push({
             formalizacao_id: parsedId,

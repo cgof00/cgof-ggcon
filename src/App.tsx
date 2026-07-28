@@ -92,6 +92,19 @@ const CSV_TO_EMENDAS_MAP: Record<string, string> = {
 function normalizeHeader(h: string): string {
   return h.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
+// Verdadeiro quando o t\u00e9cnico clicou em "Demanda Analisada" (grava data_liberacao_conferencia
+// no Supabase) e o admin ainda n\u00e3o atribuiu um conferencista (campo `conferencista` vazio).
+// Assim que o admin atribui o conferencista (ver "Atribuir Conferencista"), esta fun\u00e7\u00e3o passa
+// a retornar false \u2014 mas data_liberacao_conferencia continua gravada como hist\u00f3rico.
+function isLiberadoParaConferencia(f: {
+  data_liberacao_conferencia?: string | null;
+  conferencista?: string | null;
+} | null | undefined): boolean {
+  if (!f) return false;
+  if ((f.data_liberacao_conferencia ?? '').toString().trim() === '') return false;
+  if ((f.conferencista ?? '').toString().trim() !== '') return false; // j\u00e1 atribu\u00eddo a um conferencista
+  return true;
+}
 const CSV_NORMALIZED_MAP: Record<string, string> = Object.fromEntries(
   Object.entries(CSV_TO_EMENDAS_MAP).map(([k, v]) => [normalizeHeader(k), v])
 );
@@ -565,6 +578,7 @@ interface Formalizacao {
   data_analise_demanda?: string;
   motivo_retorno_diligencia?: string;
   data_retorno_diligencia?: string;
+  data_liberacao_conferencia?: string;
   conferencista?: string;
   data_recebimento_demanda?: string;
   data_retorno?: string;
@@ -681,6 +695,7 @@ export default function App() {
   const columnMenuBtnRef = useRef<HTMLButtonElement>(null);
   const columnMenuPanelRef = useRef<HTMLDivElement>(null);
   const editFormRef = useRef<HTMLFormElement>(null);
+  const liberarConferenciaInputRef = useRef<HTMLInputElement>(null);
   const [columnMenuPos, setColumnMenuPos] = useState<{ top: number; right: number } | null>(null);
   // Atualizar campos formalização states
   const [isUpdateCamposOpen, setIsUpdateCamposOpen] = useState(false);
@@ -869,6 +884,8 @@ export default function App() {
   const [hideConcluidas, setHideConcluidas] = useState(false);
   const [showSomenteMinhas, setShowSomenteMinhas] = useState(false);
   const [fundoAFundoFilter, setFundoAFundoFilter] = useState(false);
+  // Filtro rápido: mostra somente demandas que o técnico já liberou para conferência
+  const [emConferenciaFilter, setEmConferenciaFilter] = useState(false);
   // Estado para larguras de colunas (redimensionamento estilo Excel)
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
   const resizingColRef = useRef<string | null>(null);
@@ -1240,7 +1257,7 @@ export default function App() {
     
     // Aplicar filtros IMEDIATAMENTE do cache em memória
     fetchFormalizacoesComFiltros(0);
-  }, [filters, searchTerm, buscaListaTerms, dataInicioFilter, dataFimFilter, activeTab, hideEmptyFields, headerFilters, fundoAFundoFilter]);
+  }, [filters, searchTerm, buscaListaTerms, dataInicioFilter, dataFimFilter, activeTab, hideEmptyFields, headerFilters, fundoAFundoFilter, emConferenciaFilter]);
 
   // ⚡ NOVO: Carregar TUDO o cache quando aba de formalizações abre
   // Isto roda UMA ÚNICA VEZ quando activeTab muda para 'formalizacao'
@@ -2405,6 +2422,7 @@ export default function App() {
 
         // Quick filter: Fundo a Fundo
         if (fundoAFundoFilter && !(f.area_estagio_situacao_demanda ?? '').toUpperCase().includes('FUNDO A FUNDO')) return false;
+        if (emConferenciaFilter && !isLiberadoParaConferencia(f)) return false;
 
         if (searchTerm) {
           const searchLower = searchTerm.toLowerCase();
@@ -4005,6 +4023,26 @@ export default function App() {
                     )}
                   </button>
 
+                  {/* Liberadas para Conferência chip */}
+                  <button
+                    onClick={() => setEmConferenciaFilter(v => !v)}
+                    className={`h-8 px-2.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 border flex-shrink-0 ${
+                      emConferenciaFilter
+                        ? 'bg-sky-600 text-white border-sky-600 shadow-sm'
+                        : 'bg-white text-sky-700 border-sky-300 hover:bg-sky-50 hover:border-sky-400'
+                    }`}
+                    title="Demandas já analisadas pelo técnico e aguardando atribuição de conferencista"
+                  >
+                    <FileSearch className="w-3 h-3" />
+                    <span className="hidden lg:inline">Liberadas p/ Conferência</span>
+                    <span className="lg:hidden">Conferência</span>
+                    {emConferenciaFilter && (
+                      <span className="bg-white/25 text-white text-[10px] font-black px-1 py-0.5 rounded-full">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+
                   {/* Active filter chips — from headerFilters & filters */}
                   {(() => {
                     const activeCount = Object.values(filters).filter(v => Array.isArray(v) && v.length > 0).length
@@ -4761,6 +4799,8 @@ export default function App() {
                                         ? 'bg-amber-100 border-l-4 border-amber-500'
                                         : (f.publicacao && String(f.publicacao).trim() !== '' && String(f.publicacao).trim() !== '—') || (f.concluida_em && String(f.concluida_em).trim() !== '' && String(f.concluida_em).trim() !== '—')
                                         ? 'bg-emerald-50 border-l-4 border-emerald-500 hover:bg-emerald-100'
+                                        : isLiberadoParaConferencia(f)
+                                        ? 'bg-sky-50 border-l-4 border-sky-500 hover:bg-sky-100'
                                         : f.falta_assinatura && String(f.falta_assinatura).trim() !== '' && String(f.falta_assinatura).trim() !== 'DEMANDA ASSINADA'
                                         ? 'bg-amber-50 border-l-4 border-amber-400 hover:bg-amber-100'
                                         : 'hover:bg-blue-50'
@@ -5572,6 +5612,51 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                         <option value="AGUARDANDO RESOLUÇÃO PARA EMISSÃO RESOLUÇÃO PARA REPASSE FUNDO A FUNDO - DOE">AGUARDANDO RESOLUÇÃO PARA EMISSÃO RESOLUÇÃO PARA REPASSE FUNDO A FUNDO - DOE</option>
                         <option value="FORMALIZADO AGUARDANDO IMPEDIMENTO">FORMALIZADO AGUARDANDO IMPEDIMENTO</option>
                       </select>
+
+                      {/* ── Liberar para Conferência: ação de 1 clique do técnico ── */}
+                      <input
+                        type="hidden"
+                        name="data_liberacao_conferencia"
+                        ref={liberarConferenciaInputRef}
+                        defaultValue={editingFormalizacao?.data_liberacao_conferencia || ''}
+                      />
+                      {editingFormalizacao && (isTecnicoAtribuido || isAdmin) && (() => {
+                        const jaLiberado = !!(editingFormalizacao.data_liberacao_conferencia ?? '').trim();
+                        const jaAtribuido = !!(editingFormalizacao.conferencista ?? '').trim();
+                        if (jaAtribuido) {
+                          return (
+                            <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
+                              <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                              Já atribuída ao conferencista {editingFormalizacao.conferencista}
+                            </div>
+                          );
+                        }
+                        if (jaLiberado) {
+                          return (
+                            <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 text-xs font-semibold">
+                              <FileSearch className="w-3.5 h-3.5 flex-shrink-0" />
+                              Liberada para conferência em {formatDateForDisplay(editingFormalizacao.data_liberacao_conferencia)} — aguardando atribuição de conferencista
+                            </div>
+                          );
+                        }
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (liberarConferenciaInputRef.current) {
+                                liberarConferenciaInputRef.current.value = new Date().toISOString().slice(0, 10);
+                              }
+                              setFormDirty(true);
+                              editFormRef.current?.requestSubmit();
+                            }}
+                            className="mt-3 w-full px-3 py-2.5 rounded-lg font-bold text-sm text-white bg-sky-600 hover:bg-sky-700 transition-colors flex items-center justify-center gap-2"
+                            title="Marca a demanda como analisada e libera para o admin atribuir um conferencista"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            Demanda Analisada — Liberar para Conferência
+                          </button>
+                        );
+                      })()}
 
                       {/* ── Histórico de alterações da situação ── */}
                       {(() => {
