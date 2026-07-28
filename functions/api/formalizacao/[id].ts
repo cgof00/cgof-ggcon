@@ -154,7 +154,7 @@ export const onRequest: PagesFunction = async (context) => {
       const ANALISE_FIELDS = [
         'situacao_analise_demanda', 'data_analise_demanda', 'area_estagio_situacao_demanda',
         'area_estagio', 'motivo_retorno_diligencia', 'data_retorno_diligencia',
-        'data_retorno', 'observacao_motivo_retorno', 'data_liberacao_conferencia',
+        'data_retorno', 'observacao_motivo_retorno', 'observacao_analise_demanda', 'data_liberacao_conferencia',
       ];
       const propagateData: Record<string, unknown> = {};
       for (const field of ANALISE_FIELDS) {

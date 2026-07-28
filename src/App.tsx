@@ -576,6 +576,7 @@ interface Formalizacao {
   area_estagio_situacao_demanda?: string;
   situacao_analise_demanda?: string;
   data_analise_demanda?: string;
+  observacao_analise_demanda?: string;
   motivo_retorno_diligencia?: string;
   data_retorno_diligencia?: string;
   data_liberacao_conferencia?: string;
@@ -5444,6 +5445,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                   );
                   const tecnicoEditableFields = [
                     'area_estagio_situacao_demanda', 'situacao_analise_demanda', 'data_analise_demanda',
+                    'observacao_analise_demanda',
                     'motivo_retorno_diligencia', 'data_retorno_diligencia',
                     'data_liberacao_assinatura', 'falta_assinatura', 'assinatura',
                     'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em'
@@ -5607,6 +5609,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     </div>
                     <div className="p-5 bg-white">
                       <select
+                        id="area_estagio_situacao_demanda_select"
                         name="area_estagio_situacao_demanda"
                         defaultValue={editingFormalizacao?.area_estagio_situacao_demanda || ''}
                         disabled={isDisabled('area_estagio_situacao_demanda')}
@@ -5794,6 +5797,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     </div>
                     <div className="p-5 bg-white grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
                       <Input label="Situação - Análise Demanda" name="situacao_analise_demanda" defaultValue={editingFormalizacao?.situacao_analise_demanda} disabled={isDisabled('situacao_analise_demanda')} />
+                      <Input label="Observação" name="observacao_analise_demanda" defaultValue={editingFormalizacao?.observacao_analise_demanda} disabled={isDisabled('observacao_analise_demanda')} />
                       <div className="flex flex-col gap-1">
                         <label className="text-xs font-medium text-gray-500 ml-0.5">Data - Análise Demanda</label>
                         {isAdmin ? (
@@ -5825,6 +5829,12 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                   if (liberarConferenciaInputRef.current && !liberarConferenciaInputRef.current.value) {
                                     liberarConferenciaInputRef.current.value = dataHoje;
                                   }
+                                  // Move a Área - Estágio para "EM CONFERÊNCIA" (ou variante Fundo a Fundo, conforme o checkbox)
+                                  const areaSelect = document.getElementById('area_estagio_situacao_demanda_select') as HTMLSelectElement;
+                                  const fundoCheck = document.getElementById('demanda_analisada_fundo_a_fundo') as HTMLInputElement;
+                                  if (areaSelect) {
+                                    areaSelect.value = fundoCheck?.checked ? 'EM CONFERÊNCIA - FUNDO A FUNDO' : 'EM CONFERÊNCIA';
+                                  }
                                   // Salva imediatamente sem fechar o modal — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
                                   setFormDirty(true);
                                   keepFormOpenAfterSaveRef.current = true;
@@ -5836,6 +5846,10 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                 Demanda Analisada
                               </button>
                             </div>
+                            <label className="flex items-center gap-1.5 mt-1.5 text-[11px] text-gray-500 cursor-pointer select-none">
+                              <input type="checkbox" id="demanda_analisada_fundo_a_fundo" className="rounded border-gray-300 accent-violet-600" />
+                              É Fundo a Fundo? (ao clicar em "Demanda Analisada", a Área – Estágio vai para "EM CONFERÊNCIA - FUNDO A FUNDO" em vez de "EM CONFERÊNCIA")
+                            </label>
                           </>
                         )}
                       </div>
