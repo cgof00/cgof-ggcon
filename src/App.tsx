@@ -5801,7 +5801,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                   if (liberarConferenciaInputRef.current && !liberarConferenciaInputRef.current.value) {
                                     liberarConferenciaInputRef.current.value = dataHoje;
                                   }
+                                  // Salva imediatamente — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
                                   setFormDirty(true);
+                                  editFormRef.current?.requestSubmit();
                                 }}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
                               >
@@ -5846,7 +5848,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                       liberarConferenciaInputRef.current.value = '';
                                     }
                                     setEditingFormalizacao(prev => prev ? { ...prev, data_liberacao_conferencia: '' } : prev);
+                                    // Salva imediatamente — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
                                     setFormDirty(true);
+                                    editFormRef.current?.requestSubmit();
                                   }}
                                   className="flex-shrink-0 text-sky-600 hover:text-sky-800 hover:underline font-semibold"
                                   title="Remover a liberação para conferência (ex: foi liberada por engano)"
@@ -5953,6 +5957,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                   const displaySpan = document.getElementById('data_liberacao_conferencista_display');
                                   if (hiddenInput) hiddenInput.value = dataHoje;
                                   if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
+                                  // Salva imediatamente — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
+                                  setFormDirty(true);
+                                  editFormRef.current?.requestSubmit();
                                 }}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
                               >
