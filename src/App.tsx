@@ -700,6 +700,13 @@ export default function App() {
   // Quando true, o próximo submit do formulário salva sem fechar o modal
   // (usado pelos botões de ação rápida: Demanda Analisada, Liberação Conferência, Remover)
   const keepFormOpenAfterSaveRef = useRef(false);
+  // Guarda contra respostas de rede fora de ordem: se o técnico salvar o mesmo
+  // registro várias vezes rapidamente, a resposta de um PUT mais antigo pode
+  // chegar DEPOIS de um mais novo e sobrescrever o cache local com dado velho
+  // (o banco fica certo, mas a tela/localStorage ficava com valor antigo até
+  // recarregar a página). Só aplicamos a resposta do servidor se ela ainda for
+  // a mais recente submissão para aquele registro.
+  const latestSubmitSeqRef = useRef<Map<number, number>>(new Map());
   const [columnMenuPos, setColumnMenuPos] = useState<{ top: number; right: number } | null>(null);
   // Atualizar campos formalização states
   const [isUpdateCamposOpen, setIsUpdateCamposOpen] = useState(false);
@@ -1113,6 +1120,7 @@ export default function App() {
   const [showAtribuirTecnicoModal, setShowAtribuirTecnicoModal] = useState(false);
   const [atribuicaoTecnico, setAtribuicaoTecnico] = useState<{id: number, nome: string} | null>(null);
   const [atribuindoTecnico, setAtribuindoTecnico] = useState(false);
+  const [resetandoTeste, setResetandoTeste] = useState(false);
   const [tecnicosDisponiveis, setTecnicosDisponiveis] = useState<any[]>([]);
   // Etapas: 'select' = escolher técnico | 'confirm' = revisar conflitos antes de confirmar
   const [atribuicaoStep, setAtribuicaoStep] = useState<'select' | 'confirm'>('select');
@@ -2632,6 +2640,56 @@ export default function App() {
     }
   };
 
+  // ── Reset de registros de teste: volta a demanda ao estado anterior à
+  // atribuição de técnico (limpa técnico, análise, liberação para conferência
+  // e atribuição de conferencista). Usado pelo admin para limpar dados de QA. ──
+  const RESET_TESTE_PAYLOAD = {
+    tecnico: '', usuario_atribuido_id: null, data_liberacao: '',
+    situacao_analise_demanda: '', data_analise_demanda: '', observacao_analise_demanda: '',
+    area_estagio_situacao_demanda: '', data_liberacao_conferencia: '',
+    conferencista: '', data_recebimento_demanda: '',
+  };
+  const handleResetarTeste = async (idsToReset: number[]) => {
+    if (idsToReset.length === 0) return;
+    const confirmMsg = `⚠️ RESETAR TESTE\n\nIsso vai limpar técnico, análise, área/estágio e conferencista de ${idsToReset.length} registro(s), voltando ao estado anterior à atribuição de técnico.\n\nTem certeza?`;
+    if (!confirm(confirmMsg)) return;
+    setResetandoTeste(true);
+    try {
+      const results = await Promise.allSettled(
+        idsToReset.map(id =>
+          fetch(`/api/formalizacao/${id}`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify(RESET_TESTE_PAYLOAD),
+          }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r; })
+        )
+      );
+      const falhas = results.filter(r => r.status === 'rejected').length;
+      const updater = (list: any[]) => list.map((f: any) =>
+        idsToReset.includes(f.id) ? { ...f, ...RESET_TESTE_PAYLOAD } : f
+      );
+      if (allDataCacheRef.current.length > 0) {
+        allDataCacheRef.current = updater(allDataCacheRef.current);
+        syncLocalStorageCache();
+      }
+      if (filteredForExportRef.current.length > 0) {
+        filteredForExportRef.current = updater(filteredForExportRef.current);
+      }
+      setFormalizacoes(prev => updater(prev));
+      setFormalizacaoSearchResult((prev: any) => ({ ...prev, data: updater(prev.data) }));
+      setSelectedRows(new Set());
+      if (falhas > 0) {
+        alert(`⚠️ ${idsToReset.length - falhas} registro(s) resetado(s), ${falhas} falharam. Verifique o console.`);
+      } else {
+        alert(`✅ ${idsToReset.length} registro(s) resetado(s) com sucesso!`);
+      }
+    } catch (err: any) {
+      alert(`❌ Erro ao resetar: ${err.message}`);
+    } finally {
+      setResetandoTeste(false);
+    }
+  };
+
   // ── Função central de atribuição de técnico (usada pelo modal de 2 etapas) ──
   const executarAtribuicaoTecnico = async (idsToUpdate: number[]) => {
     if (!atribuicaoTecnico || idsToUpdate.length === 0) return;
@@ -3265,6 +3323,10 @@ export default function App() {
       ? (allDataCacheRef.current.find((f: any) => f.id === savedId) ?? editingFormalizacao)
       : null;
 
+    // Marca esta submissão como a mais recente para este registro (ver comentário no ref)
+    const mySubmitSeq = savedId ? (latestSubmitSeqRef.current.get(savedId) ?? 0) + 1 : 0;
+    if (savedId) latestSubmitSeqRef.current.set(savedId, mySubmitSeq);
+
     // Ação rápida (Demanda Analisada / Liberação Conferência / Remover) pede pra manter o modal aberto
     const keepOpen = keepFormOpenAfterSaveRef.current;
     keepFormOpenAfterSaveRef.current = false;
@@ -3307,6 +3369,8 @@ export default function App() {
 
     const rollback = () => {
       if (!savedId || !prevRecord) return;
+      // Não reverte se uma submissão mais nova já assumiu este registro
+      if (latestSubmitSeqRef.current.get(savedId) !== mySubmitSeq) return;
       const revert = (list: any[]) =>
         list.map((f: any) => f.id === savedId ? prevRecord : f);
       allDataCacheRef.current = revert(allDataCacheRef.current);
@@ -3338,7 +3402,8 @@ export default function App() {
 
       // Sincroniza com dados retornados pelo servidor (inclui campos calculados / trigger)
       const serverData = await response.json().catch(() => null);
-      if (serverData && savedId) {
+      const isStaleResponse = savedId ? latestSubmitSeqRef.current.get(savedId) !== mySubmitSeq : false;
+      if (serverData && savedId && !isStaleResponse) {
         const serverRecord = serverData.data ?? serverData;
         if (serverRecord && typeof serverRecord === 'object' && serverRecord.id) {
           const mergedData = { ...(prevRecord || {}), ...data, ...serverRecord };
@@ -4000,6 +4065,15 @@ export default function App() {
                       >
                         <span>🏷</span>
                         Lote/Prior.
+                      </button>
+                      <button
+                        onClick={() => handleResetarTeste(Array.from(selectedRows).map(id => parseInt(String(id))).filter(id => !isNaN(id)))}
+                        disabled={resetandoTeste}
+                        className="h-8 px-3 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 bg-red-200 text-red-900 hover:bg-red-300 border border-red-400 disabled:opacity-50"
+                        title="Limpa técnico, análise e conferencista dos registros selecionados — volta ao estado anterior à atribuição de técnico"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${resetandoTeste ? 'animate-spin' : ''}`} />
+                        Resetar Teste
                       </button>
                       <button
                         onClick={() => setSelectedRows(new Set())}
