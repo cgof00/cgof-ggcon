@@ -597,9 +597,9 @@ const app = express();
 
       console.log('✅ 3️⃣ Email e nome validados');
 
-      if (!['admin', 'usuario'].includes(role || 'usuario')) {
+      if (!['admin', 'usuario', 'visualizador', 'intermediario'].includes(role || 'usuario')) {
         console.log('❌ Role inválido');
-        return res.status(400).json({ error: "Role inválido - deve ser 'admin' ou 'usuario'" });
+        return res.status(400).json({ error: "Role inválido - deve ser 'admin', 'usuario', 'visualizador' ou 'intermediario'" });
       }
 
       console.log('✅ 4️⃣ Role validado');
@@ -2773,9 +2773,16 @@ const app = express();
         : 0;
 
       // 2) Executa o UPDATE (trigger adiciona novas entradas com "sistema")
+      // Campos de data enviados como string vazia quebram colunas DATE do Postgres
+      // ("invalid input syntax for type date"). Converte "" para null antes de enviar
+      // — mesmo tratamento já usado no Worker de produção (functions/api/formalizacao/[id].ts).
+      const cleanBody: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(req.body)) {
+        cleanBody[key] = value === '' ? null : value;
+      }
       const { data, error } = await supabase
         .from("formalizacao")
-        .update(req.body)
+        .update(cleanBody)
         .eq("id", id)
         .select()
         .single();

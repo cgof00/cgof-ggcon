@@ -5,7 +5,7 @@ import {
   Users, CheckCircle2, DollarSign, TrendingUp, AlertCircle,
   Search, Download, ArrowUpDown, User, MapPin, Calendar,
   Clock, FileText, Eye, EyeOff, Maximize2, Minimize2,
-  Flame, PieChart, Activity
+  Flame, PieChart, Activity, Tag, Briefcase, Layers, Wallet, BookOpen, Zap
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import * as XLSX from 'xlsx';
@@ -415,6 +415,44 @@ function KpiCard({ label, value, sub, dotColor = 'bg-slate-400', valueColor = 't
   );
 }
 
+// ─── Lista de barras horizontais (composição por campo) ───────────────────
+function SimpleBarList({ items, colorFrom, colorTo, onItemClick }: {
+  items: { label: string; value: number; rows?: FormalizacaoRow[] }[];
+  colorFrom: string; colorTo: string;
+  onItemClick?: (item: { label: string; value: number; rows?: FormalizacaoRow[] }) => void;
+}) {
+  const max = Math.max(...items.map(i => i.value), 1);
+  return (
+    <div className="space-y-2.5">
+      {items.slice(0, 12).map((item, idx) => (
+        <button
+          key={item.label}
+          type="button"
+          onClick={() => onItemClick?.(item)}
+          disabled={!onItemClick}
+          className="w-full text-left space-y-1 group disabled:cursor-default"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-slate-700 truncate group-hover:text-[#1351B4] transition-colors">{item.label}</span>
+            <span className="text-xs font-bold text-slate-500 flex-shrink-0">{item.value.toLocaleString('pt-BR')}</span>
+          </div>
+          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${(item.value / max) * 100}%` }}
+              transition={{ duration: 0.5, delay: idx * 0.03, ease: 'easeOut' }}
+              className={`h-full rounded-full bg-gradient-to-r ${colorFrom} ${colorTo}`}
+            />
+          </div>
+        </button>
+      ))}
+      {items.length > 12 && (
+        <p className="text-[10px] text-slate-400 text-center pt-1">+{items.length - 12} outros</p>
+      )}
+    </div>
+  );
+}
+
 // ─── Drilldown Modal ─────────────────────────────────────────────────────────
 const PAGE_SIZE = 100;
 function DrilldownModal({
@@ -729,8 +767,8 @@ function TimelineSection({
       const si = getCurrentStageIdx(r);
       const stage = si >= 0 ? ACTIVE_STAGES[si] : null;
       return {
-        'Técnico': String(r.usuario_atribuido ?? ''),
-        'Conferencista': String(r.usuario_atribuido_conferencista ?? ''),
+        'Técnico': String(r.tecnico ?? ''),
+        'Conferencista': String(r.conferencista ?? ''),
         'Demanda': String(r.demandas_formalizacao ?? r.demanda ?? ''),
         'Etapa Atual': stage ? stage.label : '(sem etapa)',
         'Nº Etapa': si >= 0 ? si + 1 : 0,
@@ -1356,7 +1394,7 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
           p.nome,
           ano, mesNm, mesAno,
           String(r.demandas_formalizacao ?? r.demanda ?? ''),
-          String(r.convenio_convenente ?? r.conveniado ?? ''),
+          String(r.conveniado ?? ''),
           String(r.municipio ?? ''),
           String(r.area_estagio_situacao_demanda ?? ''),
           tipo,
@@ -1402,9 +1440,9 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
           dLib ? dLib.toLocaleString('pt-BR', { month: 'long' }) : '',
           dLib ? fmtMesProd(toMes(dLib)) : 'Sem Data',
           String(r.demandas_formalizacao ?? r.demanda ?? ''),
-          String(r.convenio_convenente ?? r.conveniado ?? ''),
+          String(r.conveniado ?? ''),
           String(r.municipio ?? ''),
-          String(r.classificacao ?? ''),
+          String(r.classificacao_emenda_demanda ?? ''),
           String(r.area_estagio_situacao_demanda ?? ''),
           isConf ? 'Presa c/Conferencista' : 'c/Técnico',
           fmtDateXLSX(r.data_liberacao as string),
@@ -1426,9 +1464,9 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
           dLib ? dLib.toLocaleString('pt-BR', { month: 'long' }) : '',
           dLib ? fmtMesProd(toMes(dLib)) : 'Sem Data',
           String(r.demandas_formalizacao ?? r.demanda ?? ''),
-          String(r.convenio_convenente ?? r.conveniado ?? ''),
+          String(r.conveniado ?? ''),
           String(r.municipio ?? ''),
-          String(r.classificacao ?? ''),
+          String(r.classificacao_emenda_demanda ?? ''),
           String(r.area_estagio_situacao_demanda ?? ''),
           'Em Análise',
           fmtDateXLSX(r.data_liberacao as string),
@@ -1487,10 +1525,10 @@ function ProducaoAnaliseSection({ filtered, openDrilldown, mode = 'tecnico' }: {
         ano, mesNm, mesAno,
         String(r.demandas_formalizacao ?? r.demanda ?? ''),
         String(r.emenda ?? ''),
-        String(r.convenio_convenente ?? r.conveniado ?? ''),
+        String(r.conveniado ?? ''),
         String(r.municipio ?? ''),
         String(r.regional ?? ''),
-        String(r.classificacao_emenda_demanda ?? r.classificacao ?? ''),
+        String(r.classificacao_emenda_demanda ?? ''),
         String(r.area_estagio_situacao_demanda ?? ''),
         String(r.situacao_demandas_sempapel ?? ''),
         String(r.situacao_analise_demanda ?? ''),
@@ -2278,10 +2316,24 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
   // Compact mode
   const [compact, setCompact] = useState(false);
   // Section collapse states (true = collapsed)
-  const [sec, setSec] = useState({ matrix: true, areaEstagio: true, criticas: true, topEstagio: true, atrasadas: true, timeline: true, analise: true, produtividade: true });
+  const [sec, setSec] = useState({ matrix: true, areaEstagio: true, criticas: true, topEstagio: true, atrasadas: true, timeline: true, analise: true, produtividade: true, classificacao: true, regional: true, publicacoes: true, taxaConclusao: true });
   const toggleSec = (k: keyof typeof sec) => setSec(p => ({ ...p, [k]: !p[k] }));
   // Filter panel collapsed
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Altura real da barra de filtros sticky — usada para grudar a barra da matriz
+  // logo abaixo dela sem sobrepor, mesmo quando o painel de filtros expande
+  // (antes usava um "top-12" fixo que ficava errado com o painel aberto).
+  const filtersBarRef = useRef<HTMLDivElement>(null);
+  const [filtersBarHeight, setFiltersBarHeight] = useState(44);
+  useEffect(() => {
+    const el = filtersBarRef.current;
+    if (!el) return;
+    const measure = () => setFiltersBarHeight(el.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [filtersOpen]);
 
   // Drilldown state
   const [drilldown, setDrilldown] = useState<{ title: string; rows: FormalizacaoRow[] } | null>(null);
@@ -2559,6 +2611,77 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
     };
   }, [filtered]);
 
+  // ── Composição por Classificação/Tipo/Objeto/Portfólio/Recurso ──────────
+  // (o que é a demanda, e não quem está processando — dimensão ausente no resto do dashboard)
+  const composicaoData = useMemo(() => {
+    const groupByField = (field: keyof FormalizacaoRow) => {
+      const map = new Map<string, FormalizacaoRow[]>();
+      filtered.forEach(r => {
+        const key = String(r[field] ?? '').trim() || '(não informado)';
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push(r);
+      });
+      return Array.from(map.entries())
+        .map(([label, rows]) => ({ label, value: rows.length, rows }))
+        .sort((a, b) => b.value - a.value);
+    };
+    return {
+      classificacao: groupByField('classificacao_emenda_demanda'),
+      tipo:          groupByField('tipo_formalizacao'),
+      objeto:        groupByField('objeto'),
+      portfolio:     groupByField('portfolio'),
+      recurso:       groupByField('recurso'),
+    };
+  }, [filtered]);
+
+  // ── Demandas por Regional ────────────────────────────────────────────────
+  const demandasRegional = useMemo(() => {
+    const map = new Map<string, { total: number; concluidas: number; rows: FormalizacaoRow[] }>();
+    filtered.forEach(r => {
+      const reg = (r.regional ?? '').trim() || '(não informada)';
+      if (!map.has(reg)) map.set(reg, { total: 0, concluidas: 0, rows: [] });
+      const g = map.get(reg)!;
+      g.total++;
+      g.rows.push(r);
+      if (isConcluida(r)) g.concluidas++;
+    });
+    return Array.from(map.entries())
+      .map(([regional, d]) => ({ regional, total: d.total, concluidas: d.concluidas, pendentes: d.total - d.concluidas, rows: d.rows }))
+      .sort((a, b) => b.total - a.total);
+  }, [filtered]);
+
+  // ── Publicações por mês (últimos 12 meses com dado) ──────────────────────
+  const publicacoesMes = useMemo(() => {
+    const map = new Map<string, FormalizacaoRow[]>();
+    filtered.forEach(r => {
+      const d = parseDateProd((r.publicacao as string) ?? '');
+      if (!d) return;
+      const mes = toMes(d);
+      if (!map.has(mes)) map.set(mes, []);
+      map.get(mes)!.push(r);
+    });
+    return Array.from(map.entries())
+      .map(([mes, rows]) => ({ mes, rows }))
+      .sort((a, b) => a.mes.localeCompare(b.mes))
+      .slice(-12);
+  }, [filtered]);
+
+  // ── Taxa de Conclusão por Técnico/Conferencista ──────────────────────────
+  const taxaConclusaoData = useMemo(() => {
+    const map = new Map<string, { total: number; concluidas: number; rows: FormalizacaoRow[] }>();
+    filtered.forEach(r => {
+      const p = String(r[personField] ?? '').trim(); if (!p) return;
+      if (!map.has(p)) map.set(p, { total: 0, concluidas: 0, rows: [] });
+      const g = map.get(p)!;
+      g.total++;
+      g.rows.push(r);
+      if (isConcluida(r)) g.concluidas++;
+    });
+    return Array.from(map.entries())
+      .map(([nome, d]) => ({ nome, total: d.total, concluidas: d.concluidas, rows: d.rows, taxa: d.total > 0 ? Math.round((d.concluidas / d.total) * 100) : 0 }))
+      .sort((a, b) => b.taxa - a.taxa);
+  }, [filtered, personField]);
+
   const clearFilters = () => {
     setFiltroAno([]); setFiltroRegional([]); setFiltroTecnico([]); setFiltroConferencista([]);
     setFiltroParlamentar([]); setFiltroTipo([]); setFiltroSituacao([]); setFiltroClassificacao([]);
@@ -2595,7 +2718,7 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
       </AnimatePresence>
 
       {/* ── Filters ─────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-40 bg-white rounded-xl shadow-md border border-slate-200">
+      <div ref={filtersBarRef} className="sticky top-0 z-40 bg-white rounded-xl shadow-md border border-slate-200">
         <button
           onClick={() => setFiltersOpen(v => !v)}
           className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-slate-50 rounded-xl transition-colors">
@@ -2710,25 +2833,50 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
       {!loading && rawData.length > 0 && (
         <>
           {/* ── KPI Cards ───────────────────────────────────────────── */}
-          <div className="grid grid-cols-3 gap-2">
-            <KpiCard label="Total de Demandas"
-              value={filtered.length.toLocaleString('pt-BR')}
-              sub={hasActiveFilters ? `de ${rawData.length.toLocaleString('pt-BR')} total` : undefined}
-              dotColor="bg-[#1351B4]" valueColor="text-slate-800" />
-            <KpiCard label="Concluídas"
-              value={`${totalConcluidas.toLocaleString('pt-BR')} (${pctConcluidas}%)`}
-              sub="com data de conclusão"
-              dotColor="bg-emerald-500" valueColor="text-emerald-700" />
-            <KpiCard label="Em Andamento (GGCON)"
-              value={totalEmAndamento.toLocaleString('pt-BR')}
-              sub="total no GGCON"
-              dotColor="bg-amber-500" valueColor="text-amber-700" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              {
+                label: 'Total de Demandas', icon: FileText,
+                value: filtered.length.toLocaleString('pt-BR'),
+                sub: hasActiveFilters ? `de ${rawData.length.toLocaleString('pt-BR')} total` : 'no período selecionado',
+                grad: 'from-blue-600 to-blue-800', ring: 'ring-blue-100',
+              },
+              {
+                label: 'Concluídas', icon: CheckCircle2,
+                value: totalConcluidas.toLocaleString('pt-BR'),
+                sub: `${pctConcluidas}% do total · com data de conclusão`,
+                grad: 'from-emerald-500 to-emerald-700', ring: 'ring-emerald-100',
+              },
+              {
+                label: 'Em Andamento (GGCON)', icon: Activity,
+                value: totalEmAndamento.toLocaleString('pt-BR'),
+                sub: 'ativas no fluxo GGCON',
+                grad: 'from-amber-500 to-amber-700', ring: 'ring-amber-100',
+              },
+            ].map(k => (
+              <motion.div
+                key={k.label}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`relative bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow p-5 flex items-center gap-4 overflow-hidden ring-1 ${k.ring}`}
+              >
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${k.grad} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                  <k.icon className="w-6 h-6 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">{k.label}</p>
+                  <p className="text-3xl font-black text-slate-800 leading-tight tabular-nums">{k.value}</p>
+                  <p className="text-[11px] text-slate-400 truncate">{k.sub}</p>
+                </div>
+                <div className={`absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-gradient-to-br ${k.grad} opacity-[0.06]`} />
+              </motion.div>
+            ))}
           </div>
 
           {/* ── Matrix Table ─────────────────────────────────────────── */}
           <div className="rounded-2xl shadow-md border border-slate-200 bg-white">
             {/* Table header bar - sticky to page when scrolling */}
-            <div className={`flex items-center bg-slate-700 sticky top-12 z-30 ${sec.matrix ? 'rounded-2xl' : 'rounded-t-2xl'}`}>
+            <div className={`flex items-center bg-slate-700 sticky z-30 ${sec.matrix ? 'rounded-2xl' : 'rounded-t-2xl'}`} style={{ top: filtersBarHeight }}>
               {/* Toggle area */}
               <button onClick={() => toggleSec('matrix')} className="flex-1 px-4 py-2.5 flex items-center justify-between hover:bg-slate-600 transition-colors text-left">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -3210,6 +3358,180 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
               openDrilldown={openDrilldown}
               mode={viewMode}
             />
+          </CollapsibleSection>
+
+          {/* ── Linha do Tempo — em que etapa cada demanda pendente está agora ── */}
+          <CollapsibleSection
+            title="Linha do Tempo — Demandas Pendentes por Etapa"
+            icon={Clock}
+            headerBg="bg-slate-600 hover:bg-slate-500"
+            collapsed={sec.timeline}
+            onToggle={() => toggleSec('timeline')}
+          >
+            <TimelineSection
+              filtered={filtered}
+              personField={personField}
+              openDrilldown={openDrilldown}
+              viewMode={viewMode}
+            />
+          </CollapsibleSection>
+
+          {/* ── Produtividade Mensal — Liberação → Publicação ─────────── */}
+          <CollapsibleSection
+            title={`Produtividade Mensal — Liberação → Publicação por ${viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}`}
+            icon={PieChart}
+            headerBg="bg-slate-600 hover:bg-slate-500"
+            collapsed={sec.produtividade}
+            onToggle={() => toggleSec('produtividade')}
+          >
+            <ProdutividadeAnalise
+              pessoas={viewMode === 'tecnico' ? produtividadeData.tecnicos : produtividadeData.conferencistas}
+              label={viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}
+              allMeses={produtividadeData.allMeses}
+              filtered={filtered}
+              dateField={viewMode === 'tecnico' ? 'data_liberacao' : 'data_recebimento_demanda'}
+              openDrilldown={openDrilldown}
+            />
+          </CollapsibleSection>
+
+          {/* ── Taxa de Conclusão por Técnico/Conferencista ───────────── */}
+          <CollapsibleSection
+            title={`Taxa de Conclusão por ${viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}`}
+            icon={Zap}
+            headerBg="bg-slate-600 hover:bg-slate-500"
+            collapsed={sec.taxaConclusao}
+            onToggle={() => toggleSec('taxaConclusao')}
+          >
+            {taxaConclusaoData.length > 0 ? (
+              <div className="space-y-3">
+                {taxaConclusaoData.map((item, idx) => (
+                  <div key={item.nome} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <button onClick={() => openDrilldown(`${item.nome} — Todas (${item.total})`, item.rows)} className="text-xs font-semibold text-slate-700 hover:text-[#1351B4] transition-colors truncate flex-1 text-left">
+                        {item.nome}
+                      </button>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-[11px] text-slate-400">{item.concluidas}/{item.total}</span>
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-xs min-w-14 text-center ${item.taxa >= 70 ? 'bg-emerald-100 text-emerald-700' : item.taxa >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{item.taxa}%</span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <motion.div initial={{ width: 0 }} animate={{ width: `${item.taxa}%` }} transition={{ duration: 0.6, delay: idx * 0.02 }} className={`h-full rounded-full ${item.taxa >= 70 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : item.taxa >= 40 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-red-400 to-red-600'}`} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-xs text-slate-400 text-center py-8">Sem dados</p>}
+          </CollapsibleSection>
+
+          {/* ── Demandas por Regional ──────────────────────────────────── */}
+          <CollapsibleSection
+            title="Demandas por Regional"
+            icon={MapPin}
+            headerBg="bg-slate-600 hover:bg-slate-500"
+            collapsed={sec.regional}
+            onToggle={() => toggleSec('regional')}
+          >
+            {demandasRegional.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b-2 border-slate-200">
+                      <th className="text-left px-3 py-2 font-bold text-slate-600">Regional</th>
+                      <th className="text-center px-3 py-2 font-bold text-slate-600">Total</th>
+                      <th className="text-center px-3 py-2 font-bold text-slate-600">Concluídas</th>
+                      <th className="text-center px-3 py-2 font-bold text-slate-600">Pendentes</th>
+                      <th className="text-left px-3 py-2 font-bold text-slate-600 w-1/3">Progresso</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {demandasRegional.map((item, idx) => {
+                      const pct = item.total > 0 ? Math.round((item.concluidas / item.total) * 100) : 0;
+                      return (
+                        <tr key={item.regional} className="border-b border-slate-100 hover:bg-blue-50/40 transition-colors">
+                          <td className="px-3 py-1.5 font-semibold text-slate-700">
+                            <button onClick={() => openDrilldown(`${item.regional} — Todas (${item.total})`, item.rows)} className="hover:text-[#1351B4] hover:underline transition-colors text-left">
+                              {item.regional}
+                            </button>
+                          </td>
+                          <td className="px-3 py-1.5 text-center font-bold text-slate-700">{item.total}</td>
+                          <td className="px-3 py-1.5 text-center text-emerald-600 font-semibold">{item.concluidas || '—'}</td>
+                          <td className="px-3 py-1.5 text-center text-amber-600 font-semibold">{item.pendentes || '—'}</td>
+                          <td className="px-3 py-1.5">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6, delay: idx * 0.03 }} className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full" />
+                              </div>
+                              <span className="text-[10px] font-semibold text-slate-400 w-8">{pct}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : <p className="text-xs text-slate-400 text-center py-8">Sem dados de regional</p>}
+          </CollapsibleSection>
+
+          {/* ── Publicações por Mês ────────────────────────────────────── */}
+          <CollapsibleSection
+            title="Publicações por Mês"
+            icon={BookOpen}
+            headerBg="bg-slate-600 hover:bg-slate-500"
+            collapsed={sec.publicacoes}
+            onToggle={() => toggleSec('publicacoes')}
+          >
+            {publicacoesMes.length > 0 ? (
+              <div className="flex items-end gap-2 h-44">
+                {(() => {
+                  const maxVal = Math.max(...publicacoesMes.map(m => m.rows.length), 1);
+                  return publicacoesMes.map(item => (
+                    <button
+                      key={item.mes}
+                      onClick={() => openDrilldown(`Publicações — ${fmtMesProd(item.mes)} (${item.rows.length})`, item.rows)}
+                      className="flex-1 flex flex-col items-center gap-1 h-full justify-end group"
+                    >
+                      <span className="text-[10px] font-bold text-fuchsia-700">{item.rows.length}</span>
+                      <div
+                        style={{ height: `${(item.rows.length / maxVal) * 100}%` }}
+                        className="w-full max-w-8 bg-gradient-to-t from-fuchsia-600 to-fuchsia-400 rounded-t min-h-[2px] group-hover:opacity-80 transition-opacity"
+                      />
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap">{fmtMesProd(item.mes)}</span>
+                    </button>
+                  ));
+                })()}
+              </div>
+            ) : <p className="text-xs text-slate-400 text-center py-8">Nenhuma publicação registrada</p>}
+          </CollapsibleSection>
+
+          {/* ── Composição — o que são as demandas (classificação/tipo/objeto/portfólio/recurso) ── */}
+          <CollapsibleSection
+            title="Composição das Demandas — Classificação, Tipo, Objeto, Portfólio e Recurso"
+            icon={Tag}
+            headerBg="bg-slate-600 hover:bg-slate-500"
+            collapsed={sec.classificacao}
+            onToggle={() => toggleSec('classificacao')}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {[
+                { key: 'classificacao', title: 'Classificação da Emenda/Demanda', icon: Tag,       data: composicaoData.classificacao, from: 'from-blue-500',    to: 'to-blue-700' },
+                { key: 'tipo',          title: 'Tipo de Formalização',            icon: FileText,   data: composicaoData.tipo,          from: 'from-violet-500', to: 'to-violet-700' },
+                { key: 'objeto',        title: 'Objeto',                          icon: Briefcase,  data: composicaoData.objeto,        from: 'from-emerald-500',to: 'to-emerald-700' },
+                { key: 'portfolio',     title: 'Portfólio',                       icon: Layers,     data: composicaoData.portfolio,     from: 'from-amber-500',  to: 'to-amber-700' },
+                { key: 'recurso',       title: 'Recurso',                        icon: Wallet,     data: composicaoData.recurso,       from: 'from-sky-500',    to: 'to-sky-700' },
+              ].map(sub => (
+                <div key={sub.key} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                    <sub.icon className="w-3.5 h-3.5" />
+                    {sub.title}
+                  </h4>
+                  {sub.data.length > 0
+                    ? <SimpleBarList items={sub.data} colorFrom={sub.from} colorTo={sub.to} onItemClick={(item) => openDrilldown(`${sub.title} — ${item.label} (${item.value})`, item.rows ?? [])} />
+                    : <p className="text-xs text-slate-400 text-center py-4">Sem dados</p>}
+                </div>
+              ))}
+            </div>
           </CollapsibleSection>
 
         </>

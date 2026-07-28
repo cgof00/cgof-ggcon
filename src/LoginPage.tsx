@@ -51,7 +51,7 @@ export function LoginPage() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-gap-3"
+            className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center gap-3"
           >
             <AlertCircle className="text-red-500 w-5 h-5 shrink-0" />
             <p className="text-sm text-red-600">{erro}</p>

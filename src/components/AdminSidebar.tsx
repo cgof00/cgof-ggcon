@@ -184,27 +184,28 @@ export function AdminSidebar({
               isOpen={isOpen}
             />
             <NavItem
-              icon={<Database className="w-4 h-4" />}
-              label="Forçar Atualização BD"
-              onClick={onForceReload}
-              isOpen={isOpen}
-            />
-            <NavItem
               icon={<ClipboardList className="w-4 h-4" />}
               label="Logs do Sistema"
               onClick={onViewLogs}
               isOpen={isOpen}
             />
+            <NavItem
+              icon={<Database className="w-4 h-4" />}
+              label="Forçar Atualização p/ Todos"
+              title="Notifica todos os usuários conectados para recarregar os dados agora"
+              onClick={onForceReload}
+              isOpen={isOpen}
+            />
           </>
         )}
 
-        {/* Demonstrativo */}
+        {/* Relatórios — nomes distintos da aba "Demonstrativo" do topo para não confundir */}
         {canViewDashboard && (
           <>
             <SectionHeader label="Relatórios" isOpen={isOpen} />
             <NavItem
               icon={<BarChart3 className="w-4 h-4" />}
-              label="Demonstrativo Lote"
+              label="Relatório por Lote"
               onClick={onDemonstrativoLote}
               isOpen={isOpen}
               variant="accent"
@@ -212,8 +213,8 @@ export function AdminSidebar({
           </>
         )}
 
-        {/* System */}
-        <SectionHeader label="Sistema" isOpen={isOpen} />
+        {/* Minha Conta — ações pessoais, disponíveis para qualquer usuário logado */}
+        <SectionHeader label="Minha Conta" isOpen={isOpen} />
         <NavItem
           icon={<KeyRound className="w-4 h-4" />}
           label="Trocar Senha"
@@ -222,7 +223,8 @@ export function AdminSidebar({
         />
         <NavItem
           icon={<RefreshCw className="w-4 h-4" />}
-          label="Atualizar BD"
+          label="Atualizar Meus Dados"
+          title="Recarrega os dados apenas nesta sua sessão"
           onClick={onAtualizarBD}
           isOpen={isOpen}
         />
