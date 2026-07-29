@@ -1063,6 +1063,19 @@ export default function App() {
     return Array.from(unique).sort();
   };
 
+  // Performance: getColumnFilterOptions varre toda a base carregada (pode ser
+  // dezenas de milhares de linhas) e só é usada pelo dropdown de filtro da
+  // coluna ABERTA no momento. Sem memoização, ela recalculava do zero a cada
+  // re-render — inclusive a cada tecla digitada na busca do dropdown, que nem
+  // afeta o resultado (o filtro por texto digitado é aplicado depois, separado).
+  // Result idêntico ao de chamar a função direto — só evita recomputar quando
+  // nada relevante mudou (mesma coluna aberta, mesmos filtros, mesmo cache).
+  const openColumnFilterOptions = useMemo(
+    () => (headerFilterOpen ? getColumnFilterOptions(headerFilterOpen) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [headerFilterOpen, filters, headerFilters, hideEmptyFields, searchTerm, buscaListaTerms, allDataCacheRef.current]
+  );
+
   // Helper: obter/setar valores de filtro selecionados para qualquer coluna
   const getColumnFilterValues = (colKey: string): string[] => {
     const filterKey = columnToFilterKey[colKey];
@@ -4810,7 +4823,8 @@ export default function App() {
                                           </div>
                                           <div className="max-h-56 overflow-y-auto">
                                             {(() => {
-                                              const options = getColumnFilterOptions(col.key);
+                                              // isOpen (condição do bloco pai) garante que col.key === headerFilterOpen aqui
+                                              const options = openColumnFilterOptions;
                                               const searchVal = headerFilterSearch.toLowerCase();
                                               const filtered = options.filter(opt => {
                                                 if (searchVal) {
