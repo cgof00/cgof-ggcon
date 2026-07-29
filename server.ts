@@ -1046,6 +1046,203 @@ const app = express();
     }
   });
 
+  // GET  /api/admin/force-reload — retorna o timestamp da última solicitação de reload (qualquer autenticado)
+  // POST /api/admin/force-reload — admin registra novo reload; todos os clientes recarregarão
+  app.get("/api/admin/force-reload", authMiddleware, async (req: any, res) => {
+    try {
+      if (!supabase) return res.status(500).json({ error: "Supabase não disponível" });
+      const { data, error } = await supabase
+        .from("system_settings")
+        .select("value, updated_at")
+        .eq("key", "force_reload_at")
+        .maybeSingle();
+      if (error) return res.status(500).json({ error: error.message });
+      const forceReloadAt = data ? Number(data.value) : 0;
+      const updatedAt = data ? data.updated_at : null;
+      return res.json({ force_reload_at: forceReloadAt, updated_at: updatedAt });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/force-reload", authMiddleware, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      if (!supabase) return res.status(500).json({ error: "Supabase não disponível" });
+
+      const now = Date.now();
+      const { error } = await supabase
+        .from("system_settings")
+        .upsert({ key: "force_reload_at", value: String(now), updated_at: new Date(now).toISOString() }, { onConflict: "key" });
+
+      if (error) return res.status(500).json({ error: "Falha ao atualizar", detail: error.message });
+
+      return res.json({
+        success: true,
+        force_reload_at: now,
+        message: "Todos os usuários conectados serão notificados para recarregar os dados"
+      });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET  /api/admin/ultima-importacao — retorna quando (e quem) fez a última importação de emendas (qualquer autenticado)
+  // POST /api/admin/ultima-importacao — registra a importação recém-concluída (somente admin)
+  app.get("/api/admin/ultima-importacao", authMiddleware, async (req: any, res) => {
+    try {
+      if (!supabase) return res.status(500).json({ error: "Supabase não disponível" });
+      const { data, error } = await supabase
+        .from("system_settings")
+        .select("value, updated_at")
+        .eq("key", "ultima_importacao_emendas")
+        .maybeSingle();
+      if (error) return res.status(500).json({ error: error.message });
+      let usuario: string | null = null;
+      try { usuario = data ? (JSON.parse(data.value)?.usuario ?? null) : null; } catch { /* ignore */ }
+      return res.json({ em: data?.updated_at ?? null, usuario });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/ultima-importacao", authMiddleware, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      if (!supabase) return res.status(500).json({ error: "Supabase não disponível" });
+
+      const usuario: string = req.user.nome || req.user.email || 'admin';
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("system_settings")
+        .upsert({ key: "ultima_importacao_emendas", value: JSON.stringify({ usuario }), updated_at: now }, { onConflict: "key" });
+
+      if (error) return res.status(500).json({ error: "Falha ao registrar importação", detail: error.message });
+
+      return res.json({ success: true, em: now, usuario });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/notificacoes — admin vê todas; técnico/conferencista vê apenas as suas (e marca como lidas ao consultar)
+  app.get("/api/notificacoes", authMiddleware, async (req: any, res) => {
+    try {
+      if (!supabase) return res.status(500).json({ error: "Supabase não disponível" });
+
+      const userId: number = req.user.userId;
+      const apenasNaoLidas = req.query.nao_lidas === '1';
+
+      let query = supabase.from("notificacoes_atribuicao").select("*").order("data_atribuicao", { ascending: false });
+
+      if (req.user.role !== 'admin') {
+        query = query.eq("usuario_id", userId);
+      }
+      if (apenasNaoLidas) {
+        query = query.eq("confirmado", false);
+      }
+
+      const { data, error } = await query;
+      if (error) return res.status(500).json({ error: "Erro ao buscar notificações", detail: error.message });
+
+      // Marcar como lida automaticamente quando o usuário (não-admin) consulta, exceto ao filtrar só não-lidas
+      if (req.user.role !== 'admin' && !apenasNaoLidas) {
+        await supabase
+          .from("notificacoes_atribuicao")
+          .update({ lida: true })
+          .eq("usuario_id", userId)
+          .eq("lida", false);
+      }
+
+      const items = data || [];
+      const pendentes = items.filter((n: any) => !n.confirmado).length;
+      const confirmadas = items.filter((n: any) => n.confirmado).length;
+
+      return res.json({ items, total: items.length, pendentes, confirmadas });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/notificacoes/confirmar — técnico/conferencista confirma o recebimento de um lote de demandas
+  app.post("/api/notificacoes/confirmar", authMiddleware, async (req: any, res) => {
+    try {
+      if (!supabase) return res.status(500).json({ error: "Supabase não disponível" });
+
+      const { id, observacao } = req.body;
+      if (!id || typeof id !== 'number') {
+        return res.status(400).json({ error: "ID da notificação inválido" });
+      }
+
+      const { data: notifs, error: getError } = await supabase
+        .from("notificacoes_atribuicao")
+        .select("*")
+        .eq("id", id);
+      if (getError) return res.status(500).json({ error: "Erro ao buscar notificação" });
+      if (!notifs || notifs.length === 0) {
+        return res.status(404).json({ error: "Notificação não encontrada" });
+      }
+
+      const notif = notifs[0];
+
+      if (req.user.role !== 'admin' && notif.usuario_id !== req.user.userId) {
+        return res.status(403).json({ error: "Acesso negado: esta notificação não é sua." });
+      }
+
+      if (notif.confirmado) {
+        return res.status(409).json({ error: "Esta notificação já foi confirmada.", ja_confirmado: true });
+      }
+
+      const agora = new Date().toISOString();
+
+      const { data: updated, error: patchError } = await supabase
+        .from("notificacoes_atribuicao")
+        .update({
+          confirmado: true,
+          confirmado_em: agora,
+          lida: true,
+          observacao: observacao || null,
+        })
+        .eq("id", id)
+        .select();
+
+      if (patchError) return res.status(500).json({ error: "Erro ao confirmar notificação", detail: patchError.message });
+
+      const notifAtualizada = (updated && updated[0]) || notif;
+
+      // Log de auditoria — não deve quebrar a operação principal se falhar
+      try {
+        const auditRows = (notif.formalizacao_ids || []).map((fid: number) => ({
+          formalizacao_id: fid,
+          demanda: null,
+          tecnico_novo: notif.usuario_nome,
+          data_liberacao: null,
+          admin_nome: req.user.nome || req.user.email || 'desconhecido',
+          admin_role: req.user.role || 'usuario',
+          acao: 'confirmar_recebimento',
+          valor_novo: observacao || 'Recebimento confirmado sem observação',
+          campo_alterado: 'confirmacao_recebimento',
+        }));
+
+        if (auditRows.length > 0) {
+          await supabase.from("log_atribuicoes").insert(auditRows);
+        }
+      } catch { /* auditoria não deve quebrar a operação */ }
+
+      return res.json({
+        success: true,
+        message: "Recebimento confirmado com sucesso",
+        notificacao: notifAtualizada,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/debug/compare-records", authMiddleware, async (req: any, res) => {
     try {
       if (!supabase) {
