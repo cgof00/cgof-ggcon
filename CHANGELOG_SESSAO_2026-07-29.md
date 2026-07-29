@@ -83,6 +83,14 @@ Depois das correções acima, propus 4 melhorias de manutenção/performance; o 
 - **Fora de escopo, deliberadamente**: `import-emendas`, `sync-emendas`, `backup-formalizacao` — pipeline grande e arriscado demais para portar com segurança nesta rodada; continuam existindo só no Worker de produção.
 - Arquivo: `server.ts`.
 
+## Correção pós-deploy
+
+### 12. `useMemo` não importado quebrava o app inteiro em produção
+`ea2d5a8`
+- O item 8 (memoização do filtro de coluna) usou `useMemo` sem adicionar ao import do React no topo de `src/App.tsx`. O type-check (`tsc`) e o `vite build` não acusaram — só quebrou em runtime no bundle final ("useMemo is not defined"), travando a tela de login inteira.
+- Corrigido: `useMemo` adicionado ao import `react` existente. Build e type-check reconfirmados depois da correção.
+- Arquivo: `src/App.tsx`.
+
 ---
 
 **Build e type-check (`npx tsc --noEmit -p .` + `npm run build`) passaram limpos após cada alteração.**
