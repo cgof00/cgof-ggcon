@@ -739,6 +739,10 @@ export default function App() {
     const t = localStorage.getItem('formalizacoes_cache_time');
     return t ? new Date(Number(t)) : null;
   });
+  // Data/hora da última importação real de emendas (server-side, compartilhada por todos
+  // os usuários) — diferente de lastDataUpdate, que só reflete quando ESTE navegador
+  // buscou dados (podia mostrar "agora" mesmo sem nenhuma importação nova ter ocorrido).
+  const [ultimaImportacao, setUltimaImportacao] = useState<{ em: string; usuario: string | null } | null>(null);
   const [paginaAtual, setPaginaAtual] = useState(0);
   const [itensPorPagina] = useState(500); // Paginação de 500, mas filtros aplicados aos 37k completos
   const [visibleColumns, setVisibleColumns] = useState({
@@ -1912,7 +1916,21 @@ export default function App() {
         const now = new Date().toISOString();
         localStorage.setItem('formalizacao_last_update', now);
         setLastUpdateTime(now);
-        
+
+        // Registra a importação no servidor (compartilhado por todos os usuários)
+        try {
+          const regResp = await fetch('/api/admin/ultima-importacao', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${tk}`, 'Content-Type': 'application/json' },
+          });
+          if (regResp.ok) {
+            const reg = await regResp.json();
+            setUltimaImportacao({ em: reg.em, usuario: reg.usuario });
+          }
+        } catch (e) {
+          console.warn('⚠️ Falha ao registrar data/hora da importação:', e);
+        }
+
         const totalDuplicated = batchResults.reduce((sum: number, r: any) => sum + (r.deduped || 0), 0);
         const totalImported = batchResults.reduce((sum: number, r: any) => sum + (r.imported || 0), 0);
         
@@ -3176,6 +3194,17 @@ export default function App() {
     };
   }, [token]);
 
+  // Busca quando (e quem) fez a última importação real de emendas — valor
+  // compartilhado por todos os usuários, gravado pelo servidor ao final do
+  // "Importar Emendas" (ver handleImportEmendas / setImportStatus('done')).
+  useEffect(() => {
+    if (!token) return;
+    fetch('/api/admin/ultima-importacao', { headers: getHeaders() })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.em) setUltimaImportacao({ em: d.em, usuario: d.usuario }); })
+      .catch(() => { /* silencioso */ });
+  }, [token]);
+
   // ── Polling de Notificações de Atribuição ────────────────────────────────
   // Verifica a cada 60s se há notificações pendentes para o usuário ou (admin) para todos
   useEffect(() => {
@@ -3924,19 +3953,24 @@ export default function App() {
                 );
               })()}
 
-              {/* Last data update indicator — hidden on mobile */}
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/8 border border-white/12" title="Data e hora da última atualização da base de dados">
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${lastDataUpdate ? 'bg-emerald-400 animate-pulse' : 'bg-white/30'}`} />
+              {/* Última importação de emendas — hidden on mobile. Vem do servidor (compartilhado
+                  por todos os usuários), gravado quando um admin importa um novo arquivo em
+                  "Importar Emendas" — não é só o cache deste navegador. */}
+              <div
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/8 border border-white/12"
+                title={ultimaImportacao ? `Última importação de emendas${ultimaImportacao.usuario ? ` — por ${ultimaImportacao.usuario}` : ''}` : 'Nenhuma importação de emendas registrada ainda'}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${ultimaImportacao ? 'bg-emerald-400 animate-pulse' : 'bg-white/30'}`} />
                 <div className="text-right">
-                  <p className="text-[9px] text-white/45 uppercase tracking-wide leading-none">Base atualizada</p>
-                  {lastDataUpdate ? (
+                  <p className="text-[9px] text-white/45 uppercase tracking-wide leading-none">Última Importação</p>
+                  {ultimaImportacao ? (
                     <p className="text-[11px] font-semibold text-white/80 leading-tight tabular-nums">
-                      {lastDataUpdate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                      {new Date(ultimaImportacao.em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                       {' '}
-                      <span className="text-emerald-300">{lastDataUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="text-emerald-300">{new Date(ultimaImportacao.em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                     </p>
                   ) : (
-                    <p className="text-[11px] text-white/35 leading-tight">aguardando...</p>
+                    <p className="text-[11px] text-white/35 leading-tight">sem registro</p>
                   )}
                 </div>
               </div>
