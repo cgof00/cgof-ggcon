@@ -1938,8 +1938,111 @@ function perfScore(taxa: number, medG: number | null) {
   return                                                 { label: 'D', ring: 'ring-2 ring-red-400',     bg: 'bg-red-500',     text: 'Crítico' };
 }
 
+// ── Helpers de exportação compartilhados entre Técnico e Conferencista ──────
+// Extraídos para funções puras para que o export XLSX possa recalcular o
+// mesmo resultado para o papel "oposto" ao que está selecionado na tela,
+// usando exatamente a mesma regra de negócio (sem duplicar lógica divergente).
+
+/** Linhas de `rows` cujo dono é `personKey`, com data válida em `dateField`, no período ano/mês selecionado. */
+function computeScopedRows(rows: FormalizacaoRow[], personKey: 'tecnico' | 'conferencista', dateField: keyof FormalizacaoRow, anoSel: string, mesSel: string): FormalizacaoRow[] {
+  return rows.filter(r => {
+    const person = String(r[personKey] ?? '').trim();
+    if (!person) return false;
+    const d = parseDateProd((r[dateField] as string) ?? '');
+    if (!d) return false;
+    if (anoSel !== 'all' || mesSel !== 'all') {
+      const mes = toMes(d);
+      const [y, m] = mes.split('-');
+      if (anoSel !== 'all' && y !== anoSel) return false;
+      if (mesSel !== 'all' && m !== mesSel) return false;
+    }
+    return true;
+  });
+}
+
+const demandaKeyProd = (r: FormalizacaoRow): string => String(r.demandas_formalizacao || r.demanda || r.emenda || r.id || '');
+
+/** Deduplica por demanda — emendas agregadas compartilham o mesmo número de demanda e contam uma única vez. */
+function computePorDemandaRows(scopedRows: FormalizacaoRow[]): FormalizacaoRow[] {
+  const seen = new Map<string, FormalizacaoRow>();
+  for (const r of scopedRows) {
+    const k = demandaKeyProd(r);
+    if (!seen.has(k)) seen.set(k, r);
+  }
+  return Array.from(seen.values());
+}
+
+/** Recalcula totais de cada pessoa restritos ao ano/mês selecionado, a partir de `rows` (já por mês). */
+function filterPessoasPorPeriodo(pessoas: PessoaProd[], anoSel: string, mesSel: string): PessoaProd[] {
+  const matchesMes = (mes: string) => {
+    const [y, m] = mes.split('-');
+    if (anoSel !== 'all' && y !== anoSel) return false;
+    if (mesSel !== 'all' && m !== mesSel) return false;
+    return true;
+  };
+  const isFiltered = anoSel !== 'all' || mesSel !== 'all';
+  if (!isFiltered) return pessoas;
+  return pessoas.flatMap(p => {
+    const rows = p.rows.filter(r => matchesMes(r.mes));
+    if (rows.length === 0) return [];
+    const totLib  = rows.reduce((s, r) => s + r.lib, 0);
+    const totPub  = rows.reduce((s, r) => s + r.pub, 0);
+    const totConc = rows.reduce((s, r) => s + r.conc, 0);
+    const totNaoConcl = rows.reduce((s, r) => s + r.naoConcl, 0);
+    const totDilig = rows.reduce((s, r) => s + r.dilig, 0);
+    const dr = rows.filter(r => r.mediaDias !== null);
+    const medG = dr.length > 0 ? Math.round(dr.reduce((s, r) => s + r.mediaDias!, 0) / dr.length) : null;
+    return [{ ...p, rows, totLib, totPub, totConc, totNaoConcl, totDilig, taxa: totLib > 0 ? Math.round((totPub / totLib) * 100) : 0, medG }];
+  });
+}
+
+function sortPessoasProd(arr: PessoaProd[], sortBy: 'lib' | 'taxa' | 'dias'): PessoaProd[] {
+  const out = [...arr];
+  if (sortBy === 'lib')  out.sort((a, b) => b.totLib - a.totLib);
+  if (sortBy === 'taxa') out.sort((a, b) => b.taxa - a.taxa);
+  if (sortBy === 'dias') out.sort((a, b) => (a.medG ?? 9999) - (b.medG ?? 9999));
+  return out;
+}
+
+type ResumoPessoa = { nome: string; lib: number; pub: number; conc: number; naoConcl: number; dilig: number; taxa: number; medG: number | null };
+
+/**
+ * Agrega por pessoa a partir de linhas "por emenda" (sem dedupe por demanda) — mesma
+ * regra de negócio de `produtividadeData.buildMap` (isConcluida, diligência, prazo 0-730 dias),
+ * só que sem quebra mensal, para a linha-resumo "por Emenda" do XLSX.
+ */
+function aggregatePessoasResumo(rows: FormalizacaoRow[], personKey: 'tecnico' | 'conferencista', dateField: keyof FormalizacaoRow): ResumoPessoa[] {
+  const map = new Map<string, { lib: number; pub: number; conc: number; dilig: number; td: number; cd: number }>();
+  rows.forEach(r => {
+    const nome = String(r[personKey] ?? '').trim();
+    if (!nome) return;
+    if (!map.has(nome)) map.set(nome, { lib: 0, pub: 0, conc: 0, dilig: 0, td: 0, cd: 0 });
+    const g = map.get(nome)!;
+    g.lib++;
+    const estagioUp = (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
+    if (estagioUp.startsWith('DEMANDA EM DILIGÊNCIA')) g.dilig++;
+    const d = parseDateProd((r[dateField] as string) ?? '');
+    const dp = parseDateProd((r.publicacao as string) ?? '');
+    if (dp) {
+      g.pub++;
+      if (d) {
+        const dias = Math.round((dp.getTime() - d.getTime()) / 86400000);
+        if (dias >= 0 && dias <= 730) { g.td += dias; g.cd++; }
+      }
+    }
+    if (isConcluida(r)) g.conc++;
+  });
+  return Array.from(map.entries())
+    .map(([nome, g]) => ({
+      nome, lib: g.lib, pub: g.pub, conc: g.conc, naoConcl: g.lib - g.conc, dilig: g.dilig,
+      taxa: g.lib > 0 ? Math.round((g.pub / g.lib) * 100) : 0,
+      medG: g.cd > 0 ? Math.round(g.td / g.cd) : null,
+    }))
+    .sort((a, b) => b.lib - a.lib);
+}
+
 // ─── Professional Productivity Analysis Component ────────────────────────────
-function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, filteredFull, dateField, openDrilldown }: {
+function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, filteredFull, dateField, openDrilldown, outroPessoas, outroLabel, outroDateField, outroPersonKey }: {
   pessoas: PessoaProd[];
   label: string;
   allMeses: string[];
@@ -1950,6 +2053,13 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, filteredFull
   filteredFull: FormalizacaoRow[];
   dateField: keyof FormalizacaoRow;
   openDrilldown: (title: string, rows: FormalizacaoRow[]) => void;
+  // Dados do papel "oposto" (Técnico ⇄ Conferencista) — usados só na exportação
+  // XLSX, para que o arquivo sempre traga os dois papéis, independente de qual
+  // está selecionado na tela.
+  outroPessoas: PessoaProd[];
+  outroLabel: string;
+  outroDateField: keyof FormalizacaoRow;
+  outroPersonKey: 'tecnico' | 'conferencista';
 }) {
   const [anoSel, setAnoSel]   = useState<string>('all');
   const [mesSel, setMesSel]   = useState<string>('all'); // 'all' | '01'..'12'
@@ -2086,36 +2196,38 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, filteredFull
   }, [scopedRows]);
 
   // Monta uma linha de exportação/detalhe com o status real de cada registro —
-  // usada tanto na aba "Demanda" quanto na aba "Emenda" do XLSX.
-  const rowToDetailLine = (r: FormalizacaoRow): (string | number)[] => {
-    const d = parseDateProd((r[dateField] as string) ?? '');
-    const concluida = isConcluida(r);
-    const publicada = !!parseDateProd(r.publicacao ?? '');
-    const estagioUp = (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
-    const diligencia = estagioUp.startsWith('DEMANDA EM DILIGÊNCIA');
-    return [
-      r.demandas_formalizacao || r.demanda || '—',
-      r.emenda || '—',
-      r.ano || '—',
-      r.parlamentar || '—',
-      String(r[personKeyGlobal] ?? '—'),
-      d ? fmtMesProd(toMes(d)) : '—',
-      r.municipio || '—',
-      r.regional || '—',
-      r.classificacao_emenda_demanda || '—',
-      r.area_estagio_situacao_demanda || r.situacao_demandas_sempapel || '—',
-      r[dateField] || '—',
-      r.publicacao || '—',
-      r.concluida_em || '—',
-      concluida ? 'Sim' : 'Não',
-      publicada ? 'Sim' : 'Não',
-      diligencia ? 'Sim' : 'Não',
-      !concluida ? 'Sim' : 'Não',
-    ];
-  };
-  const detailHeader = [
-    'Demanda', 'Emenda', 'Ano', 'Parlamentar', label, 'Mês', 'Município', 'Regional',
-    'Classificação', 'Situação (Área/Estágio)', dateField === 'data_liberacao' ? 'Dt. Liberação' : 'Dt. Recebimento',
+  // usada tanto na aba "Demanda" quanto na aba "Emenda" do XLSX, para os dois papéis
+  // (Técnico usa data_liberacao/tecnico; Conferencista usa data_recebimento_demanda/conferencista).
+  const makeRowToDetailLine = (rowDateField: keyof FormalizacaoRow, rowPersonKey: 'tecnico' | 'conferencista') =>
+    (r: FormalizacaoRow): (string | number)[] => {
+      const d = parseDateProd((r[rowDateField] as string) ?? '');
+      const concluida = isConcluida(r);
+      const publicada = !!parseDateProd(r.publicacao ?? '');
+      const estagioUp = (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
+      const diligencia = estagioUp.startsWith('DEMANDA EM DILIGÊNCIA');
+      return [
+        r.demandas_formalizacao || r.demanda || '—',
+        r.emenda || '—',
+        r.ano || '—',
+        r.parlamentar || '—',
+        String(r[rowPersonKey] ?? '—'),
+        d ? fmtMesProd(toMes(d)) : '—',
+        r.municipio || '—',
+        r.regional || '—',
+        r.classificacao_emenda_demanda || '—',
+        r.area_estagio_situacao_demanda || r.situacao_demandas_sempapel || '—',
+        r[rowDateField] || '—',
+        r.publicacao || '—',
+        r.concluida_em || '—',
+        concluida ? 'Sim' : 'Não',
+        publicada ? 'Sim' : 'Não',
+        diligencia ? 'Sim' : 'Não',
+        !concluida ? 'Sim' : 'Não',
+      ];
+    };
+  const makeDetailHeader = (roleLabel: string, roleDateField: keyof FormalizacaoRow) => [
+    'Demanda', 'Emenda', 'Ano', 'Parlamentar', roleLabel, 'Mês', 'Município', 'Regional',
+    'Classificação', 'Situação (Área/Estágio)', roleDateField === 'data_liberacao' ? 'Dt. Liberação' : 'Dt. Recebimento',
     'Dt. Publicação', 'Dt. Conclusão', 'Concluída?', 'Publicada?', 'Em Diligência?', 'Pendente?',
   ];
   const detailColWidths = [
@@ -2124,45 +2236,74 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, filteredFull
   ];
 
   const exportXLSX = () => {
-    // Sheet 1: Resumo por pessoa
-    const resumoHeader = ['Posição', label, 'Lib.', 'Pub.', 'Conc.', 'Pend.', 'Dilig.', 'Taxa %'];
-    const resumoRows = sorted.map((p, i) => [
-      i + 1, p.nome, p.totLib, p.totPub, p.totConc, p.totNaoConcl, p.totDilig, p.taxa,
-    ]);
-    const wsResumo = XLSX.utils.aoa_to_sheet([resumoHeader, ...resumoRows]);
+    // Recalcula, com as mesmas regras, os dados do papel oposto ao selecionado na
+    // tela (Técnico ⇄ Conferencista), restritos ao mesmo período (ano/mês) — o
+    // arquivo exportado sempre traz os dois papéis, não importa qual está ativo.
+    const outroScopedRows = computeScopedRows(filtered, outroPersonKey, outroDateField, anoSel, mesSel);
+    const outroScopedRowsFull = computeScopedRows(filteredFull, outroPersonKey, outroDateField, anoSel, mesSel);
+    const outroPorDemandaRows = computePorDemandaRows(outroScopedRows);
+    const outroSorted = sortPessoasProd(filterPessoasPorPeriodo(outroPessoas, anoSel, mesSel), sortBy);
+
+    const resumoEmendaOwn = aggregatePessoasResumo(scopedRowsFull, personKeyGlobal, dateField);
+    const resumoEmendaOutro = aggregatePessoasResumo(outroScopedRowsFull, outroPersonKey, outroDateField);
+
+    const own   = { label, sortedDemanda: sorted, resumoEmenda: resumoEmendaOwn, dateField, personKey: personKeyGlobal, porDemandaRows, scopedRowsFull };
+    const outro = { label: outroLabel, sortedDemanda: outroSorted, resumoEmenda: resumoEmendaOutro, dateField: outroDateField, personKey: outroPersonKey, porDemandaRows: outroPorDemandaRows, scopedRowsFull: outroScopedRowsFull };
+    const tecnicoSide = label === 'Técnico' ? own : outro;
+    const conferencistaSide = label === 'Conferencista' ? own : outro;
+
+    // Sheet 1: Resumo — por Demanda e por Emenda, para Técnico e Conferencista,
+    // empilhados na mesma aba para dar a visão completa do que cada um fez.
+    const resumoRowHeader = (roleLabel: string) => ['Posição', roleLabel, 'Lib.', 'Pub.', 'Conc.', 'Pend.', 'Dilig.', 'Taxa %'];
+    const resumoAOA: (string | number)[][] = [];
+    [tecnicoSide, conferencistaSide].forEach(side => {
+      resumoAOA.push([`RESUMO POR DEMANDA — ${side.label.toUpperCase()}`]);
+      resumoAOA.push(resumoRowHeader(side.label));
+      side.sortedDemanda.forEach((p, i) => resumoAOA.push([i + 1, p.nome, p.totLib, p.totPub, p.totConc, p.totNaoConcl, p.totDilig, p.taxa]));
+      resumoAOA.push([]);
+      resumoAOA.push([`RESUMO POR EMENDA — ${side.label.toUpperCase()}`]);
+      resumoAOA.push(resumoRowHeader(side.label));
+      side.resumoEmenda.forEach((p, i) => resumoAOA.push([i + 1, p.nome, p.lib, p.pub, p.conc, p.naoConcl, p.dilig, p.taxa]));
+      resumoAOA.push([]);
+    });
+    const wsResumo = XLSX.utils.aoa_to_sheet(resumoAOA);
     wsResumo['!cols'] = [{ wch: 6 }, { wch: 32 }, ...Array(6).fill({ wch: 10 })];
 
-    // Sheet 2: Mês a mês
-    const mesHeader = [label, 'Mês', 'Lib.', 'Pub.', 'Conc.', 'Pend.', 'Dilig.', 'Taxa %'];
+    // Sheet 2: Mês a mês — Técnico e Conferencista juntos, com coluna Papel
+    const mesHeader = ['Papel', 'Nome', 'Mês', 'Lib.', 'Pub.', 'Conc.', 'Pend.', 'Dilig.', 'Taxa %'];
     const mesRows: (string | number)[][] = [];
-    sorted.forEach(p => {
-      p.rows.forEach(r => {
-        mesRows.push([p.nome, fmtMesProd(r.mes), r.lib, r.pub, r.conc, r.naoConcl, r.dilig,
-          r.lib > 0 ? Math.round((r.pub / r.lib) * 100) : 0]);
+    [tecnicoSide, conferencistaSide].forEach(side => {
+      side.sortedDemanda.forEach(p => {
+        p.rows.forEach(r => {
+          mesRows.push([side.label, p.nome, fmtMesProd(r.mes), r.lib, r.pub, r.conc, r.naoConcl, r.dilig,
+            r.lib > 0 ? Math.round((r.pub / r.lib) * 100) : 0]);
+        });
       });
     });
     const wsMes = XLSX.utils.aoa_to_sheet([mesHeader, ...mesRows]);
-    wsMes['!cols'] = [{ wch: 32 }, { wch: 12 }, ...Array(6).fill({ wch: 10 })];
-
-    // Sheet 3: Por Demanda (deduplicado — emendas agregadas contam uma única vez)
-    const wsDemanda = XLSX.utils.aoa_to_sheet([detailHeader, ...porDemandaRows.map(rowToDetailLine)]);
-    wsDemanda['!cols'] = detailColWidths;
-
-    // Sheet 4: Por Emenda (uma linha por emenda, sem dedupe — demanda com emendas
-    // agregadas aparece repetida, uma vez por emenda)
-    const wsEmenda = XLSX.utils.aoa_to_sheet([detailHeader, ...scopedRowsFull.map(rowToDetailLine)]);
-    wsEmenda['!cols'] = detailColWidths;
+    wsMes['!cols'] = [{ wch: 14 }, { wch: 32 }, { wch: 12 }, ...Array(6).fill({ wch: 10 })];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo');
     XLSX.utils.book_append_sheet(wb, wsMes, 'Mês a Mês');
-    XLSX.utils.book_append_sheet(wb, wsDemanda, 'Demanda');
-    XLSX.utils.book_append_sheet(wb, wsEmenda, 'Emenda');
+
+    // Sheets 3-6: Por Demanda / Por Emenda, uma dupla para cada papel
+    [tecnicoSide, conferencistaSide].forEach(side => {
+      const header = makeDetailHeader(side.label, side.dateField);
+      const lineBuilder = makeRowToDetailLine(side.dateField, side.personKey);
+      const wsD = XLSX.utils.aoa_to_sheet([header, ...side.porDemandaRows.map(lineBuilder)]);
+      wsD['!cols'] = detailColWidths;
+      XLSX.utils.book_append_sheet(wb, wsD, `Demanda - ${side.label}`);
+      const wsE = XLSX.utils.aoa_to_sheet([header, ...side.scopedRowsFull.map(lineBuilder)]);
+      wsE['!cols'] = detailColWidths;
+      XLSX.utils.book_append_sheet(wb, wsE, `Emenda - ${side.label}`);
+    });
+
     const periodoLabel = [
       mesSel !== 'all' ? MESES_PT_PROD[parseInt(mesSel) - 1] : '',
       anoSel !== 'all' ? anoSel : '',
     ].filter(Boolean).join('-') || 'todos';
-    XLSX.writeFile(wb, `produtividade_${label.toLowerCase()}_${periodoLabel}.xlsx`);
+    XLSX.writeFile(wb, `produtividade_${periodoLabel}.xlsx`);
   };
 
   return (
@@ -2223,7 +2364,7 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, filteredFull
         <button
           onClick={exportXLSX}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-all flex-shrink-0"
-          title="Exportar produtividade como XLSX (inclui abas Demanda e Emenda)">
+          title="Exportar produtividade como XLSX (Resumo por Demanda/Emenda + detalhes de Técnicos e Conferencistas)">
           <Download className="w-3.5 h-3.5" /> XLSX
         </button>
       </div>
@@ -3541,6 +3682,10 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
               filteredFull={filteredFull}
               dateField={viewMode === 'tecnico' ? 'data_liberacao' : 'data_recebimento_demanda'}
               openDrilldown={openDrilldown}
+              outroPessoas={viewMode === 'tecnico' ? produtividadeData.conferencistas : produtividadeData.tecnicos}
+              outroLabel={viewMode === 'tecnico' ? 'Conferencista' : 'Técnico'}
+              outroDateField={viewMode === 'tecnico' ? 'data_recebimento_demanda' : 'data_liberacao'}
+              outroPersonKey={viewMode === 'tecnico' ? 'conferencista' : 'tecnico'}
             />
           </CollapsibleSection>
 
