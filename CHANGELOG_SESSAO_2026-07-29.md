@@ -106,6 +106,17 @@ Depois das correções acima, propus 4 melhorias de manutenção/performance; o 
 - **Pendente (fora de escopo desta correção pontual)**: a causa raiz de fundo — datas salvas em formatos inconsistentes no banco — continua existindo. Uma migração para normalizar todas as colunas de data para ISO resolveria de vez, mas é uma mudança maior que precisa ser feita com cuidado (afeta todas as importações históricas). Por ora, o parser tolerante (`parseDateProd`) contorna o problema em todos os pontos que já o usam.
 - Arquivo: `src/DashboardTecnico.tsx`.
 
+## Nova funcionalidade
+
+### 15. Visualização e exportação por Demanda e por Emenda no relatório de Produtividade
+`aaa5417`
+- Dois botões novos na barra de ferramentas do relatório "Produtividade Mensal — Liberação → Publicação": **"Por Demanda"** e **"Por Emenda"**, abrindo o drilldown (janela de detalhe já usada em todo o Demonstrativo) com a lista de registros do período/ano/mês atualmente selecionado.
+  - "Por Demanda" deduplica emendas agregadas — mesmo critério já usado no resto do sistema (`demandas_formalizacao || demanda || emenda || id`) — cada demanda aparece uma única vez.
+  - "Por Emenda" mostra uma linha por registro, sem agrupar.
+- O XLSX exportado (botão "XLSX") ganhou duas abas novas, **"Demanda"** e **"Emenda"**, com o mesmo escopo acima, detalhando por registro: situação real (Área/Estágio), e as flags **Concluída? / Publicada? / Em Diligência? / Pendente?** — calculadas com os mesmos critérios (`isConcluida`, `publicacao`, prefixo "DEMANDA EM DILIGÊNCIA...") já usados para os totais do ranking, então os números batem entre o resumo agregado e o detalhe linha a linha.
+- Nenhuma lógica existente (cálculo de lib/pub/conc/naoConcl/dilig por pessoa, abas Resumo e Mês a Mês) foi alterada.
+- Arquivo: `src/DashboardTecnico.tsx`.
+
 ---
 
 **Build e type-check (`npx tsc --noEmit -p .` + `npm run build`) passaram limpos após cada alteração.**
