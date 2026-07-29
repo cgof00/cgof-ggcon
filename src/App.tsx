@@ -92,18 +92,22 @@ const CSV_TO_EMENDAS_MAP: Record<string, string> = {
 function normalizeHeader(h: string): string {
   return h.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
-// Verdadeiro quando o t\u00e9cnico clicou em "Demanda Analisada" (grava data_liberacao_conferencia
-// no Supabase) e o admin ainda n\u00e3o atribuiu um conferencista (campo `conferencista` vazio).
-// Assim que o admin atribui o conferencista (ver "Atribuir Conferencista"), esta fun\u00e7\u00e3o passa
-// a retornar false \u2014 mas data_liberacao_conferencia continua gravada como hist\u00f3rico.
+// Verdadeiro quando a demanda est\u00e1 pronta para o admin atribuir um conferencista:
+// ou o t\u00e9cnico clicou em "Demanda Analisada" (grava data_liberacao_conferencia), ou
+// a \u00c1rea \u2013 Est\u00e1gio j\u00e1 foi definida manualmente para "EM CONFER\u00caNCIA" (com ou sem
+// sufixo Fundo a Fundo) \u2014 as duas formas contam, pois o t\u00e9cnico pode chegar nesse
+// est\u00e1gio direto pelo select em vez do bot\u00e3o. Em ambos os casos, deixa de valer
+// assim que o admin atribui o conferencista (campo `conferencista` preenchido).
 function isLiberadoParaConferencia(f: {
   data_liberacao_conferencia?: string | null;
+  area_estagio_situacao_demanda?: string | null;
   conferencista?: string | null;
 } | null | undefined): boolean {
   if (!f) return false;
-  if ((f.data_liberacao_conferencia ?? '').toString().trim() === '') return false;
   if ((f.conferencista ?? '').toString().trim() !== '') return false; // j\u00e1 atribu\u00eddo a um conferencista
-  return true;
+  if ((f.data_liberacao_conferencia ?? '').toString().trim() !== '') return true;
+  const estagio = (f.area_estagio_situacao_demanda ?? '').toString().trim().toUpperCase();
+  return estagio.startsWith('EM CONFER\u00caNCIA');
 }
 const CSV_NORMALIZED_MAP: Record<string, string> = Object.fromEntries(
   Object.entries(CSV_TO_EMENDAS_MAP).map(([k, v]) => [normalizeHeader(k), v])
@@ -3334,6 +3338,12 @@ export default function App() {
         // Usa data de hoje no formato YYYY-MM-DD (compatível com o campo date do banco)
         data.data_analise_demanda = new Date().toISOString().slice(0, 10);
       }
+      // Mesma lógica para "liberado para conferência": se o técnico escolheu "EM CONFERÊNCIA"
+      // (ou variante Fundo a Fundo) direto no select — sem passar pelo botão "Demanda Analisada" —
+      // marca a liberação do mesmo jeito, senão a demanda fica "presa" sem aparecer no filtro.
+      if (estagioNovo.startsWith('EM CONFERÊNCIA') && !(data.data_liberacao_conferencia ?? '').trim() && !(editingFormalizacao.data_liberacao_conferencia ?? '').trim()) {
+        data.data_liberacao_conferencia = new Date().toISOString().slice(0, 10);
+      }
     }
     // Auto-preenche data_recebimento_demanda para o conferencista de forma análoga.
     // Quando conferencista assume e não preencheu: usa hoje.
@@ -5971,7 +5981,8 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                       />
                       {editingFormalizacao && (isTecnicoAtribuido || isAdmin) && (() => {
                         const jaAtribuido = !!(editingFormalizacao.conferencista ?? '').trim();
-                        const jaLiberado = !!(editingFormalizacao.data_liberacao_conferencia ?? '').trim();
+                        const jaLiberado = isLiberadoParaConferencia(editingFormalizacao);
+                        const dataLiberacaoStr = (editingFormalizacao.data_liberacao_conferencia ?? '').trim();
                         if (jaAtribuido) {
                           return (
                             <div className="md:col-span-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
@@ -5985,7 +5996,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                             <div className="md:col-span-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 text-xs font-semibold">
                               <FileSearch className="w-3.5 h-3.5 flex-shrink-0" />
                               <span className="flex-1">
-                                Liberada para conferência em {formatDateForDisplay(editingFormalizacao.data_liberacao_conferencia)} — aguardando atribuição de conferencista
+                                {dataLiberacaoStr
+                                  ? <>Liberada para conferência em {formatDateForDisplay(dataLiberacaoStr)} — aguardando atribuição de conferencista</>
+                                  : <>Liberada para conferência (Área – Estágio já em "EM CONFERÊNCIA") — aguardando atribuição de conferencista</>}
                               </span>
                               {isAdmin && (
                                 <button
