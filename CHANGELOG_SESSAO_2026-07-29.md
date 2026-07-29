@@ -97,6 +97,15 @@ Depois das correções acima, propus 4 melhorias de manutenção/performance; o 
 - Corrigido movendo o `useMemo` para depois da declaração de `columnToDataField`. Confirmado que nenhuma outra dependência do `useMemo` tem esse mesmo problema.
 - Arquivo: `src/App.tsx`.
 
+### 14. Filtro de período do Demonstrativo excluía registros com data em formato BR (DD/MM/YYYY)
+`f3b062c`
+- Relatado: técnica com 64 demandas / 4 publicadas na tabela principal aparecia com números bem menores no card de "Produtividade Mensal" do Demonstrativo, filtrando pelo período 01/01/2026 a 29/07/2026.
+- Causa raiz (confirmada via script de diagnóstico direto no Supabase): a coluna `data_liberacao` tem registros salvos em **dois formatos diferentes** — ISO (`YYYY-MM-DD`) e BR (`DD/MM/YYYY`), provavelmente de importações em lote antigas que gravaram a data direto sem passar pela conversão que o `server.ts`/Worker fazem hoje. O filtro de período comparava esses valores como **texto puro** contra o filtro (também texto, ISO, vindo do `<input type="date">`), então qualquer registro em formato BR era incluído/excluído de forma praticamente aleatória, sem relação com a data real — 129 dos 189 registros da técnica testada estavam em formato BR.
+- Confirmado que a correção bate exatamente com a contagem manual: antes (comparação de string) dava 59 liberações / 40 concluídas; depois (data parseada de verdade) dá **64 liberações / 4 publicadas / 41 concluídas** — idêntico ao que aparece na tabela principal.
+- Corrigido usando o parser de data que já existia no arquivo (`parseDateProd`, que já lida com os dois formatos) em vez de comparação de string, no filtro global de período (`filtroDataDe`/`filtroDataAte`).
+- **Pendente (fora de escopo desta correção pontual)**: a causa raiz de fundo — datas salvas em formatos inconsistentes no banco — continua existindo. Uma migração para normalizar todas as colunas de data para ISO resolveria de vez, mas é uma mudança maior que precisa ser feita com cuidado (afeta todas as importações históricas). Por ora, o parser tolerante (`parseDateProd`) contorna o problema em todos os pontos que já o usam.
+- Arquivo: `src/DashboardTecnico.tsx`.
+
 ---
 
 **Build e type-check (`npx tsc --noEmit -p .` + `npm run build`) passaram limpos após cada alteração.**
