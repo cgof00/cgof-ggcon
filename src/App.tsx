@@ -3749,29 +3749,33 @@ export default function App() {
                 <span className="text-[10px] text-white/50">Gestão de Emendas e Convênios</span>
               </div>
               <div className="h-7 w-px bg-white/20 hidden md:block" />
-              <nav className="hidden md:flex items-center gap-0.5 bg-white/10 p-0.5 rounded-lg">
-                <button 
+              {/* Nav sempre visível — antes ficava "hidden md:flex" e sumia inteira em telas
+                  estreitas, deixando o usuário sem nenhuma forma de trocar de aba. Os rótulos
+                  secundários encolhem pra ícone só em telas bem pequenas (mesmo padrão já usado
+                  nos chips da barra de filtros). */}
+              <nav className="flex items-center gap-0.5 bg-white/10 p-0.5 rounded-lg flex-shrink-0">
+                <button
                   onClick={() => setActiveTab('formalizacao')}
-                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeTab === 'formalizacao' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
+                  className={`px-2 sm:px-3 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'formalizacao' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
                 >
                   Formalização
                 </button>
                 {(user?.role === 'admin' || user?.role === 'visualizador') && (
                   <>
-                    <button 
+                    <button
                       onClick={() => setActiveTab('admin')}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'admin' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
+                      className={`px-2 sm:px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'admin' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
                     >
-                      <BarChart3 className="w-3.5 h-3.5" />
-                      Demonstrativo
+                      <BarChart3 className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="hidden lg:inline">Demonstrativo</span>
                     </button>
                     {isAdmin && (
                       <button
                         onClick={() => { setNotifFiltroAba('pendentes'); setShowNotifAdminModal(true); }}
-                        className="relative px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 text-white/90 hover:bg-white/20"
+                        className="relative px-2 sm:px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 text-white/90 hover:bg-white/20 whitespace-nowrap"
                       >
-                        <ClipboardList className="w-3.5 h-3.5" />
-                        Atribuições
+                        <ClipboardList className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="hidden lg:inline">Atribuições</span>
                         {notifPendentes.length > 0 && (
                           <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-900 text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center shadow">
                             {notifPendentes.length}
