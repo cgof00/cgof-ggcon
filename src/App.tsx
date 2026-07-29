@@ -625,26 +625,10 @@ export default function App() {
   const [adminAlertas, setAdminAlertas] = useState<{id: number, tipo: string, descricao: string, data: string}[]>([]);
   const [tecnicoAlertas, setTecnicoAlertas] = useState<{id: number, tipo: string, descricao: string, data: string}[]>([]);
   const [showAlertasDropdown, setShowAlertasDropdown] = useState(false);
+  // O modal de alertas só abre por clique manual no sino (onClick={() => setShowAlertaModal(true)})
+  // — não abre mais sozinho ao carregar o sistema.
   const [showAlertaModal, setShowAlertaModal] = useState(false);
-  const alertaModalShownRef = useRef<Set<string>>(new Set());
-  // Debounce do auto-show do modal de alertas — evita reabri-lo repetidamente
-  // enquanto o carregamento inicial dos ~40 mil registros ainda está recalculando os alertas
-  // (em dev, o StrictMode chega a rodar essa carga duas vezes em sequência).
-  // alertaModalDismissedAtRef registra quando o usuário fechou manualmente, para não
-  // reabrir por causa de uma leva de recálculo tardia dentro da mesma sessão.
-  const alertaModalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const alertaModalDismissedAtRef = useRef<number>(0);
-  const scheduleShowAlertaModal = () => {
-    if (alertaModalTimerRef.current) clearTimeout(alertaModalTimerRef.current);
-    alertaModalTimerRef.current = setTimeout(() => {
-      if (Date.now() - alertaModalDismissedAtRef.current < 8000) return;
-      setShowAlertaModal(true);
-    }, 1500);
-  };
-  const dismissAlertaModal = () => {
-    alertaModalDismissedAtRef.current = Date.now();
-    setShowAlertaModal(false);
-  };
+  const dismissAlertaModal = () => setShowAlertaModal(false);
   const [refreshProgress, setRefreshProgress] = useState<{ active: boolean; loaded: number; total: number; startTime: number } | null>(null);
 
   // ── Sistema de Notificações de Atribuição ─────────────────────────────────
@@ -1571,12 +1555,21 @@ export default function App() {
     const seenKeys = alertasVistosRef.current;
     const novas = comDatas.filter((f: Formalizacao) => !seenKeys.has(makeAlertKey(f)));
     if (novas.length > 0) {
+      // Deduplica por demanda: emendas agregadas compartilham o mesmo número de demanda e,
+      // por propagação, os mesmos campos de análise — sem isso, cada linha gerava um alerta
+      // idêntico repetido (ex: "Demanda 106247" aparecendo várias vezes).
+      const porDemanda = new Map<string, Formalizacao>();
+      for (const f of novas) {
+        const chave = String(f.demandas_formalizacao || f.demanda || f.id);
+        if (!porDemanda.has(chave)) porDemanda.set(chave, f);
+      }
+      const novasDeduplicadas = Array.from(porDemanda.values());
       setAdminAlertas(prev => {
         const existingIds = new Set(prev.map(a => a.id));
         // Remove old alerts for same ID (date changed) + add new
-        const updatedIds = new Set(novas.map(f => f.id));
+        const updatedIds = new Set(novasDeduplicadas.map(f => f.id));
         const cleaned = prev.filter(a => !updatedIds.has(a.id));
-        const newAlerts = novas.map((f: Formalizacao) => {
+        const newAlerts = novasDeduplicadas.map((f: Formalizacao) => {
           const partes: string[] = [];
           if (f.data_analise_demanda) {
             partes.push(`Técnico: ${f.tecnico || '(n/a)'} — Data Análise: ${formatDateForDisplay(f.data_analise_demanda)}`);
@@ -1635,19 +1628,6 @@ export default function App() {
     }
   }, [formalizacoes, isAdmin]);
 
-  // 🔔 Auto-show modal when new admin alerts arrive.
-  // Debounced: durante o carregamento inicial dos ~40 mil registros, `adminAlertas`
-  // é recalculado várias vezes em sequência rápida — sem o debounce, cada recálculo
-  // reabria o modal mesmo segundos depois de o usuário tê-lo fechado.
-  useEffect(() => {
-    if (!isAdmin || adminAlertas.length === 0) return;
-    const hasNew = adminAlertas.some((a: { id: number; data: string }) => !alertaModalShownRef.current.has(`${a.id}:${a.data}`));
-    if (hasNew) {
-      adminAlertas.forEach((a: { id: number; data: string }) => alertaModalShownRef.current.add(`${a.id}:${a.data}`));
-      scheduleShowAlertaModal();
-    }
-  }, [adminAlertas, isAdmin]);
-
   // 🔔 Alertas para técnicos: conferencista liberou assinatura na demanda do técnico
   // Alertas técnico vistos — persiste em localStorage (chave inclui id de formalizacao).
   const tecnicoAlertasVistosRef = useRef<Set<number>>(
@@ -1678,12 +1658,6 @@ export default function App() {
           descricao: `Demanda ${f.demandas_formalizacao || f.demanda || `#${f.id}`} — Conferencista: ${f.conferencista || '(n/a)'} liberou assinatura em ${formatDateForDisplay(f.data_liberacao_assinatura_conferencista || '')}${f.observacao_motivo_retorno ? ` — Obs: ${f.observacao_motivo_retorno}` : ''}`,
           data: f.data_liberacao_assinatura_conferencista || ''
         }))];
-        // Auto-show modal for técnico alerts
-        const hasNew2 = reallyNew.some(f => !alertaModalShownRef.current.has(`${f.id}:${f.data_liberacao_assinatura_conferencista || ''}`));
-        if (hasNew2) {
-          reallyNew.forEach(f => alertaModalShownRef.current.add(`${f.id}:${f.data_liberacao_assinatura_conferencista || ''}`));
-          scheduleShowAlertaModal();
-        }
         return updated;
       });
     }
