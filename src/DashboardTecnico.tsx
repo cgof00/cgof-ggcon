@@ -2027,6 +2027,76 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
   if (pessoas.length === 0)
     return <p className="text-slate-400 text-center py-10 text-sm">Sem dados de liberação para o período. Verifique se <code className="bg-slate-100 px-1 rounded">data_liberacao</code> está preenchido.</p>;
 
+  // ── Linhas individuais (demanda/emenda) que compõem o período/ano/mês selecionado —
+  // mesmo universo de registros usado para calcular totLib/totPub/totConc de cada pessoa,
+  // só que aqui mantido "achatado" (uma linha por registro) em vez de agregado por pessoa.
+  const personKeyGlobal = dateField === 'data_liberacao' ? 'tecnico' : 'conferencista';
+  const scopedRows = useMemo(() => {
+    return filtered.filter(r => {
+      const person = String(r[personKeyGlobal] ?? '').trim();
+      if (!person) return false;
+      const d = parseDateProd((r[dateField] as string) ?? '');
+      if (!d) return false;
+      if (anoSel !== 'all' || mesSel !== 'all') {
+        const mes = toMes(d);
+        const [y, m] = mes.split('-');
+        if (anoSel !== 'all' && y !== anoSel) return false;
+        if (mesSel !== 'all' && m !== mesSel) return false;
+      }
+      return true;
+    });
+  }, [filtered, personKeyGlobal, dateField, anoSel, mesSel]);
+
+  // Emendas agregadas compartilham o mesmo número de demanda — dedupe pela mesma chave
+  // já usada no resto do sistema para agrupar por demanda (App.tsx, alertas de demanda).
+  const demandaKey = (r: FormalizacaoRow): string => String(r.demandas_formalizacao || r.demanda || r.emenda || r.id || '');
+  const porDemandaRows = useMemo(() => {
+    const seen = new Map<string, FormalizacaoRow>();
+    for (const r of scopedRows) {
+      const k = demandaKey(r);
+      if (!seen.has(k)) seen.set(k, r);
+    }
+    return Array.from(seen.values());
+  }, [scopedRows]);
+
+  // Monta uma linha de exportação/detalhe com o status real de cada registro —
+  // usada tanto na aba "Demanda" quanto na aba "Emenda" do XLSX.
+  const rowToDetailLine = (r: FormalizacaoRow): (string | number)[] => {
+    const d = parseDateProd((r[dateField] as string) ?? '');
+    const concluida = isConcluida(r);
+    const publicada = !!parseDateProd(r.publicacao ?? '');
+    const estagioUp = (r.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
+    const diligencia = estagioUp.startsWith('DEMANDA EM DILIGÊNCIA');
+    return [
+      r.demandas_formalizacao || r.demanda || '—',
+      r.emenda || '—',
+      r.ano || '—',
+      r.parlamentar || '—',
+      String(r[personKeyGlobal] ?? '—'),
+      d ? fmtMesProd(toMes(d)) : '—',
+      r.municipio || '—',
+      r.regional || '—',
+      r.classificacao_emenda_demanda || '—',
+      r.area_estagio_situacao_demanda || r.situacao_demandas_sempapel || '—',
+      r[dateField] || '—',
+      r.publicacao || '—',
+      r.concluida_em || '—',
+      concluida ? 'Sim' : 'Não',
+      publicada ? 'Sim' : 'Não',
+      diligencia ? 'Sim' : 'Não',
+      !concluida ? 'Sim' : 'Não',
+    ];
+  };
+  const detailHeader = [
+    'Demanda', 'Emenda', 'Ano', 'Parlamentar', label, 'Mês', 'Município', 'Regional',
+    'Classificação', 'Situação (Área/Estágio)', dateField === 'data_liberacao' ? 'Dt. Liberação' : 'Dt. Recebimento',
+    'Dt. Publicação', 'Dt. Conclusão', 'Concluída?', 'Publicada?', 'Em Diligência?', 'Pendente?',
+  ];
+  const detailColWidths = [
+    { wch: 14 }, { wch: 12 }, { wch: 8 }, { wch: 24 }, { wch: 24 }, { wch: 10 }, { wch: 20 }, { wch: 16 },
+    { wch: 18 }, { wch: 26 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 11 },
+  ];
+
   const exportXLSX = () => {
     // Sheet 1: Resumo por pessoa
     const resumoHeader = ['Posição', label, 'Lib.', 'Pub.', 'Conc.', 'Pend.', 'Dilig.', 'Taxa %'];
@@ -2048,9 +2118,19 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
     const wsMes = XLSX.utils.aoa_to_sheet([mesHeader, ...mesRows]);
     wsMes['!cols'] = [{ wch: 32 }, { wch: 12 }, ...Array(6).fill({ wch: 10 })];
 
+    // Sheet 3: Por Demanda (deduplicado — emendas agregadas contam uma única vez)
+    const wsDemanda = XLSX.utils.aoa_to_sheet([detailHeader, ...porDemandaRows.map(rowToDetailLine)]);
+    wsDemanda['!cols'] = detailColWidths;
+
+    // Sheet 4: Por Emenda (uma linha por registro, sem dedupe)
+    const wsEmenda = XLSX.utils.aoa_to_sheet([detailHeader, ...scopedRows.map(rowToDetailLine)]);
+    wsEmenda['!cols'] = detailColWidths;
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo');
     XLSX.utils.book_append_sheet(wb, wsMes, 'Mês a Mês');
+    XLSX.utils.book_append_sheet(wb, wsDemanda, 'Demanda');
+    XLSX.utils.book_append_sheet(wb, wsEmenda, 'Emenda');
     const periodoLabel = [
       mesSel !== 'all' ? MESES_PT_PROD[parseInt(mesSel) - 1] : '',
       anoSel !== 'all' ? anoSel : '',
@@ -2102,9 +2182,21 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
           </span>
         )}
         <button
+          onClick={() => openDrilldown(`Por Demanda — ${label} (${porDemandaRows.length})`, porDemandaRows)}
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-teal-700 bg-teal-50 border border-teal-300 rounded-lg hover:bg-teal-100 transition-all flex-shrink-0"
+          title="Ver a lista de demandas (emendas agregadas contam uma única vez)">
+          <Layers className="w-3.5 h-3.5" /> Por Demanda
+        </button>
+        <button
+          onClick={() => openDrilldown(`Por Emenda — ${label} (${scopedRows.length})`, scopedRows)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-300 rounded-lg hover:bg-indigo-100 transition-all flex-shrink-0"
+          title="Ver a lista de emendas (uma linha por emenda, sem agrupar)">
+          <FileText className="w-3.5 h-3.5" /> Por Emenda
+        </button>
+        <button
           onClick={exportXLSX}
-          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-all flex-shrink-0"
-          title="Exportar produtividade como XLSX">
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-all flex-shrink-0"
+          title="Exportar produtividade como XLSX (inclui abas Demanda e Emenda)">
           <Download className="w-3.5 h-3.5" /> XLSX
         </button>
       </div>
