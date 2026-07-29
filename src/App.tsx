@@ -1063,19 +1063,6 @@ export default function App() {
     return Array.from(unique).sort();
   };
 
-  // Performance: getColumnFilterOptions varre toda a base carregada (pode ser
-  // dezenas de milhares de linhas) e só é usada pelo dropdown de filtro da
-  // coluna ABERTA no momento. Sem memoização, ela recalculava do zero a cada
-  // re-render — inclusive a cada tecla digitada na busca do dropdown, que nem
-  // afeta o resultado (o filtro por texto digitado é aplicado depois, separado).
-  // Result idêntico ao de chamar a função direto — só evita recomputar quando
-  // nada relevante mudou (mesma coluna aberta, mesmos filtros, mesmo cache).
-  const openColumnFilterOptions = useMemo(
-    () => (headerFilterOpen ? getColumnFilterOptions(headerFilterOpen) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [headerFilterOpen, filters, headerFilters, hideEmptyFields, searchTerm, buscaListaTerms, allDataCacheRef.current]
-  );
-
   // Helper: obter/setar valores de filtro selecionados para qualquer coluna
   const getColumnFilterValues = (colKey: string): string[] => {
     const filterKey = columnToFilterKey[colKey];
@@ -1117,6 +1104,22 @@ export default function App() {
     encaminhado_em: 'encaminhado_em', concluida_em: 'concluida_em',
     lote: 'lote', prioridade: 'prioridade'
   };
+
+  // Performance: getColumnFilterOptions varre toda a base carregada (pode ser
+  // dezenas de milhares de linhas) e só é usada pelo dropdown de filtro da
+  // coluna ABERTA no momento. Sem memoização, ela recalculava do zero a cada
+  // re-render — inclusive a cada tecla digitada na busca do dropdown, que nem
+  // afeta o resultado (o filtro por texto digitado é aplicado depois, separado).
+  // Result idêntico ao de chamar a função direto — só evita recomputar quando
+  // nada relevante mudou (mesma coluna aberta, mesmos filtros, mesmo cache).
+  // Precisa ficar DEPOIS de columnToDataField (usado dentro de getColumnFilterOptions) —
+  // useMemo executa a factory na hora, diferente da chamada original que só
+  // acontecia dentro do JSX, bem mais abaixo no render.
+  const openColumnFilterOptions = useMemo(
+    () => (headerFilterOpen ? getColumnFilterOptions(headerFilterOpen) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [headerFilterOpen, filters, headerFilters, hideEmptyFields, searchTerm, buscaListaTerms, allDataCacheRef.current]
+  );
 
   // Estado para seleção múltipla de linhas
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
