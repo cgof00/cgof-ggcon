@@ -3287,6 +3287,39 @@ export default function App() {
     setSaveErrorToast(null);
   };
 
+  // ── Mecânica compartilhada pelos botões de ação rápida do formulário de
+  // edição (Demanda Analisada, Liberação Conferência) — extraída pra não
+  // duplicar a mesma lógica em cada botão. Cada botão continua responsável
+  // pela sua própria lógica extra (ex: "Demanda Analisada" também ajusta a
+  // Área - Estágio); esta função só cuida da parte idêntica entre eles.
+  //
+  // Preenche um campo de data escondido (por id) com a data de hoje e atualiza
+  // o texto exibido ao lado. Retorna a data em YYYY-MM-DD para quem precisar
+  // reaproveitar (ex: "Demanda Analisada" usa a mesma data pra liberar a
+  // demanda para conferência).
+  const preencherDataDeHoje = (hiddenInputId: string, displaySpanId?: string): string => {
+    const now = new Date();
+    const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const hiddenInput = document.getElementById(hiddenInputId) as HTMLInputElement | null;
+    if (hiddenInput) hiddenInput.value = dataHoje;
+    if (displaySpanId) {
+      const displaySpan = document.getElementById(displaySpanId);
+      if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
+    }
+    return dataHoje;
+  };
+
+  // Marca o formulário como alterado e dispara o submit — chamar DEPOIS de
+  // preencher todos os campos necessários (a leitura do FormData acontece no
+  // momento do requestSubmit, então qualquer valor setado depois não entraria
+  // no salvamento). keepOpen mantém o modal aberto após salvar, em vez de
+  // fechar como o "Atualizar Registro" normal faz.
+  const salvarFormularioRapido = (keepOpen: boolean) => {
+    setFormDirty(true);
+    if (keepOpen) keepFormOpenAfterSaveRef.current = true;
+    editFormRef.current?.requestSubmit();
+  };
+
   const handleSubmitFormalizacao = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -5929,12 +5962,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const now = new Date();
-                                  const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                                  const hiddenInput = document.getElementById('data_analise_demanda_hidden') as HTMLInputElement;
-                                  const displaySpan = document.getElementById('data_analise_demanda_display');
-                                  if (hiddenInput) hiddenInput.value = dataHoje;
-                                  if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
+                                  const dataHoje = preencherDataDeHoje('data_analise_demanda_hidden', 'data_analise_demanda_display');
                                   // Mesmo clique também libera a demanda para o admin atribuir um conferencista
                                   if (liberarConferenciaInputRef.current && !liberarConferenciaInputRef.current.value) {
                                     liberarConferenciaInputRef.current.value = dataHoje;
@@ -5946,9 +5974,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                     areaSelect.value = fundoCheck?.checked ? 'EM CONFERÊNCIA - FUNDO A FUNDO' : 'EM CONFERÊNCIA';
                                   }
                                   // Salva imediatamente sem fechar o modal — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
-                                  setFormDirty(true);
-                                  keepFormOpenAfterSaveRef.current = true;
-                                  editFormRef.current?.requestSubmit();
+                                  salvarFormularioRapido(true);
                                 }}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
                               >
@@ -6001,9 +6027,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                     }
                                     setEditingFormalizacao(prev => prev ? { ...prev, data_liberacao_conferencia: '' } : prev);
                                     // Salva imediatamente sem fechar o modal — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
-                                    setFormDirty(true);
-                                    keepFormOpenAfterSaveRef.current = true;
-                                    editFormRef.current?.requestSubmit();
+                                    salvarFormularioRapido(true);
                                   }}
                                   className="flex-shrink-0 text-sky-600 hover:text-sky-800 hover:underline font-semibold"
                                   title="Remover a liberação para conferência (ex: foi liberada por engano)"
@@ -6104,16 +6128,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const now = new Date();
-                                  const dataHoje = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                                  const hiddenInput = document.getElementById('data_liberacao_conferencista_hidden') as HTMLInputElement;
-                                  const displaySpan = document.getElementById('data_liberacao_conferencista_display');
-                                  if (hiddenInput) hiddenInput.value = dataHoje;
-                                  if (displaySpan) displaySpan.textContent = formatDateForDisplay(dataHoje);
+                                  preencherDataDeHoje('data_liberacao_conferencista_hidden', 'data_liberacao_conferencista_display');
                                   // Salva imediatamente sem fechar o modal — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
-                                  setFormDirty(true);
-                                  keepFormOpenAfterSaveRef.current = true;
-                                  editFormRef.current?.requestSubmit();
+                                  salvarFormularioRapido(true);
                                 }}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
                               >
