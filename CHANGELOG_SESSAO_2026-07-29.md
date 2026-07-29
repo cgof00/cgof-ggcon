@@ -117,6 +117,13 @@ Depois das correções acima, propus 4 melhorias de manutenção/performance; o 
 - Nenhuma lógica existente (cálculo de lib/pub/conc/naoConcl/dilig por pessoa, abas Resumo e Mês a Mês) foi alterada.
 - Arquivo: `src/DashboardTecnico.tsx`.
 
+### 16. "Por Emenda" não mostrava demandas com emendas agregadas repetidas
+`3d4bc25`
+- Relatado logo após o item 15: uma demanda pode ter várias emendas dentro dela ("emendas agregadoras") — cada emenda agregada é um registro (linha) separado no banco, com o mesmo número de demanda repetido e um `emenda` diferente em cada linha (confirmado direto no banco: demanda `106247` tem 2 registros, mesma `emendas_agregadoras`, `emenda` diferente). A visão "Por Emenda" deveria mostrar essa repetição, mas não mostrava.
+- Causa raiz: `rawData` — a base usada por TODO o Demonstrativo (matriz, KPIs, Produtividade) — já vem **deduplicada por demanda** desde o carregamento (`loadData`/`deduplicateRows`, mantém só o registro mais recente por `data_liberacao`). Essa deduplicação é correta e intencional para a matriz/KPIs principais (evita contar a mesma demanda mais de uma vez), mas isso significa que a visão "Por Emenda" — que deveria mostrar TODAS as emendas, sem agrupar — nunca recebia os registros duplicados, porque eles já tinham sido descartados antes mesmo de chegar no componente de Produtividade.
+- Corrigido mantendo uma segunda cópia dos dados carregados **sem** essa deduplicação (`rawDataFull`), passada pelos mesmos filtros globais (`applyGlobalFilters`, extraído do `useMemo` de `filtered` para não duplicar a lógica) — gerando `filteredFull`/`scopedRowsFull`, usados exclusivamente pelo botão e pela aba XLSX "Por Emenda". "Por Demanda" continua usando exatamente os mesmos dados de sempre (`filtered`, já deduplicado), preservando 100% dos totais e comportamento já existentes no resto do Demonstrativo.
+- Arquivo: `src/DashboardTecnico.tsx`.
+
 ---
 
 **Build e type-check (`npx tsc --noEmit -p .` + `npm run build`) passaram limpos após cada alteração.**
