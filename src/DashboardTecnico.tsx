@@ -1939,11 +1939,15 @@ function perfScore(taxa: number, medG: number | null) {
 }
 
 // ─── Professional Productivity Analysis Component ────────────────────────────
-function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, openDrilldown }: {
+function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, filteredFull, dateField, openDrilldown }: {
   pessoas: PessoaProd[];
   label: string;
   allMeses: string[];
   filtered: FormalizacaoRow[];
+  // Igual a `filtered`, mas sem a deduplicação por demanda — necessário para a
+  // visão "Por Emenda", onde uma demanda com emendas agregadas precisa repetir,
+  // uma linha por emenda.
+  filteredFull: FormalizacaoRow[];
   dateField: keyof FormalizacaoRow;
   openDrilldown: (title: string, rows: FormalizacaoRow[]) => void;
 }) {
@@ -2047,8 +2051,30 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
     });
   }, [filtered, personKeyGlobal, dateField, anoSel, mesSel]);
 
+  // Mesmo filtro de pessoa/data/período de scopedRows, mas sobre filteredFull
+  // (SEM a deduplicação por demanda) — uma demanda com várias emendas agregadas
+  // aparece aqui repetida, uma linha por emenda, que é exatamente o que a
+  // visão "Por Emenda" precisa mostrar.
+  const scopedRowsFull = useMemo(() => {
+    return filteredFull.filter(r => {
+      const person = String(r[personKeyGlobal] ?? '').trim();
+      if (!person) return false;
+      const d = parseDateProd((r[dateField] as string) ?? '');
+      if (!d) return false;
+      if (anoSel !== 'all' || mesSel !== 'all') {
+        const mes = toMes(d);
+        const [y, m] = mes.split('-');
+        if (anoSel !== 'all' && y !== anoSel) return false;
+        if (mesSel !== 'all' && m !== mesSel) return false;
+      }
+      return true;
+    });
+  }, [filteredFull, personKeyGlobal, dateField, anoSel, mesSel]);
+
   // Emendas agregadas compartilham o mesmo número de demanda — dedupe pela mesma chave
   // já usada no resto do sistema para agrupar por demanda (App.tsx, alertas de demanda).
+  // Parte de scopedRows (já deduplicado a montante em rawData) — mantém a mesma
+  // linha "representante" de cada demanda usada no resto do Demonstrativo/Resumo.
   const demandaKey = (r: FormalizacaoRow): string => String(r.demandas_formalizacao || r.demanda || r.emenda || r.id || '');
   const porDemandaRows = useMemo(() => {
     const seen = new Map<string, FormalizacaoRow>();
@@ -2122,8 +2148,9 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
     const wsDemanda = XLSX.utils.aoa_to_sheet([detailHeader, ...porDemandaRows.map(rowToDetailLine)]);
     wsDemanda['!cols'] = detailColWidths;
 
-    // Sheet 4: Por Emenda (uma linha por registro, sem dedupe)
-    const wsEmenda = XLSX.utils.aoa_to_sheet([detailHeader, ...scopedRows.map(rowToDetailLine)]);
+    // Sheet 4: Por Emenda (uma linha por emenda, sem dedupe — demanda com emendas
+    // agregadas aparece repetida, uma vez por emenda)
+    const wsEmenda = XLSX.utils.aoa_to_sheet([detailHeader, ...scopedRowsFull.map(rowToDetailLine)]);
     wsEmenda['!cols'] = detailColWidths;
 
     const wb = XLSX.utils.book_new();
@@ -2188,9 +2215,9 @@ function ProdutividadeAnalise({ pessoas, label, allMeses, filtered, dateField, o
           <Layers className="w-3.5 h-3.5" /> Por Demanda
         </button>
         <button
-          onClick={() => openDrilldown(`Por Emenda — ${label} (${scopedRows.length})`, scopedRows)}
+          onClick={() => openDrilldown(`Por Emenda — ${label} (${scopedRowsFull.length})`, scopedRowsFull)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-300 rounded-lg hover:bg-indigo-100 transition-all flex-shrink-0"
-          title="Ver a lista de emendas (uma linha por emenda, sem agrupar)">
+          title="Ver a lista de emendas (uma linha por emenda, sem agrupar — demandas com emendas agregadas aparecem repetidas)">
           <FileText className="w-3.5 h-3.5" /> Por Emenda
         </button>
         <button
@@ -2400,6 +2427,12 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
 
   const [loading, setLoading] = useState(false);
   const [rawData, setRawData] = useState<FormalizacaoRow[]>([]);
+  // Mesma base de rawData, mas SEM a deduplicação por demanda — uma demanda com
+  // várias emendas agregadas aparece aqui como uma linha por emenda. Usado só
+  // pela visão "Por Emenda" do relatório de Produtividade; todo o resto do
+  // Demonstrativo (matriz, KPIs, "Por Demanda") continua usando rawData/filtered
+  // (deduplicado), que é o comportamento já existente e não foi alterado.
+  const [rawDataFull, setRawDataFull] = useState<FormalizacaoRow[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // View mode: 'tecnico' | 'conferencista'
@@ -2497,6 +2530,7 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
         deduped.set(key, existing ? _keepRow(existing, r) : r);
       }
       setRawData(Array.from(deduped.values()));
+      setRawDataFull(all);
       setLastUpdated(new Date());
     } catch (err) {
       console.error('Erro ao carregar dashboard:', err);
@@ -2528,6 +2562,7 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
   useEffect(() => {
     if (initialData && initialData.length > 0) {
       setRawData(deduplicateRows(initialData as FormalizacaoRow[]));
+      setRawDataFull(initialData as FormalizacaoRow[]);
       setLastUpdated(new Date());
     } else if (!initialData || initialData.length === 0) {
       loadData();
@@ -2577,9 +2612,11 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
   const classificacaoOptions = useMemo(() =>
     [...new Set(rawData.map(r => String(r.classificacao_emenda_demanda ?? '').trim()).filter(Boolean))].sort(), [rawData]);
 
-  // Apply global filters
-  const filtered = useMemo(() => {
-    let data = rawData;
+  // Mesmos filtros globais aplicados tanto na base deduplicada (rawData) quanto
+  // na base completa (rawDataFull) — extraído para função para não duplicar a
+  // lógica dos dois useMemo abaixo.
+  const applyGlobalFilters = (base: FormalizacaoRow[]): FormalizacaoRow[] => {
+    let data = base;
     if (filtroAno.length) data = data.filter(r => filtroAno.includes(String(r.ano ?? '').trim()));
     if (filtroRegional.length) data = data.filter(r => filtroRegional.includes(String(r.regional ?? '').trim()));
     if (filtroTecnico.length) data = data.filter(r => filtroTecnico.includes(String(r.tecnico ?? '').trim()));
@@ -2604,7 +2641,17 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
     if (filtroTipoRapido === 'fundo_a_fundo')
       data = data.filter(r => (r.area_estagio_situacao_demanda ?? '').toUpperCase().includes('FUNDO A FUNDO'));
     return data;
-  }, [rawData, filtroAno, filtroRegional, filtroTecnico, filtroConferencista, filtroParlamentar, filtroTipo, filtroSituacao, filtroClassificacao, filtroDataDe, filtroDataAte, filtroDataCampo, filtroTipoRapido]);
+  };
+
+  // Apply global filters
+  const filtered = useMemo(() => applyGlobalFilters(rawData),
+    [rawData, filtroAno, filtroRegional, filtroTecnico, filtroConferencista, filtroParlamentar, filtroTipo, filtroSituacao, filtroClassificacao, filtroDataDe, filtroDataAte, filtroDataCampo, filtroTipoRapido]);
+
+  // Mesma coisa, mas sem a deduplicação por demanda — só para a visão "Por Emenda"
+  // do relatório de Produtividade (uma demanda com emendas agregadas precisa
+  // aparecer repetida, uma vez por emenda).
+  const filteredFull = useMemo(() => applyGlobalFilters(rawDataFull),
+    [rawDataFull, filtroAno, filtroRegional, filtroTecnico, filtroConferencista, filtroParlamentar, filtroTipo, filtroSituacao, filtroClassificacao, filtroDataDe, filtroDataAte, filtroDataCampo, filtroTipoRapido]);
 
   // Person field based on view mode
   const personField = viewMode === 'tecnico' ? 'tecnico' : 'conferencista';
@@ -3491,6 +3538,7 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
               label={viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}
               allMeses={produtividadeData.allMeses}
               filtered={filtered}
+              filteredFull={filteredFull}
               dateField={viewMode === 'tecnico' ? 'data_liberacao' : 'data_recebimento_demanda'}
               openDrilldown={openDrilldown}
             />
