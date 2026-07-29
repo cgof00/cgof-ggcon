@@ -2496,8 +2496,18 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
     if (filtroTipo.length) data = data.filter(r => filtroTipo.includes(String(r.tipo_formalizacao ?? '').trim()));
     if (filtroSituacao.length) data = data.filter(r => filtroSituacao.includes(String(r.area_estagio_situacao_demanda ?? '').trim()));
     if (filtroClassificacao.length) data = data.filter(r => filtroClassificacao.includes(String(r.classificacao_emenda_demanda ?? '').trim()));
-    if (filtroDataDe) data = data.filter(r => (String(r[filtroDataCampo] ?? '')) >= filtroDataDe);
-    if (filtroDataAte) data = data.filter(r => (String(r[filtroDataCampo] ?? '')) <= filtroDataAte);
+    // Compara datas de verdade (parseadas), não texto — a coluna tem registros
+    // salvos tanto em "YYYY-MM-DD" quanto em "DD/MM/YYYY", e a comparação de
+    // string entre os dois formatos não corresponde à ordem cronológica real
+    // (ex: "12/01/2026" e "2026-01-01" nunca vão comparar corretamente como texto).
+    if (filtroDataDe) {
+      const deMs = new Date(`${filtroDataDe}T00:00:00`).getTime();
+      data = data.filter(r => { const d = parseDateProd(String(r[filtroDataCampo] ?? '')); return d !== null && d.getTime() >= deMs; });
+    }
+    if (filtroDataAte) {
+      const ateMs = new Date(`${filtroDataAte}T23:59:59`).getTime();
+      data = data.filter(r => { const d = parseDateProd(String(r[filtroDataCampo] ?? '')); return d !== null && d.getTime() <= ateMs; });
+    }
     // Quick filter: Fundo a Fundo — filtra pelo campo Área/Estágio da Situação da Demanda
     if (filtroTipoRapido === 'fundo_a_fundo')
       data = data.filter(r => (r.area_estagio_situacao_demanda ?? '').toUpperCase().includes('FUNDO A FUNDO'));
