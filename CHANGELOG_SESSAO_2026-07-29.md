@@ -91,6 +91,12 @@ Depois das correções acima, propus 4 melhorias de manutenção/performance; o 
 - Corrigido: `useMemo` adicionado ao import `react` existente. Build e type-check reconfirmados depois da correção.
 - Arquivo: `src/App.tsx`.
 
+### 13. Filtro de coluna quebrava com "Cannot access '...' before initialization"
+`7e9cc50`
+- Depois da correção do item 12, o app abria mas clicar em qualquer filtro de coluna quebrava. Causa: o `useMemo` de `openColumnFilterOptions` executa sua factory imediatamente durante o render — e essa factory chama `getColumnFilterOptions`, que usa `columnToDataField`, um `const` declarado LOGO DEPOIS do `useMemo` no arquivo. Antes da memoização isso nunca dava erro porque a chamada só acontecia dentro do JSX, bem mais abaixo no render (depois de `columnToDataField` já existir); virou uma referência prematura (temporal dead zone) assim que passou a rodar mais cedo.
+- Corrigido movendo o `useMemo` para depois da declaração de `columnToDataField`. Confirmado que nenhuma outra dependência do `useMemo` tem esse mesmo problema.
+- Arquivo: `src/App.tsx`.
+
 ---
 
 **Build e type-check (`npx tsc --noEmit -p .` + `npm run build`) passaram limpos após cada alteração.**
