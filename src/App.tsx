@@ -3761,7 +3761,7 @@ export default function App() {
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <header className="bg-[#071d42] z-50 shadow-xl flex-shrink-0 border-b border-white/10">
         <div className="px-2 sm:px-4">
-          <div className="flex justify-between items-center h-14">
+          <div className="flex justify-between items-center h-14 gap-2">
             {/* Left: Hamburger + Logo + Title + Nav */}
             <div className="flex items-center gap-2">
               {/* Hamburger — primeiro elemento, abre/fecha sidebar */}
