@@ -8533,7 +8533,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                     {([
                       { label: 'Pendentes',   value: totalPendentes,   color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/30' },
                       { label: 'Confirmadas', value: totalConfirmadas, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30' },
-                      { label: 'Total',       value: notifTodas.length, color: 'text-blue-300',   bg: 'bg-blue-500/10 border-blue-500/30' },
+                      { label: 'Total',       value: notifDedup.length, color: 'text-blue-300',   bg: 'bg-blue-500/10 border-blue-500/30' },
                       { label: 'Técnicos',    value: totalTecnicos,    color: 'text-purple-300',  bg: 'bg-purple-500/10 border-purple-500/30' },
                     ] as const).map(kpi => (
                       <div key={kpi.label} className={`rounded-xl border px-4 py-3 ${kpi.bg} shadow-sm hover:shadow-md transition-shadow`}>
