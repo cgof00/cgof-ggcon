@@ -62,7 +62,7 @@ import { DashboardTecnico } from './DashboardTecnico';
 import { UserManagementPanel } from './UserManagementPanel';
 import { AdminSidebar } from './components/AdminSidebar';
 // EmendasDataTable removido - sistema usa somente Formalização
-import logo1Img from './img/logo1.png';
+import logo1Img from './img/BRASAO-3-texto-branco.png';
 
 // ===== CSV Import mapping =====
 const CSV_TO_EMENDAS_MAP: Record<string, string> = {
@@ -711,6 +711,8 @@ export default function App() {
   const [saveErrorToast, setSaveErrorToast] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isBuscaListaOpen, setIsBuscaListaOpen] = useState(false);
+  // Header compacto (telas estreitas): busca vira ícone que expande um dropdown ao clicar
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [buscaListaText, setBuscaListaText] = useState('');
   // Lista de termos já aplicados (separados por vírgula/quebra/ponto-e-vírgula)
   const [buscaListaTerms, setBuscaListaTerms] = useState<string[]>([]);
@@ -3792,14 +3794,17 @@ export default function App() {
               <nav className="flex items-center gap-0.5 bg-white/10 p-0.5 rounded-lg flex-shrink-0">
                 <button
                   onClick={() => setActiveTab('formalizacao')}
-                  className={`px-2 sm:px-3 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'formalizacao' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
+                  title="Formalização"
+                  className={`px-2 sm:px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'formalizacao' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
                 >
-                  Formalização
+                  <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="hidden lg:inline">Formalização</span>
                 </button>
                 {(user?.role === 'admin' || user?.role === 'visualizador') && (
                   <>
                     <button
                       onClick={() => setActiveTab('admin')}
+                      title="Demonstrativo"
                       className={`px-2 sm:px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${activeTab === 'admin' ? 'bg-white text-[#1351B4] shadow-sm' : 'text-white/90 hover:bg-white/20'}`}
                     >
                       <BarChart3 className="w-3.5 h-3.5 flex-shrink-0" />
@@ -3808,6 +3813,7 @@ export default function App() {
                     {isAdmin && (
                       <button
                         onClick={() => { setNotifFiltroAba('pendentes'); setShowNotifAdminModal(true); }}
+                        title="Atribuições"
                         className="relative px-2 sm:px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 text-white/90 hover:bg-white/20 whitespace-nowrap"
                       >
                         <ClipboardList className="w-3.5 h-3.5 flex-shrink-0" />
@@ -3826,13 +3832,14 @@ export default function App() {
             {/* Center Spacer */}
             <div className="flex-1" />
 
-            {/* Center: Search */}
-            <div className="relative hidden md:flex items-center gap-1.5">
+            {/* Center: Search — expandida em telas largas (xl+), vira ícone com dropdown
+                abaixo disso para nunca sumir nem sobrepor os outros blocos do header. */}
+            <div className="relative hidden xl:flex items-center gap-1.5">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/50" />
-                <input 
-                  type="text" 
-                  placeholder="Buscar demanda, técnico..." 
+                <input
+                  type="text"
+                  placeholder="Buscar demanda, técnico..."
                   className={`pl-9 pr-3 py-1.5 bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:bg-white/18 focus:border-white/40 rounded-lg text-xs w-60 transition-all outline-none ${buscaListaTerms.length > 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -3850,13 +3857,69 @@ export default function App() {
                 }`}
               >
                 <FileSearch className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="hidden lg:inline">
+                <span>
                   {buscaListaTerms.length > 0 ? `Lista (${buscaListaTerms.length})` : 'Busca em lista'}
                 </span>
+              </button>
+            </div>
+
+            {/* Busca compacta (abaixo de xl) — ícone que abre um dropdown com os mesmos campos */}
+            <div className="relative flex xl:hidden items-center flex-shrink-0">
+              <button
+                onClick={() => setIsMobileSearchOpen(v => !v)}
+                title="Buscar demanda, técnico..."
+                className={`relative p-2 rounded-lg transition-all ${
+                  isMobileSearchOpen || searchTerm || buscaListaTerms.length > 0
+                    ? 'bg-white/20 text-white'
+                    : 'text-white/80 hover:text-white hover:bg-white/15'
+                }`}
+              >
+                <Search className="w-4 h-4" />
                 {buscaListaTerms.length > 0 && (
-                  <span className="lg:hidden font-bold">{buscaListaTerms.length}</span>
+                  <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-900 text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center shadow">
+                    {buscaListaTerms.length}
+                  </span>
                 )}
               </button>
+              <AnimatePresence>
+                {isMobileSearchOpen && (
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      onClick={() => setIsMobileSearchOpen(false)}
+                      className="fixed inset-0 z-[59]"
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                      className="absolute right-0 top-full mt-2 w-72 bg-[#0b2b5c] border border-white/20 rounded-xl shadow-2xl p-3 flex flex-col gap-2 z-[60]"
+                    >
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/50" />
+                        <input
+                          type="text"
+                          autoFocus
+                          placeholder="Buscar demanda, técnico..."
+                          className={`w-full pl-9 pr-3 py-1.5 bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:bg-white/18 focus:border-white/40 rounded-lg text-xs transition-all outline-none ${buscaListaTerms.length > 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          disabled={buscaListaTerms.length > 0}
+                        />
+                      </div>
+                      <button
+                        onClick={() => { setIsBuscaListaOpen(true); setIsMobileSearchOpen(false); }}
+                        className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                          buscaListaTerms.length > 0
+                            ? 'bg-amber-400 text-slate-900 hover:bg-amber-300 shadow-md'
+                            : 'bg-white/15 text-white border border-white/25 hover:bg-white/25 hover:border-white/40'
+                        }`}
+                      >
+                        <FileSearch className="w-3.5 h-3.5 flex-shrink-0" />
+                        {buscaListaTerms.length > 0 ? `Lista (${buscaListaTerms.length})` : 'Busca em lista'}
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Right: Tools + User */}
@@ -3990,11 +4053,12 @@ export default function App() {
                 );
               })()}
 
-              {/* Última importação de emendas — hidden on mobile. Vem do servidor (compartilhado
-                  por todos os usuários), gravado quando um admin importa um novo arquivo em
-                  "Importar Emendas" — não é só o cache deste navegador. */}
+              {/* Última importação de emendas — versão completa em telas médias+ (md), vira só
+                  ícone com indicador abaixo disso (nunca desaparece por completo). Vem do
+                  servidor (compartilhado por todos os usuários), gravado quando um admin
+                  importa um novo arquivo em "Importar Emendas" — não é só o cache deste navegador. */}
               <div
-                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/8 border border-white/12"
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/8 border border-white/12"
                 title={ultimaImportacao ? `Última importação de emendas${ultimaImportacao.usuario ? ` — por ${ultimaImportacao.usuario}` : ''}` : 'Nenhuma importação de emendas registrada ainda'}
               >
                 <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${ultimaImportacao ? 'bg-emerald-400 animate-pulse' : 'bg-white/30'}`} />
@@ -4010,6 +4074,13 @@ export default function App() {
                     <p className="text-[11px] text-white/35 leading-tight">sem registro</p>
                   )}
                 </div>
+              </div>
+              <div
+                className="relative md:hidden flex items-center justify-center w-9 h-9 rounded-lg bg-white/8 border border-white/12 flex-shrink-0"
+                title={ultimaImportacao ? `Última importação de emendas: ${new Date(ultimaImportacao.em).toLocaleString('pt-BR')}${ultimaImportacao.usuario ? ` — por ${ultimaImportacao.usuario}` : ''}` : 'Nenhuma importação de emendas registrada ainda'}
+              >
+                <Upload className="w-3.5 h-3.5 text-white/60" />
+                <span className={`absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full ${ultimaImportacao ? 'bg-emerald-400 animate-pulse' : 'bg-white/30'}`} />
               </div>
 
               {/* User info — compact, no dropdown (sidebar has all options) */}
