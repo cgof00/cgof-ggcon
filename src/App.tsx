@@ -3774,15 +3774,15 @@ export default function App() {
               >
                 {isSidebarOpen ? <ChevronLeft className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
-              <img 
-                src={logo1Img} 
-                alt="Logo" 
-                className="h-[3.375rem] object-contain flex-shrink-0"
+              <img
+                src={logo1Img}
+                alt="Governo do Estado de São Paulo — Secretaria da Saúde"
+                className="h-11 sm:h-12 object-contain flex-shrink-0"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}
               />
-              <div className="hidden md:flex flex-col">
+              <div className="hidden md:flex flex-col justify-center">
                 <h1 className="text-sm font-bold text-white leading-tight">Controle de Formalização</h1>
                 <span className="text-[10px] text-white/50">Gestão de Emendas e Convênios</span>
               </div>
