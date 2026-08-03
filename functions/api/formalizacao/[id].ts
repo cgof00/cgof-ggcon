@@ -48,12 +48,14 @@ export const onRequest: PagesFunction = async (context) => {
       // ── PROTEÇÃO CRÍTICA: somente admin pode alterar técnico e conferencista ─
       // Qualquer outro role que enviar esses campos no payload tem os campos ignorados.
       // Isso evita que usuários modifiquem acidentalmente as atribuições ao salvar.
+      // Nota: `data_liberacao_assinatura_conferencista` NÃO entra aqui — é um campo de
+      // tramitação (data), não de atribuição, e está na lista de campos editáveis pelo
+      // próprio conferencista no formulário (conferencistaEditableFields em src/App.tsx).
       if (callerRole !== 'admin') {
         delete body['tecnico'];
         delete body['data_liberacao'];
         delete body['usuario_atribuido_id'];
         delete body['conferencista'];
-        delete body['data_liberacao_assinatura_conferencista'];
       }
 
       // Allow empty strings to clear fields
@@ -150,11 +152,19 @@ export const onRequest: PagesFunction = async (context) => {
       } catch (_) { /* não deve quebrar a operação */ }
       // ──────────────────────────────────────────────────────────────────────────
 
-      // ── Propagar campos de análise ao grupo agregado (mesmo nº de demanda) ──
+      // ── Propagar campos de tramitação ao grupo agregado (mesmo nº de demanda) ──
+      // Uma "demanda" pode ter várias linhas (uma por emenda agregada). Ao editar
+      // qualquer uma delas, os campos de tramitação da demanda (não os da emenda
+      // individual, como valor/parlamentar/número da emenda) são replicados para
+      // as demais linhas com o mesmo `demanda`.
+      // ⚠️ Manter esta lista sincronizada com PROPAGATE_FIELDS em server.ts e com
+      // PROPAGATE_TO_GRUPO_FIELDS em src/App.tsx.
       const ANALISE_FIELDS = [
         'situacao_analise_demanda', 'data_analise_demanda', 'area_estagio_situacao_demanda',
         'area_estagio', 'motivo_retorno_diligencia', 'data_retorno_diligencia',
         'data_retorno', 'observacao_motivo_retorno', 'observacao_analise_demanda', 'data_liberacao_conferencia',
+        'data_liberacao_assinatura', 'data_liberacao_assinatura_conferencista', 'data_recebimento_demanda',
+        'falta_assinatura', 'assinatura', 'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em',
       ];
       const propagateData: Record<string, unknown> = {};
       for (const field of ANALISE_FIELDS) {

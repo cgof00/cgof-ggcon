@@ -114,6 +114,17 @@ const CSV_NORMALIZED_MAP: Record<string, string> = Object.fromEntries(
 );
 const NUMERIC_COLUMNS = new Set(['valor', 'valor_desembolsado', 'valor_total_empenhado', 'valor_total_liquidado', 'valor_total_pago', 'valor_total_ordem_bancaria']);
 const INTEGER_COLUMNS = new Set(['qtd_dias']);
+// Campos de tramitação da demanda que o backend propaga para as demais linhas com o
+// mesmo `demanda` (emendas agregadoras). Usado aqui só para refletir a propagação no
+// cache local sem esperar um refetch. ⚠️ Manter sincronizado com ANALISE_FIELDS em
+// functions/api/formalizacao/[id].ts e PROPAGATE_FIELDS em server.ts.
+const PROPAGATE_TO_GRUPO_FIELDS = [
+  'situacao_analise_demanda', 'data_analise_demanda', 'area_estagio_situacao_demanda',
+  'area_estagio', 'motivo_retorno_diligencia', 'data_retorno_diligencia',
+  'data_retorno', 'observacao_motivo_retorno', 'observacao_analise_demanda', 'data_liberacao_conferencia',
+  'data_liberacao_assinatura', 'data_liberacao_assinatura_conferencista', 'data_recebimento_demanda',
+  'falta_assinatura', 'assinatura', 'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em',
+];
 function parseBRNumber(val: string): number {
   if (!val || !/^[0-9.,]+$/.test(val.trim())) return 0;
   return parseFloat(val.trim().replace(/\./g, '').replace(',', '.')) || 0;
@@ -3386,6 +3397,12 @@ export default function App() {
     const prevRecord = savedId
       ? (allDataCacheRef.current.find((f: any) => f.id === savedId) ?? editingFormalizacao)
       : null;
+    // Snapshot das linhas irmãs (mesma "demanda" — emendas agregadoras) para rollback,
+    // já que elas também recebem update otimista com os campos de tramitação propagados.
+    const demandaGrupoValue = editingFormalizacao?.demanda;
+    const prevSiblingRecords = (savedId && demandaGrupoValue)
+      ? allDataCacheRef.current.filter((f: any) => f.id !== savedId && f.demanda === demandaGrupoValue)
+      : [];
 
     // Marca esta submissão como a mais recente para este registro (ver comentário no ref)
     const mySubmitSeq = savedId ? (latestSubmitSeqRef.current.get(savedId) ?? 0) + 1 : 0;
@@ -3398,8 +3415,19 @@ export default function App() {
     // UPDATE OTIMISTA VERDADEIRO: aplica no UI e fecha o form ANTES da resposta do servidor
     if (editingFormalizacao) {
       const optimisticRecord = { ...editingFormalizacao, ...data };
+      // Campos de tramitação também propagados para as linhas irmãs (mesma demanda),
+      // espelhando a propagação feita pelo backend (ver PROPAGATE_TO_GRUPO_FIELDS).
+      const propagateFields: Record<string, unknown> = {};
+      for (const field of PROPAGATE_TO_GRUPO_FIELDS) {
+        if (field in data) propagateFields[field] = data[field];
+      }
+      const hasGroupPropagation = !!demandaGrupoValue && Object.keys(propagateFields).length > 0;
       const applyUpdate = (list: any[]) =>
-        list.map((f: any) => f.id === editingFormalizacao.id ? { ...f, ...optimisticRecord } : f);
+        list.map((f: any) => {
+          if (f.id === editingFormalizacao.id) return { ...f, ...optimisticRecord };
+          if (hasGroupPropagation && f.demanda === demandaGrupoValue) return { ...f, ...propagateFields };
+          return f;
+        });
 
       if (allDataCacheRef.current.length > 0) {
         allDataCacheRef.current = applyUpdate(allDataCacheRef.current);
@@ -3436,7 +3464,11 @@ export default function App() {
       // Não reverte se uma submissão mais nova já assumiu este registro
       if (latestSubmitSeqRef.current.get(savedId) !== mySubmitSeq) return;
       const revert = (list: any[]) =>
-        list.map((f: any) => f.id === savedId ? prevRecord : f);
+        list.map((f: any) => {
+          if (f.id === savedId) return prevRecord;
+          const sibling = prevSiblingRecords.find((s: any) => s.id === f.id);
+          return sibling ?? f;
+        });
       allDataCacheRef.current = revert(allDataCacheRef.current);
       filteredForExportRef.current = revert(filteredForExportRef.current);
       setFormalizacoes(prev => revert(prev));

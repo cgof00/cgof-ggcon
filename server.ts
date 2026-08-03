@@ -2959,10 +2959,10 @@ const app = express();
       // Nome real do usuário (do JWT) para registrar no histórico
       const userName: string = req.user?.nome || req.user?.email || 'sistema';
 
-      // 1) Captura tamanho atual do histórico para identificar entradas novas
+      // 1) Captura tamanho atual do histórico (e demanda, p/ propagação) antes do UPDATE
       const { data: oldRecord } = await supabase
         .from("formalizacao")
-        .select("historico_situacao")
+        .select("historico_situacao, demanda")
         .eq("id", id)
         .single();
       const oldHistoricoCount: number = Array.isArray(oldRecord?.historico_situacao)
@@ -3006,6 +3006,37 @@ const app = express();
 
         if (!patchError) {
           data.historico_situacao = patchedHistorico;
+        }
+      }
+
+      // 5) Propaga campos de tramitação ao grupo agregado (mesmo nº de demanda)
+      // Uma "demanda" pode ter várias linhas (uma por emenda agregada). Ao editar
+      // qualquer uma delas, os campos de tramitação da demanda (não os da emenda
+      // individual, como valor/parlamentar/número da emenda) são replicados para
+      // as demais linhas com o mesmo `demanda`.
+      // ⚠️ Manter esta lista sincronizada com ANALISE_FIELDS em
+      // functions/api/formalizacao/[id].ts e com PROPAGATE_TO_GRUPO_FIELDS em src/App.tsx.
+      const PROPAGATE_FIELDS = [
+        'situacao_analise_demanda', 'data_analise_demanda', 'area_estagio_situacao_demanda',
+        'area_estagio', 'motivo_retorno_diligencia', 'data_retorno_diligencia',
+        'data_retorno', 'observacao_motivo_retorno', 'observacao_analise_demanda', 'data_liberacao_conferencia',
+        'data_liberacao_assinatura', 'data_liberacao_assinatura_conferencista', 'data_recebimento_demanda',
+        'falta_assinatura', 'assinatura', 'publicacao', 'vigencia', 'encaminhado_em', 'concluida_em',
+      ];
+      const propagateData: Record<string, unknown> = {};
+      for (const field of PROPAGATE_FIELDS) {
+        if (field in cleanBody) propagateData[field] = cleanBody[field];
+      }
+      if (Object.keys(propagateData).length > 0 && oldRecord?.demanda) {
+        const { error: propError } = await supabase
+          .from("formalizacao")
+          .update({ ...propagateData, updated_at: new Date().toISOString() })
+          .eq("demanda", oldRecord.demanda)
+          .neq("id", id);
+        if (propError) {
+          console.warn("⚠️ Falha ao propagar ao grupo agregado:", propError.message);
+        } else {
+          console.log(`✅ Alterações propagadas ao grupo agregado (demanda=${oldRecord.demanda})`);
         }
       }
 
