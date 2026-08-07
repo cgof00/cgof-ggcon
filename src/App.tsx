@@ -3380,6 +3380,20 @@ export default function App() {
       if (estagioNovo.startsWith('EM CONFERÊNCIA') && !(data.data_liberacao_conferencia ?? '').trim() && !(editingFormalizacao.data_liberacao_conferencia ?? '').trim()) {
         data.data_liberacao_conferencia = new Date().toISOString().slice(0, 10);
       }
+      // Desfaz a liberação automaticamente quando o técnico analisou errado: se a demanda
+      // já estava liberada (data_liberacao_conferencia preenchida) e o técnico tira o estágio
+      // de "EM CONFERÊNCIA" para outra coisa antes de um conferencista ser atribuído, a
+      // liberação não faz mais sentido — sem isso a linha continuava marcada como "liberada
+      // para conferência" mesmo com a Área – Estágio já apontando para outro lugar.
+      if (
+        !estagioNovo.startsWith('EM CONFERÊNCIA') &&
+        estagioNovo !== estagioAnterior &&
+        (editingFormalizacao.data_liberacao_conferencia ?? '').trim() !== '' &&
+        !(data.conferencista ?? editingFormalizacao.conferencista ?? '').trim() &&
+        !(data.data_liberacao_conferencia ?? '').trim()
+      ) {
+        data.data_liberacao_conferencia = '';
+      }
     }
     // Auto-preenche data_recebimento_demanda para o conferencista de forma análoga.
     // Quando conferencista assume e não preencheu: usa hoje.
@@ -6116,6 +6130,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                           );
                         }
                         if (jaLiberado) {
+                          // Quem pode desfazer: admin, ou o próprio técnico responsável (ex: analisou
+                          // errado e precisa corrigir a Área – Estágio antes de liberar de novo).
+                          const podeDesfazer = isAdmin || isTecnicoAtribuido;
                           return (
                             <div className="md:col-span-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 text-xs font-semibold">
                               <FileSearch className="w-3.5 h-3.5 flex-shrink-0" />
@@ -6124,21 +6141,46 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                   ? <>Liberada para conferência em {formatDateForDisplay(dataLiberacaoStr)} — aguardando atribuição de conferencista</>
                                   : <>Liberada para conferência (Área – Estágio já em "EM CONFERÊNCIA") — aguardando atribuição de conferencista</>}
                               </span>
-                              {isAdmin && (
+                              {podeDesfazer && (
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    // Limpa a liberação para conferência
                                     if (liberarConferenciaInputRef.current) {
                                       liberarConferenciaInputRef.current.value = '';
                                     }
-                                    setEditingFormalizacao(prev => prev ? { ...prev, data_liberacao_conferencia: '' } : prev);
+                                    // Limpa a data de análise para permitir refazer a análise do zero
+                                    // (enquanto preenchida, o botão "Demanda Analisada" fica escondido)
+                                    const dataAnaliseInput = editFormRef.current?.querySelector(
+                                      'input[name="data_analise_demanda"]'
+                                    ) as HTMLInputElement | null;
+                                    if (dataAnaliseInput) dataAnaliseInput.value = '';
+                                    // Volta a Área – Estágio para "DEMANDA COM O TÉCNICO" (preservando a
+                                    // variante Fundo a Fundo) se ainda estiver em "EM CONFERÊNCIA" — senão
+                                    // isLiberadoParaConferencia() continuaria considerando a demanda liberada
+                                    // mesmo com a data de liberação limpa
+                                    const estagioAtual = (editingFormalizacao.area_estagio_situacao_demanda ?? '').trim().toUpperCase();
+                                    let novoEstagio = editingFormalizacao.area_estagio_situacao_demanda ?? '';
+                                    if (estagioAtual.startsWith('EM CONFERÊNCIA')) {
+                                      novoEstagio = estagioAtual.includes('FUNDO A FUNDO')
+                                        ? 'DEMANDA COM O TÉCNICO - FUNDO A FUNDO'
+                                        : 'DEMANDA COM O TÉCNICO';
+                                      const areaSelect = document.getElementById('area_estagio_situacao_demanda_select') as HTMLSelectElement | null;
+                                      if (areaSelect) areaSelect.value = novoEstagio;
+                                    }
+                                    setEditingFormalizacao(prev => prev ? {
+                                      ...prev,
+                                      data_liberacao_conferencia: '',
+                                      data_analise_demanda: '',
+                                      area_estagio_situacao_demanda: novoEstagio,
+                                    } : prev);
                                     // Salva imediatamente sem fechar o modal — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
                                     salvarFormularioRapido(true);
                                   }}
                                   className="flex-shrink-0 text-sky-600 hover:text-sky-800 hover:underline font-semibold"
-                                  title="Remover a liberação para conferência (ex: foi liberada por engano)"
+                                  title="Desfazer a análise (ex: técnico analisou errado) — a demanda volta para o técnico corrigir a Área – Estágio"
                                 >
-                                  Remover
+                                  Desfazer Análise
                                 </button>
                               )}
                             </div>
