@@ -718,6 +718,10 @@ export default function App() {
   const [editingFormalizacao, setEditingFormalizacao] = useState<Formalizacao | null>(null);
   const [formDirty, setFormDirty] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // Confirmação exibida após "Demanda Analisada": o técnico decide explicitamente se a
+  // demanda já está pronta pra liberar para conferência ou se ainda tem pendências —
+  // evita liberar por engano quando a análise encontrou algo que precisa de ajuste antes.
+  const [confirmLiberacaoConferencia, setConfirmLiberacaoConferencia] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveErrorToast, setSaveErrorToast] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -3263,6 +3267,7 @@ export default function App() {
     setFormDirty(false);
     setSaveErrorToast(null);
     setConfirmDiscard(false);
+    setConfirmLiberacaoConferencia(false);
     let recordToEdit = f;
     try {
       const resp = await fetch(`/api/formalizacao/${f.id}`, { headers: getHeaders() });
@@ -3295,11 +3300,13 @@ export default function App() {
       setEditingFormalizacao(null);
       setFormDirty(false);
       setSaveErrorToast(null);
+      setConfirmLiberacaoConferencia(false);
     }
   };
 
   const discardAndClose = () => {
     setConfirmDiscard(false);
+    setConfirmLiberacaoConferencia(false);
     setIsFormalizacaoFormOpen(false);
     setEditingFormalizacao(null);
     setFormDirty(false);
@@ -5674,6 +5681,58 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                 </div>
               )}
 
+              {/* Diálogo de confirmação: liberar para conferência ou ainda tem pendências? */}
+              {confirmLiberacaoConferencia && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm rounded-2xl">
+                  <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="bg-violet-100 p-2 rounded-lg flex-shrink-0">
+                        <FileSearch className="w-5 h-5 text-violet-600" />
+                      </div>
+                      <h3 className="text-base font-bold text-slate-800">Liberar para conferência?</h3>
+                    </div>
+                    <p className="text-sm text-slate-600 mb-5 leading-relaxed">
+                      A análise foi registrada. Esta demanda está pronta para o admin atribuir um conferencista, ou ainda há pendências que precisam ser resolvidas antes (nesse caso, ajuste a Área – Estágio manualmente depois)?
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const dataHoje = (document.getElementById('data_analise_demanda_hidden') as HTMLInputElement | null)?.value
+                            || new Date().toISOString().slice(0, 10);
+                          if (liberarConferenciaInputRef.current && !liberarConferenciaInputRef.current.value) {
+                            liberarConferenciaInputRef.current.value = dataHoje;
+                          }
+                          const areaSelect = document.getElementById('area_estagio_situacao_demanda_select') as HTMLSelectElement | null;
+                          const fundoCheck = document.getElementById('demanda_analisada_fundo_a_fundo') as HTMLInputElement | null;
+                          if (areaSelect) {
+                            areaSelect.value = fundoCheck?.checked ? 'EM CONFERÊNCIA - FUNDO A FUNDO' : 'EM CONFERÊNCIA';
+                          }
+                          setConfirmLiberacaoConferencia(false);
+                          // Salva imediatamente sem fechar o modal — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
+                          salvarFormularioRapido(true);
+                        }}
+                        className="px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 transition-colors"
+                      >
+                        Sim, liberar para conferência
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmLiberacaoConferencia(false);
+                          // Salva só a data de análise (Área – Estágio permanece como está) — o técnico
+                          // ajusta manualmente pra situação de pendência correta e salva de novo depois
+                          salvarFormularioRapido(true);
+                        }}
+                        className="px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                      >
+                        Não, ainda há pendências
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Header */}
               <div className="px-6 py-4 flex justify-between items-center bg-gradient-to-r from-[#1351B4] to-[#0C326F]">
                 <div>
@@ -6085,19 +6144,13 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const dataHoje = preencherDataDeHoje('data_analise_demanda_hidden', 'data_analise_demanda_display');
-                                  // Mesmo clique também libera a demanda para o admin atribuir um conferencista
-                                  if (liberarConferenciaInputRef.current && !liberarConferenciaInputRef.current.value) {
-                                    liberarConferenciaInputRef.current.value = dataHoje;
-                                  }
-                                  // Move a Área - Estágio para "EM CONFERÊNCIA" (ou variante Fundo a Fundo, conforme o checkbox)
-                                  const areaSelect = document.getElementById('area_estagio_situacao_demanda_select') as HTMLSelectElement;
-                                  const fundoCheck = document.getElementById('demanda_analisada_fundo_a_fundo') as HTMLInputElement;
-                                  if (areaSelect) {
-                                    areaSelect.value = fundoCheck?.checked ? 'EM CONFERÊNCIA - FUNDO A FUNDO' : 'EM CONFERÊNCIA';
-                                  }
-                                  // Salva imediatamente sem fechar o modal — não depende do usuário lembrar de clicar em "Atualizar Registro" depois
-                                  salvarFormularioRapido(true);
+                                  // Só registra que a análise aconteceu — NÃO libera para conferência
+                                  // automaticamente. A liberação passa pela confirmação abaixo, porque
+                                  // o técnico pode concluir a análise e encontrar pendências que impedem
+                                  // seguir para conferência (ex: Área – Estágio deveria ir para "OUTRAS
+                                  // PENDÊNCIAS", não para "EM CONFERÊNCIA").
+                                  preencherDataDeHoje('data_analise_demanda_hidden', 'data_analise_demanda_display');
+                                  setConfirmLiberacaoConferencia(true);
                                 }}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap"
                               >
@@ -6107,7 +6160,7 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                             </div>
                             <label className="flex items-center gap-1.5 mt-1.5 text-[11px] text-gray-500 cursor-pointer select-none">
                               <input type="checkbox" id="demanda_analisada_fundo_a_fundo" className="rounded border-gray-300 accent-violet-600" />
-                              É Fundo a Fundo? (ao clicar em "Demanda Analisada", a Área – Estágio vai para "EM CONFERÊNCIA - FUNDO A FUNDO" em vez de "EM CONFERÊNCIA")
+                              É Fundo a Fundo? (se confirmar a liberação, a Área – Estágio vai para "EM CONFERÊNCIA - FUNDO A FUNDO" em vez de "EM CONFERÊNCIA")
                             </label>
                           </>
                         )}
