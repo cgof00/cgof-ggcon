@@ -90,6 +90,7 @@ export const onRequest: PagesFunction = async (context) => {
       result: {
         updated:           result?.updated           || 0,
         inserted:          result?.inserted          || 0,
+        concluded:         result?.concluded         || 0,
         staging_count:     result?.total             || 0,
         has_more:          result?.has_more          ?? false,
         offset:            result?.offset            ?? p_offset,

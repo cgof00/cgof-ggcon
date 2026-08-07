@@ -1870,6 +1870,7 @@ export default function App() {
         let offset = 0;
         let batchNum = 1;
         let totalInserted = 0;   // reported by SQL (may under-count if prev run timed out)
+        let totalConcluded = 0;  // demandas concluídas automaticamente (Processo SIAFEM)
         let totalStaging = 0;
         let emendasCleaned = false;
         let finalFormalizacaoCount: number | null = null;
@@ -1899,6 +1900,7 @@ export default function App() {
 
           const r = batch.result || batch;
           totalInserted += r.inserted || 0;
+          totalConcluded += r.concluded || 0;
           if (r.total)                  totalStaging = r.total;
           if (r.emendas_cleaned)        emendasCleaned = true;
           if (r.formalizacao_count != null) finalFormalizacaoCount = r.formalizacao_count;
@@ -1949,6 +1951,7 @@ export default function App() {
           `• ${totalStaging} emendas no staging\n` +
           `• ${actualInserted} novas formalizações inseridas` +
           (finalFormalizacaoCount != null ? ` (total: ${finalFormalizacaoCount})` : '') +
+          (totalConcluded > 0 ? `\n• ${totalConcluded} demandas concluídas automaticamente (Processo SIAFEM)` : '') +
           (emendasCleaned ? `\n\n🧹 Staging limpo automaticamente` : '')
         );
 
