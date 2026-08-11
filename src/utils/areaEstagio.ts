@@ -174,6 +174,10 @@ export const SEMPAPEL_AREA_MAP: Record<string, string> = {
   'Em Análise de Admissibilidade do Órgão/Entidade - Segundo Remanejamento': '8 - Pagamento',
   // ── 9 - CONCLUÍDO ─────────────────────────────────────────────────────────
   'Convênio e/ou Repasse Fundo a Fundo - Concluído e recurso repassado': '9 - Concluído',
+  // Variantes reais gravadas pelo SemPapel (en-dash, minúsculas, sem o prefixo "Convênio e/ou")
+  'Repasse Fundo a Fundo – concluído e recurso repassado': '9 - Concluído',
+  'Convênio – formalização concluída e recurso repassado': '9 - Concluído',
+  'Repasse Direto – concluído e recurso repassado': '9 - Concluído',
   'Demanda finalizada': '9 - Concluído',
   'Processo SIAFEM': '9 - Concluído',
   '**Emenda Paga': '9 - Concluído',
@@ -234,6 +238,11 @@ export function deriveAreaEstagio(r: { situacao_demandas_sempapel?: string | nul
   const exact = SEMPAPEL_AREA_MAP[sempapel];
   if (exact) return exact;
   const l = sempapel.toLowerCase();
+
+  // Qualquer variante "concluíd[ao] ... repassad[ao]" é finalização — precisa vir
+  // antes das regras de 'fundo a fundo' e 'formalização', que senão capturam o texto
+  // primeiro e escondem repasses já concluídos dentro de estágios ainda ativos.
+  if (l.includes('conclu') && l.includes('repassad'))                              return '9 - Concluído';
 
   if (l.startsWith('demanda com o técnico'))                                      return '4 - CGOF - GGCON';
   if (l.startsWith('em análise da documentação'))                                 return '4 - CGOF - GGCON';

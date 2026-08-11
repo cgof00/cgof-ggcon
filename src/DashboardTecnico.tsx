@@ -226,6 +226,13 @@ const GGCON_STAGES = new Set([
 //   2. publicacao preenchida (publicação no DOE)
 //   3. area_estagio_situacao_demanda = "PROCESSO SIAFEM" (mas NÃO "EM PROCESSO SIAFEM")
 //   4. situacao_demandas_sempapel = "PROCESSO SIAFEM" (mesma ressalva)
+//   5. deriveAreaEstagio(r) resolve para '9 - Concluído' — delega para o MESMO
+//      mapa de área usado no resto do sistema (utils/areaEstagio.ts) em vez de
+//      duplicar padrões de texto aqui. Isso cobre variantes como "Demanda
+//      finalizada", "Demanda Concluída", "Emenda Executada", "Repasse Fundo a
+//      Fundo – concluído e recurso repassado" etc. sem risco de as duas listas
+//      divergirem de novo (já causou o balde "8 - Pagamento" ficar inflado com
+//      demandas já pagas, contadas como "ativas").
 // Usada em TODOS os demonstrativos para garantir consistência.
 function isConcluida(r: FormalizacaoRow): boolean {
   if ((r.concluida_em ?? '').trim()) return true;
@@ -234,7 +241,8 @@ function isConcluida(r: FormalizacaoRow): boolean {
   const sitSemP = (r.situacao_demandas_sempapel ?? '').trim().toUpperCase();
   const isProcessoSiafem = (s: string) =>
     s.includes('PROCESSO SIAFEM') && !s.startsWith('EM PROCESSO');
-  return isProcessoSiafem(areaEst) || isProcessoSiafem(sitSemP);
+  if (isProcessoSiafem(areaEst) || isProcessoSiafem(sitSemP)) return true;
+  return deriveAreaEstagio(r) === '9 - Concluído';
 }
 
 function computeColValues(rows: FormalizacaoRow[]): Record<ColKey, number> {
@@ -3516,14 +3524,14 @@ export function DashboardTecnico({ initialData, refreshKey }: { initialData?: Fo
           {/* ── Demandas Mais Atrasadas por Técnico ─────────────────── */}
           <CollapsibleSection title={`Demandas Mais Atrasadas — por ${viewMode === 'tecnico' ? 'Técnico' : 'Conferencista'}`} icon={Flame} headerBg="bg-slate-600 hover:bg-slate-500" collapsed={sec.atrasadas} onToggle={() => toggleSec('atrasadas')}>
           {(() => {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
             // Only non-completed demands with a liberação date
             const pending = filtered.filter(r => !isConcluida(r) && (r.data_liberacao ?? '').trim());
-            // Compute days since liberação for each
+            // Compute days since liberação for each — usa daysSinceTL (aceita
+            // DD/MM/YYYY e YYYY-MM-DD) em vez de `new Date(str + 'T00:00:00')`,
+            // que silenciosamente vira Invalid Date para datas em DD/MM/YYYY e
+            // removia ~21% das demandas atrasadas do ranking.
             const withDays = pending.map(r => {
-              const d = new Date(r.data_liberacao + 'T00:00:00');
-              const dias = isNaN(d.getTime()) ? 0 : Math.floor((today.getTime() - d.getTime()) / 86400000);
+              const dias = daysSinceTL(r.data_liberacao);
               return { ...r, dias_atraso: Math.max(0, dias) };
             }).filter(r => r.dias_atraso > 0);
             // Group by técnico
