@@ -2877,13 +2877,46 @@ export default function App() {
       'AGUARDANDO FINALIZAÇÃO', 'LOTE3'
     ];
 
+    // Converte string de data (BR, ISO ou ISO com hora) em número de série do Excel
+    // (dias desde 30/12/1899), grafado direto como célula numérica com formato de
+    // data — isso é o que faz a coluna virar data "de verdade" no Excel e habilita
+    // os filtros nativos "Ano/Trimestre/Mês/Dia".
+    // Importante: o cálculo usa Date.UTC nos dois lados (nunca `new Date(y,m,d).getTime()`
+    // local nem a conversão automática do SheetJS para objetos Date), porque
+    // `Date#getTimezoneOffset()` para o ano-base 1899 retorna o offset histórico de
+    // Hora Legal do Brasil (não um múltiplo redondo de minutos), o que introduzia um
+    // erro fracionário e fazia a data exportada aparecer um dia antes da real.
+    const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30);
+    const dateToExcelCell = (y: number, m: number, d: number) => ({
+      t: 'n' as const,
+      v: Math.round((Date.UTC(y, m - 1, d) - EXCEL_EPOCH_UTC) / 86400000),
+      z: 'dd/mm/yyyy',
+    });
+    const parseDateForExcelCell = (raw: string) => {
+      const s = raw.trim();
+      if (!s) return null;
+      const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      if (br) {
+        const [, d, m, y] = br;
+        return dateToExcelCell(+y, +m, +d);
+      }
+      const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (iso) {
+        const [, y, m, d] = iso;
+        return dateToExcelCell(+y, +m, +d);
+      }
+      const dt = new Date(s);
+      if (isNaN(dt.getTime())) return null;
+      return dateToExcelCell(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
+    };
+
     const header = cols.map(c => c.label);
     const rows = data.map(row =>
       cols.map(({ key }) => {
         const v = (row as any)[key];
         if (v === null || v === undefined || v === '') return '';
         if (DATE_COLUMNS.has(key)) {
-          return formatDateForDisplay(String(v));
+          return parseDateForExcelCell(String(v)) ?? '';
         }
         if (key === 'falta_assinatura') {
           const parts = String(v).split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -2900,6 +2933,14 @@ export default function App() {
 
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
     ws['!cols'] = cols.map(({ label }) => ({ wch: Math.max(label.length + 2, 14) }));
+
+    // Habilita o AutoFiltro do Excel já na abertura do arquivo — com as células
+    // de data acima sendo datas reais, o submenu de filtro passa a oferecer
+    // agrupamento por Ano/Trimestre/Mês/Dia.
+    if (ws['!ref']) {
+      ws['!autofilter'] = { ref: ws['!ref'] };
+    }
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Formalização');
     const fileName = `formalizacao_${new Date().toISOString().slice(0, 10)}.xlsx`;
