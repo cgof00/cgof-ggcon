@@ -3749,32 +3749,37 @@ export default function App() {
   };
 
   // Normalizar data para DD/MM/YYYY, detectando formato automaticamente
+  // (a coluna pode vir em ISO "YYYY-MM-DD", ISO com hora "YYYY-MM-DDTHH:MM:SS(.sss)(Z)",
+  // ISO com espaço "YYYY-MM-DD HH:MM:SS" ou já em "DD/MM/YYYY" — ver memória
+  // project-datas-formato-misto: formatos vêm misturados na mesma coluna)
   const formatDateForDisplay = (dateStr: string): string => {
     if (!dateStr || dateStr === '—') return '—';
-    
-    // Limpar espaços
+
     dateStr = dateStr.trim();
     if (!dateStr) return '—';
-    
-    // Se já está em DD/MM/YYYY (10 caracteres com /)
-    if (dateStr.length === 10 && dateStr.includes('/') && dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-      return dateStr;
+
+    // DD/MM/YYYY, com ou sem hora/sufixo depois
+    const brMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (brMatch) {
+      return `${brMatch[1]}/${brMatch[2]}/${brMatch[3]}`;
     }
-    
-    // Se está em YYYY-MM-DD ou YYYY-MM-DD HH:MM:SS
-    if (dateStr.includes('-')) {
-      const parts = dateStr.split(' ')[0].split('-'); // Pega apenas DD-MM-YYYY ignorando hora
-      if (parts.length === 3) {
-        const [year, month, day] = parts;
-        // Verificar se é YYYY-MM-DD (4 dígitos no início)
-        if (year.length === 4) {
-          return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
-        }
-      }
+
+    // YYYY-MM-DD, com ou sem hora (separada por espaço ou "T")
+    const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      const [, year, month, day] = isoMatch;
+      return `${day}/${month}/${year}`;
     }
-    
-    // Fallback: retorna como está
-    return dateStr.substring(0, 10);
+
+    // Fallback: tenta deixar o Date interpretar (cobre outros formatos inesperados)
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      return `${day}/${month}/${d.getFullYear()}`;
+    }
+
+    return dateStr;
   };
 
   const formatCurrency = (value?: number) => {
