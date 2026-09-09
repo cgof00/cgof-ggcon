@@ -129,6 +129,14 @@ function parseBRNumber(val: string): number {
   if (!val || !/^[0-9.,]+$/.test(val.trim())) return 0;
   return parseFloat(val.trim().replace(/\./g, '').replace(',', '.')) || 0;
 }
+// A planilha "Relatório Emendas" traz a coluna "Situação Demanda" prefixada com o número
+// da etapa do fluxo (ex: "36. Nota de Empenho", "22.1. Anexar Nota de Reserva - GCF").
+// Remove esse prefixo numérico antes de gravar, mantendo só o texto da situação — o número
+// muda a cada nova etapa do processo e não tem valor para exibição/filtros/comparações.
+function stripPrefixoNumerico(val: string): string {
+  return val.replace(/^\s*\d+(?:\.\d+)*\.\s*/, '').trim();
+}
+const COLUNAS_SEM_PREFIXO_NUMERICO = new Set(['situacao_d']);
 // Compara emenda normalizando pontos: suporta "2026.005.80418", "202600580418" e "80418"
 function matchEmendaValue(stored: any, search: string): boolean {
   if (!stored || !search) return false;
@@ -153,6 +161,7 @@ function mapCsvRowToEmendas(row: Record<string, string>): Record<string, any> | 
     if (val === undefined || val === null) continue;
     if (NUMERIC_COLUMNS.has(dbColumn)) mapped[dbColumn] = parseBRNumber(val);
     else if (INTEGER_COLUMNS.has(dbColumn)) mapped[dbColumn] = /^\d+$/.test(val.trim()) ? parseInt(val.trim(), 10) : 0;
+    else if (COLUNAS_SEM_PREFIXO_NUMERICO.has(dbColumn)) mapped[dbColumn] = stripPrefixoNumerico(val);
     else mapped[dbColumn] = val;
   }
   if (!mapped.codigo_num || String(mapped.codigo_num).trim() === '') return null;
@@ -1154,7 +1163,8 @@ export default function App() {
     semTecnico: { id: number; demanda: string }[];                           // deduplicated for display
     allIdsSemTecnico: number[];  // all IDs (incl. duplicates) for API call
     allIdsComTecnico: number[];  // all IDs (incl. duplicates) for API call
-  }>({ jaAtribuidos: [], semTecnico: [], allIdsSemTecnico: [], allIdsComTecnico: [] });
+    concluidas: { id: number; demanda: string; publicacao: string }[];       // deduplicated: já têm Publicação
+  }>({ jaAtribuidos: [], semTecnico: [], allIdsSemTecnico: [], allIdsComTecnico: [], concluidas: [] });
 
   // Estado para modal de atribuição de conferencista
   const [showAtribuirConferencistaModal, setShowAtribuirConferencistaModal] = useState(false);
@@ -3411,6 +3421,21 @@ export default function App() {
         data[key] = value;
       }
     });
+
+    // ── Avisa antes de atribuir técnico em demanda já concluída (com Publicação) ──
+    // Uma demanda com Publicação preenchida já foi formalizada; atribuir técnico
+    // nesse ponto normalmente é engano do admin, então confirma antes de prosseguir.
+    if (editingFormalizacao) {
+      const novoTecnico = String(data.tecnico ?? '').trim();
+      const tecnicoAnterior = String(editingFormalizacao.tecnico ?? '').trim();
+      const publicacaoStr = String(editingFormalizacao.publicacao ?? '').trim();
+      const mudouTecnico = novoTecnico !== '' && novoTecnico !== tecnicoAnterior;
+      if (mudouTecnico && publicacaoStr !== '' && publicacaoStr !== '—') {
+        const confirmMsg = `⚠️ Esta demanda já está CONCLUÍDA (Publicação em ${formatDateForDisplay(publicacaoStr)}).\n\n` +
+          `Tem certeza que deseja atribuir o técnico "${novoTecnico}" mesmo assim?`;
+        if (!confirm(confirmMsg)) return;
+      }
+    }
 
     // ── Auto-preenche data_analise_demanda ao sair do estágio "preso" ────────
     // Quando o técnico muda area_estagio_situacao_demanda de "DEMANDA COM O TÉCNICO"
@@ -6678,6 +6703,9 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                             // Deduplicated maps for display (one entry per unique demand number)
                             const demandasComTecnico = new Map<string, { id: number; demanda: string; tecnicoAtual: string }>();
                             const demandasSemTecnico = new Map<string, { id: number; demanda: string }>();
+                            // Demandas já concluídas (com Publicação preenchida) — atribuir técnico
+                            // aqui normalmente é engano do admin, então avisa antes de confirmar.
+                            const demandasConcluidas = new Map<string, { id: number; demanda: string; publicacao: string }>();
                             for (const id of ids) {
                               const reg = cache.find((r: any) => r.id === id);
                               const label = reg ? (reg.demandas_formalizacao || reg.demanda || `ID ${id}`) : `ID ${id}`;
@@ -6688,12 +6716,17 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                 allIdsSemTecnico.push(id);
                                 if (!demandasSemTecnico.has(label)) demandasSemTecnico.set(label, { id, demanda: label });
                               }
+                              const publicacaoStr = String(reg?.publicacao ?? '').trim();
+                              if (publicacaoStr !== '' && publicacaoStr !== '—' && !demandasConcluidas.has(label)) {
+                                demandasConcluidas.set(label, { id, demanda: label, publicacao: publicacaoStr });
+                              }
                             }
                             setAtribuicaoConflicts({
                               jaAtribuidos: Array.from(demandasComTecnico.values()),
                               semTecnico: Array.from(demandasSemTecnico.values()),
                               allIdsSemTecnico,
                               allIdsComTecnico,
+                              concluidas: Array.from(demandasConcluidas.values()),
                             });
                             setAtribuicaoStep('confirm');
                           }}
@@ -6739,11 +6772,29 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                           </div>
                         </div>
                       )}
+                      {atribuicaoConflicts.concluidas.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-red-700 mb-1 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" />⚠️ Já concluída(s) (com Publicação) — confirme antes de atribuir:</p>
+                          <div className="max-h-36 overflow-y-auto border border-red-200 rounded-lg divide-y divide-red-100 bg-red-50">
+                            {atribuicaoConflicts.concluidas.map(r => (
+                              <div key={r.id} className="px-3 py-1.5 flex justify-between items-center text-xs">
+                                <span className="text-slate-700 truncate max-w-[55%]" title={r.demanda}>{r.demanda}</span>
+                                <span className="text-red-600 font-semibold truncate">Publicação: {formatDateForDisplay(r.publicacao)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <div className="flex gap-3 pt-2">
                         <button type="button" onClick={() => setAtribuicaoStep('select')} className="flex-1 px-4 py-2.5 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition-colors" disabled={atribuindoTecnico}>← Voltar</button>
                         {atribuicaoConflicts.jaAtribuidos.length > 0 && atribuicaoConflicts.semTecnico.length > 0 && (
                           <button type="button" onClick={async () => {
-                            const confirmMsg = `Confirma atribuição apenas dos ${atribuicaoConflicts.allIdsSemTecnico.length} registro(s) sem técnico?\n\n(Os ${atribuicaoConflicts.jaAtribuidos.length} que já têm técnico não serão alterados)`;
+                            const concluidasWarning = atribuicaoConflicts.concluidas.length > 0
+                              ? `⚠️ ATENÇÃO: ${atribuicaoConflicts.concluidas.length} demanda(s) selecionada(s) já está(ão) CONCLUÍDA(S) (com Publicação):\n\n` +
+                                atribuicaoConflicts.concluidas.map(c => `• ${c.demanda} — Publicação: ${formatDateForDisplay(c.publicacao)}`).join('\n') +
+                                `\n\n`
+                              : '';
+                            const confirmMsg = concluidasWarning + `Confirma atribuição apenas dos ${atribuicaoConflicts.allIdsSemTecnico.length} registro(s) sem técnico?\n\n(Os ${atribuicaoConflicts.jaAtribuidos.length} que já têm técnico não serão alterados)`;
                             if (confirm(confirmMsg)) {
                               executarAtribuicaoTecnico(atribuicaoConflicts.allIdsSemTecnico);
                             }
@@ -6763,6 +6814,11 @@ CREATE POLICY "Permitir tudo para usuários autenticados" ON emendas FOR ALL TO 
                                 `Tem certeza que deseja continuar?`;
                             } else {
                               confirmMsg = `Confirma atribuição do técnico ${atribuicaoTecnico?.nome} para ${atribuicaoConflicts.allIdsSemTecnico.length} registro(s)?`;
+                            }
+                            if (atribuicaoConflicts.concluidas.length > 0) {
+                              confirmMsg = `⚠️ ATENÇÃO: ${atribuicaoConflicts.concluidas.length} demanda(s) selecionada(s) já está(ão) CONCLUÍDA(S) (com Publicação):\n\n` +
+                                atribuicaoConflicts.concluidas.map(c => `• ${c.demanda} — Publicação: ${formatDateForDisplay(c.publicacao)}`).join('\n') +
+                                `\n\n` + confirmMsg;
                             }
                             if (confirm(confirmMsg)) {
                               executarAtribuicaoTecnico([...atribuicaoConflicts.allIdsSemTecnico, ...atribuicaoConflicts.allIdsComTecnico]);
