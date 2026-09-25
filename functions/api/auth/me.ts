@@ -63,9 +63,9 @@ export const onRequest: PagesFunction = async (context) => {
       );
     }
 
-    // Get environment variables - prioritize ANON key (less restrictive from Cloudflare Workers)
+    // Somente service_role (server-side): a chave anon não tem acesso às tabelas (RLS ativo)
     const supabaseUrl = context.env.SUPABASE_URL;
-    const supabaseKey = context.env.SUPABASE_ANON_KEY || context.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseKey = context.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
       return new Response(
@@ -81,6 +81,7 @@ export const onRequest: PagesFunction = async (context) => {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey,
         'Content-Type': 'application/json',
       },
     });

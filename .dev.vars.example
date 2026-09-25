@@ -1,0 +1,2 @@
+# Copie para .dev.vars (ignorado pelo git) para rodar `wrangler pages dev` localmente.
+SUPABASE_SERVICE_ROLE_KEY=cole_aqui_a_chave_secreta_nova

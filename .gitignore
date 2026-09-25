@@ -10,3 +10,9 @@ emendas-import.csv
 Copia_Dashboard_*.csv
 hash-output.txt
 temp_debug.txt
+
+# Segredos locais — nunca versionar
+.env
+.dev.vars
+*.log
+.kilo/
