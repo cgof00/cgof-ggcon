@@ -1,3 +1,5 @@
+import { signAuthToken } from '../../_shared/auth-token';
+
 export const onRequest: PagesFunction = async (context) => {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -95,13 +97,16 @@ export const onRequest: PagesFunction = async (context) => {
 
       console.log(`✅ Login successful for ${user.email}`);
 
-      const token = btoa(JSON.stringify({
+      if (!env.AUTH_TOKEN_SECRET) {
+        return new Response(JSON.stringify({ error: 'Configuração do servidor incompleta (AUTH_TOKEN_SECRET)' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
+      const token = await signAuthToken({
         id: user.id,
         email: user.email,
         nome: user.nome || '',
         role: user.role,
         exp: Math.floor(Date.now() / 1000) + 86400
-      }));
+      }, env.AUTH_TOKEN_SECRET as string);
 
       return new Response(JSON.stringify({
         token: token,

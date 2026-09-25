@@ -29,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isTokenExpired = (t: string): boolean => {
     try {
       const payload = JSON.parse(atob(t));
+      if (!payload.sig) return true; // sessão antiga (sem assinatura) → força novo login
       const now = Math.floor(Date.now() / 1000);
       return payload.exp ? payload.exp < now : false;
     } catch {

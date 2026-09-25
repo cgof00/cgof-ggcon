@@ -1,2 +1,3 @@
 # Copie para .dev.vars (ignorado pelo git) para rodar `wrangler pages dev` localmente.
 SUPABASE_SERVICE_ROLE_KEY=cole_aqui_a_chave_secreta_nova
+AUTH_TOKEN_SECRET=gere_com_node_-e_"console.log(require(\"crypto\").randomBytes(48).toString(\"base64url\"))"
