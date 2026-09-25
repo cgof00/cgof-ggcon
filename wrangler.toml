@@ -5,9 +5,8 @@ compatibility_date = "2024-12-12"
 # Variáveis públicas (disponíveis em dev e prod)
 [vars]
 SUPABASE_URL = "https://dvziqcgjuidtkihoeqdc.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2emlxY2dqdWlkdGtpaG9lcWRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTY0MDEsImV4cCI6MjA4NzY5MjQwMX0.Ck6FSoE-Ol1Te8dZ9qc4T9gGLKXukR-JsN3oK0M3iWE"
 
 # SUPABASE_SERVICE_ROLE_KEY NUNCA deve ficar neste arquivo (ele é versionado).
-# Produção: Cloudflare Dashboard > Pages > gestor-emendas > Settings > Variables and Secrets (tipo "Secret")
-#   ou: npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name gestor-emendas
+# Produção: Cloudflare Dashboard > Pages > cgof-ggcon > Settings > Variables and Secrets (tipo "Secret")
+#   ou: npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name cgof-ggcon
 # Local:    copie .dev.vars.example para .dev.vars (ignorado pelo git) e preencha.
